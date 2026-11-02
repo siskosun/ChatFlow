@@ -183,7 +183,7 @@
  async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent='已选择 '+selectedKeys.size+' 个原始文件。完整当前分支历史将另行生成附件；未选择或不可用的原始文件不会自动上传。'+(excluded?'本档案按保存范围跳过 '+excluded+' 个文件。':'')+(missing?'另有 '+missing+' 个文件未取得实际字节。':'');$('prepare').disabled=!c?.snapshot||c.state==='capturing';}
  async function prepare(){
   C.check(selectedId,'CAPTURE_NOT_READY');status('正在校验接续文件。');
-  const h=await call('tl:prepareHandoff',{captureId:selectedId,keys:[...selectedKeys],instructions:$('instructions').value,batchLimit:Number($('batch-limit').value)});
+  const h=await call('tl:prepareHandoff',{captureId:selectedId,activeNodes:branchSelections.get(selectedId),keys:[...selectedKeys],instructions:$('instructions').value,batchLimit:Number($('batch-limit').value)});
   handoffId=h.id;planFingerprint=fingerprint();await renderHandoff(h);status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
  }
  async function renderHandoff(h){
