@@ -390,6 +390,7 @@ async def main():
             handoff_result=await workspace.evaluate("""async x=>chrome.runtime.sendMessage({type:'tl:prepareHandoff',captureId:x.captureId,activeNodes:x.path,keys:[],instructions:'Continue from selected branch.',batchLimit:10})""",alternate_nodes)
             assert handoff_result.ok,handoff_result
             branch_handoff=handoff_result.data
+            assert branch_handoff['sourceConversationId'] and len(branch_handoff['snapshotHash'])==64 and branch_handoff['branchNodeIds']==alternate_nodes['path']
             history_file=await workspace.evaluate("""async id=>{const h=await TLStore.get(id);return h.files.find(x=>x.kind==='history')}""",branch_handoff['id'])
             history_text=await workspace.evaluate("async sha=>(await TLStore.verifiedBlob(sha)).text()",history_file['sha256'])
             assert 'ALTERNATE_BRANCH' in history_text and 'known fact at position 119: 2023' not in history_text
