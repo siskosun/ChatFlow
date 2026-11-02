@@ -209,6 +209,13 @@ async def main():
             refreshed_capture=await workspace.evaluate('id=>TLStore.get("captures",id)',cid)
             assert after_recapture==before_recapture and refreshed_capture['id']==cid and refreshed_capture['snapshot']['source']['conversationId']==CID
             passed('recapture_updates_the_existing_archive_instead_of_creating_a_duplicate')
+            # The very same ChatGPT tab can navigate to an unrelated conversation.
+            # A cached tab-id-only archive selection must never be reused for it.
+            await source.goto(SOURCE_AMBIG)
+            await wait_async(workspace,'()=>document.querySelector("#capture").textContent==="保存对话"&&document.querySelector("#continue").hidden',timeout=15000)
+            await source.goto(SOURCE)
+            await wait_async(workspace,'()=>document.querySelector("#capture").textContent==="重新采集对话"&&!document.querySelector("#continue").hidden',timeout=15000)
+            passed('recapture_source_lookup_revalidates_same_tab_conversation_navigation')
             await workspace.get_by_role('button',name='继续这段对话').click()
             await workspace.get_by_role('heading',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
