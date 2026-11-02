@@ -127,7 +127,7 @@
   for(const m of messages.slice(0,messageLimit)){
    const block=node('div',null,'message');block.dataset.messageId=m.id;block.dataset.nodeId=m.nodeId;
    block.append(node('strong',m.role+' · '+m.id));
-   const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';block.append(pre);
+   const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';pre.tabIndex=0;pre.setAttribute('aria-label','历史消息正文，可用键盘选择文字并保存重点片段');block.append(pre);
    let pending=null;const save=button('保存选中片段',async()=>{
     C.check(pending,'PASSAGE_SELECTION_REQUIRED');
     const prior=reanchorPassageId?passageRows.find(p=>p.passageId===reanchorPassageId):null;
