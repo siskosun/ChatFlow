@@ -38,7 +38,7 @@
   const send = payload => new Promise((resolve,reject) => {
     chrome.runtime.sendMessage(payload,response => {
       if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-      if (!response?.ok) return reject(new Error(response?.error || "后台没有返回结果"));
+      if (!response?.ok) return reject(new Error(response?.code || response?.error || "后台没有返回结果"));
       resolve(response.data);
     });
   });

@@ -1,6 +1,6 @@
 # ChatFlow
 
-ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.1 聚焦 ChatGPT 对话保存、附件真实字节保全、本地档案恢复，以及向新的普通 ChatGPT 对话安全接续。
+ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.1 聚焦 ChatGPT 对话保存、附件真实字节保全、本地档案恢复，以及向新的普通 ChatGPT 对话安全接续。0.1 仅有 ChatGPT 生产适配器；其他平台不宣称支持。
 
 ## 核心流程
 
@@ -21,7 +21,7 @@ ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.1 聚焦
 
 ## 开发状态
 
-**版本：0.1 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md) 和 [并行实验说明](docs/EXPERIMENTS.md)。
+**版本：0.1 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
 
 ## 构建
 
