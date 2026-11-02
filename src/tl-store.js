@@ -1,12 +1,12 @@
 /* ChatFlow IndexedDB, extension origin only. MIT. */
 (() => {
  'use strict';
- const C=globalThis.TLCore,NAME='chatflow-local-archive-v1';let opening;
+ const C=globalThis.TLCore,NAME='chatflow-local-archive-v1',openings=new Map();
  const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IDB_REQUEST_FAILED'));});
- function open(){
-  if(opening)return opening;
-  opening=new Promise((resolve,reject)=>{
-   const r=indexedDB.open(NAME,2);
+ function open(name=NAME){
+  if(openings.has(name))return openings.get(name);
+  const pending=new Promise((resolve,reject)=>{
+   const r=indexedDB.open(name,2);
    r.onupgradeneeded=()=>{
     const db=r.result;
     if(!db.objectStoreNames.contains('captures'))db.createObjectStore('captures',{keyPath:'id'});
@@ -16,10 +16,11 @@
     if(!db.objectStoreNames.contains('handoffs'))db.createObjectStore('handoffs',{keyPath:'id'});
     if(!db.objectStoreNames.contains('passages')){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');p.createIndex('createdAt','createdAt');p.createIndex('source',['captureId','conversationId','messageId','nodeId']);}
    };
-   r.onerror=()=>{opening=null;reject(r.error||new Error('IDB_OPEN_FAILED'));};
-   r.onblocked=()=>{opening=null;reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
-   r.onsuccess=()=>{r.result.onversionchange=()=>{r.result.close();opening=null;};resolve(r.result);};
-  });return opening;
+   r.onerror=()=>{openings.delete(name);reject(r.error||new Error('IDB_OPEN_FAILED'));};
+   r.onblocked=()=>{openings.delete(name);reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
+   r.onsuccess=()=>{r.result.onversionchange=()=>{r.result.close();openings.delete(name);};resolve(r.result);};
+  });
+  openings.set(name,pending);return pending;
  }
  async function transaction(names,mode,body){
   const db=await open();return new Promise((resolve,reject)=>{
