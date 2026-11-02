@@ -9,7 +9,7 @@
   check(typeof query==='string'&&query.length<=500,'INVALID_CONTEXT_QUERY');
   check(Number.isSafeInteger(tokenBudget)&&tokenBudget>=1000&&tokenBudget<=1000000,'INVALID_CONTEXT_TOKEN_BUDGET');
   const terms=query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const seen=new Set(),sourceRecords=[],assetRecords=[],sections=[];
+  const seen=new Set(),seenMessages=new Map(),sourceRecords=[],assetRecords=[],sections=[],duplicateMessages=[],conflictingVersions=[];
   for(const source of sources){
    check(C.record(source)&&typeof source.captureId==='string'&&source.captureId.length>0,'INVALID_CONTEXT_SOURCE');
    check(!seen.has(source.captureId),'DUPLICATE_CONTEXT_SOURCE');seen.add(source.captureId);
