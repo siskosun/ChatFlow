@@ -26,3 +26,11 @@
 - ThreadLine Fork：冻结 W0/P、K=2–4、盲测/揭盲/裁决核心及隔离数据库。
 - Panelize：request ID、动作回执、超时与失败分类原则；ChatFlow 不引入其不必要的外部运行时。
 - ChatGPT 页面接续仍使用 MoveChat 式 File/DataTransfer 机制的安全子集；永不自动发送。
+
+## 0.1 分支身份绑定与修复验收
+
+预填完成 ACK 同时记录来源 tab、初始 documentId、origin 和 attempt。只有扩展在同一文档内观察到与冻结任务一致的可信人工点击 Send 或 Enter 事件才登记发送意图；这个动作**不是**服务器已收到消息的证明。该文档内第一次观察到的普通新聊天 `/c/<conversationId>` URL，被绑定为 attempt 的会话归属。
+
+开始手动采集之前，必须确认来源 tab、documentId、conversationId、origin、attempt、发送意图和当前标签/页面 URL 全部一致。采集完成还要核对原始快照的来源身份、捕获文档和分支证据。跳转到另一个对话、重载文档或出现缺失身份，均进入 unknown，不自动重试、不伪装成 done。
+
+ChatGPT 使用单页路由时，浏览器扩展消息携带的 MessageSender.url 可能仍指向初次加载的空白聊天页面，因此以当前标签 URL 识别当前会话，且保留发送方来源域、documentId 及所选会话的全部约束。合成测试通过不能替代真实登录环境下的会话创建与切换行为验收。
