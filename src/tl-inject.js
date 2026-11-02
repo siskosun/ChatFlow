@@ -97,5 +97,5 @@
   }
  }
  api.runtime.onMessage.addListener((msg,sender,respond)=>{if(sender.id!==api.runtime.id)return false;if(msg?.type==='tl:handoffAvailable'){prepare();respond({ok:true});}if(msg?.type==='TL_EXPERIMENT_HANDOFF_READY'){prepareExperiment();respond({ok:true});}return false;});
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>prepare(),{once:true});else prepare();
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{prepare();prepareExperiment();},{once:true});else{prepare();prepareExperiment();}
 })();
