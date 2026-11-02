@@ -49,7 +49,7 @@
  function updateContextButton(){$('build-context').disabled=contextSelectedIds.size===0;$('build-context').textContent=contextSelectedIds.size?'创建上下文包（'+contextSelectedIds.size+'）':'创建上下文包';}
  async function buildContextPackage(){
   C.check(contextSelectedIds.size>0,'INVALID_CONTEXT_SOURCES');status('正在校验所选档案并编译上下文。');
-  const mode=$('context-mode').value,sources=[];for(const id of [...contextSelectedIds]){const capture=await S.get('captures',id);C.check(capture?.snapshot&&!['capturing','error'].includes(capture.state),'CONTEXT_SOURCE_NOT_READY');const rows=await S.passages(id),passages=mode==='messages'?[]:rows.filter(p=>contextSelectedPassageIds.has(p.passageId));sources.push({captureId:id,snapshot:capture.snapshot,activeNodes:branchSelections.get(id)||capture.snapshot.active,assetRows:await S.assets(id),passages});}
+  const mode=$('context-mode').value,sources=[];for(const id of [...contextSelectedIds]){const capture=await S.get('captures',id);C.check(capture?.snapshot&&!['capturing','error'].includes(capture.state),'CONTEXT_SOURCE_NOT_READY');const rows=await S.passages(id),passages=mode==='messages'?[]:rows.filter(p=>contextSelectedPassageIds.has(p.passageId));sources.push({captureId:id,snapshot:capture.snapshot,activeNodes:selectedBranchNodes(capture),assetRows:await S.assets(id),passages});}
   const compiled=TLContext.compile(sources,{allBranches:$('context-all-branches').checked,includeSavedAssets:$('context-include-assets').checked,maxPartChars:Number($('context-part-size').value),query:$('context-query').value,tokenBudget:Number($('context-token-budget').value),passageMode:mode});
   const entries=[{name:'context_manifest.json',content:JSON.stringify(compiled.manifest,null,2)},{name:'context_index.md',content:compiled.index},...compiled.parts.map((part,i)=>({name:'context_part_'+String(i+1).padStart(3,'0')+'.md',content:part}))],included=new Set();
   for(const asset of compiled.assets){const path='assets/'+asset.sha256+'.bin';if(included.has(path))continue;const blob=await S.verifiedBlob(asset.sha256);entries.push({name:path,blob});included.add(path);}
@@ -81,6 +81,10 @@
    out.push({endNode,path,label});
   }
   return out;
+ }
+ function selectedBranchNodes(capture){
+  const choices=branchChoices(capture.snapshot),selected=branchSelections.get(capture.id);
+  return choices.find(x=>x.endNode===selected)?.path||capture.snapshot.active;
  }
  async function renderDetail(){
   const el=$('detail'),c=selectedId&&await S.get('captures',selectedId);el.replaceChildren();if(!c){el.append(node('p','请选择一个本地档案。','empty'));return;}
@@ -183,7 +187,8 @@
  async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent='已选择 '+selectedKeys.size+' 个原始文件。完整当前分支历史将另行生成附件；未选择或不可用的原始文件不会自动上传。'+(excluded?'本档案按保存范围跳过 '+excluded+' 个文件。':'')+(missing?'另有 '+missing+' 个文件未取得实际字节。':'');$('prepare').disabled=!c?.snapshot||c.state==='capturing';}
  async function prepare(){
   C.check(selectedId,'CAPTURE_NOT_READY');status('正在校验接续文件。');
-  const h=await call('tl:prepareHandoff',{captureId:selectedId,activeNodes:branchSelections.get(selectedId),keys:[...selectedKeys],instructions:$('instructions').value,batchLimit:Number($('batch-limit').value)});
+  const capture=await S.get('captures',selectedId);C.check(capture?.snapshot,'CAPTURE_NOT_READY');
+  const h=await call('tl:prepareHandoff',{captureId:selectedId,activeNodes:selectedBranchNodes(capture),keys:[...selectedKeys],instructions:$('instructions').value,batchLimit:Number($('batch-limit').value)});
   handoffId=h.id;planFingerprint=fingerprint();await renderHandoff(h);status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
  }
  async function renderHandoff(h){
