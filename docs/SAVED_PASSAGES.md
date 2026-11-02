@@ -30,7 +30,7 @@ The resolver never searches another message or branch to find a similar phrase. 
 
 Passages live in IndexedDB v2 object store `passages`, separate from captures/assets/files/chunks/handoffs. The v1→v2 upgrade adds this store without deleting or rewriting existing records. Deleting a passage does not delete its archive. Deleting an archive cascades only its own passages.
 
-Archive ZIP manifests may include an optional `passages` array. Older archives without it remain valid. Restore validates passage schema, source identity, hashes, offsets, state and color before importing records under the new local capture ID.
+Archive ZIP manifests may include an optional `passages` array. Older archives without it remain valid. Restore validates passage schema, source identity, hashes, offsets, state and color before importing records under the new local capture ID. Each restore generates a fresh local `passageId` and preserves the imported ID as `originPassageId`, so restoring the same ZIP more than once cannot overwrite a previously restored passage.
 
 ## Context Builder
 
@@ -42,6 +42,6 @@ The context manifest records passage ID, capture ID, snapshot hash, conversation
 
 ## UI behavior
 
-The local archive reader lets the user select text inside a displayed message and save it. Saved passages are painted with CSS Custom Highlight API where available; the source message DOM text is not wrapped or rewritten. Users can jump to the original message, choose one of four restrained colors, include passages in Context Builder, delete them, or explicitly reselect an excerpt in the same source message when stale/ambiguous.
+The local archive reader lets the user select text inside a keyboard-focusable displayed message and save it. Pointer and keyboard text selection are supported. Saved passages are painted with CSS Custom Highlight API where available; the source message DOM text is not wrapped or rewritten. Users can jump to the original message, choose one of four restrained colors, include passages in Context Builder, delete them, or explicitly reselect an excerpt in the same source message when stale/ambiguous.
 
 Real ChatGPT/Edge and human accessibility verification remains a later acceptance phase after engineering and automated tests are complete.
