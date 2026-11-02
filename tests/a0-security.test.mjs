@@ -69,3 +69,11 @@ test('built Edge package contains only active runtime scripts and restricted per
  const scripts=[...runtime].filter(x=>x.endsWith('.js'));
  for(const file of scripts){const source=fs.readFileSync(path.join(edge,file),'utf8');assert.equal(destructive(source),false,file);}
 });
+
+test('oversized ZIP restore errors are explained in plain user language',()=>{
+ const workspace=read('workspace/app.js');
+ for(const reason of ['ZIP_RESOURCE_LIMIT','ZIP_COMPRESSION_RATIO_LIMIT','ZIP_EXPANSION_LIMIT']){
+  assert.match(workspace,new RegExp(reason+':'));
+ }
+ assert.match(workspace,/单文件 64 MiB，合计 256 MiB/);
+});
