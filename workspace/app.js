@@ -72,7 +72,7 @@
   const zip=await A.buildZip(entries);await download(zip,'chatflow-context-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip');
   status('上下文包已生成：'+compiled.manifest.sources.length+' 份档案、'+compiled.manifest.sources.reduce((n,s)=>n+s.messageIds.length,0)+' 条消息、'+compiled.parts.length+' 个历史分段、估算 '+compiled.estimatedTokens+' tokens。'+(compiled.manifest.budgetExceeded?'已超过预算，内容已完整分段，请分批上传。':'')+'请核对清单后手动上传。');
  }
- async function choose(id){if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;$('handoff-result').hidden=true;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
+ async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;$('handoff-result').hidden=true;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
  function fileInput(text,onFile){const label=node('label',text,'file-button'),input=document.createElement('input');input.type='file';input.accept='.zip,application/zip';input.addEventListener('change',()=>guard(async()=>{const file=input.files?.[0];if(file)await onFile(file);input.value='';}));label.append(input);return label;}
  async function download(blob,name){
   const url=URL.createObjectURL(blob),notice=node('p','正在请求保存：'+name,'hint');document.querySelector('footer').append(notice);
