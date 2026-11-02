@@ -41,7 +41,7 @@ test('uses prefix and suffix to disambiguate duplicate text only inside the same
 test('marks repeated text ambiguous when context cannot distinguish candidates',()=>{
  const x=make('same target phrase and same target phrase','target phrase');
  const changed=snapshot('same target phrase and same target phrase');
- const altered={...x.record,messageHash:'0'.repeat(64),startOffset:0,endOffset:12};
+ const altered={...x.record,messageHash:'0'.repeat(64),prefix:'',suffix:'',startOffset:0,endOffset:12};
  const result=P.resolve(altered,changed);
  assert.equal(result.status,'ambiguous');assert.equal(result.reason,'MULTIPLE_UNRESOLVED_OCCURRENCES');
 });
