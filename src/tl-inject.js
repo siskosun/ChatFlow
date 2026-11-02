@@ -94,7 +94,7 @@
  }
  async function prepare(){
   if(started)return;let h;
-  try{h=await send('tl:claimHandoff');}catch{return;}
+  try{h=await send('tl:claimHandoff');}catch(e){notice('ChatFlow：新聊天页面未通过身份检查（'+code(e)+'），没有注入材料。请回档案页重新准备；不会自动重试。');return;}
   if(!h)return;started=true;let injected=false;
   try{
    notice('ChatFlow：核验本地接续材料。不会自动发送消息。');
