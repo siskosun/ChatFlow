@@ -172,6 +172,8 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 
 候选 artifact：`chatflow-candidate-daa26bed54179c99c55e612bb70ebab649ceba37`（ID `13118191970`，外层 ZIP 196,848 字节）。该提交的合成证据 artifact 由同一 Actions run 保存。
 
+PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代码；该准确 PR HEAD 的 Ubuntu/Windows 全流程亦在 [Actions run #41393277191](https://github.com/siskosun/ChatFlow/actions/runs/41393277191) 通过，候选包 artifact ID 为 `13118277223`。
+
 **尚未完成的外部验收：**
 
 1. 真实 ChatGPT 账号页面协议、旧对话、真实文件来源及下载、附件上传和实际模型读取行为。
