@@ -367,6 +367,7 @@ async def main():
             await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='known fact at position 0: 0')")
             passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='known fact at position 0: 0')")
             assert passage and passage['text']=='known fact at position 0: 0' and passage['nodeId'] and passage['messageHash'],passage
+            cid=passage['captureId']
             assert await workspace.locator('.passage-row').count()==1
             assert await workspace.evaluate("CSS.highlights.has('chatflow-saved-yellow')")
             passed('saved_passage_select_persist_restore_highlight_and_source_identity',{'passageId':passage['passageId'],'messageId':passage['messageId']})
