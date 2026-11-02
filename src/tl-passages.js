@@ -10,7 +10,7 @@
   check(message&&typeof message.id==='string'&&typeof message.nodeId==='string','INVALID_PASSAGE_MESSAGE');
   return hash({id:message.id,nodeId:message.nodeId,role:message.role,text:String(message.text||'')});
  }
- function create({passageId,captureId,snapshot,message,text,startOffset,endOffset,color='yellow',createdAt=Date.now(),updatedAt=createdAt,reanchoredAt=null,previousMessageHash=null}){
+ function create({passageId,captureId,snapshot,message,text,startOffset,endOffset,color='yellow',createdAt=Date.now(),updatedAt=createdAt,reanchoredAt=null,previousMessageHash=null,originPassageId=null}){
   check(typeof captureId==='string'&&captureId.length>0,'INVALID_PASSAGE_CAPTURE');
   check(snapshot?.schema==='threadline.snapshot/1'&&snapshot.source?.conversationId,'INVALID_PASSAGE_SNAPSHOT');
   check(message&&snapshot.messages.some(m=>m.id===message.id&&m.nodeId===message.nodeId),'PASSAGE_MESSAGE_NOT_IN_SNAPSHOT');
@@ -21,7 +21,7 @@
   check(occurrence>=0,'PASSAGE_OCCURRENCE_NOT_FOUND');
   check(['yellow','green','blue','pink'].includes(color),'INVALID_PASSAGE_COLOR');
   return{
-   schema:'chatflow.passage/1',passageId:passageId||C.id(),captureId,
+   schema:'chatflow.passage/1',passageId:passageId||C.id(),originPassageId,captureId,
    snapshotHash:snapshotHash(snapshot),conversationId:snapshot.source.conversationId,
    messageId:message.id,nodeId:message.nodeId,messageHash:messageHash(message),
    role:message.role,text:selected,prefix:body.slice(Math.max(0,startOffset-160),startOffset),
