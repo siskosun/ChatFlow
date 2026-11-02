@@ -18,7 +18,7 @@ async function sourceRun(msg,sender){
  const now=P.identify((await api.tabs.get(run.tabId)).url).identity;C.check(now.conversationId===run.source.conversationId&&now.origin===run.source.origin,'SOURCE_NAVIGATED');return run;
 }
 async function sendToSource(tabId,message){
- try{return await api.tabs.sendMessage(tabId,message);}catch{await api.scripting.executeScript({target:{tabId},files:['src/tl-core.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message);}
+ try{return await api.tabs.sendMessage(tabId,message);}catch{await api.scripting.executeScript({target:{tabId},files:['src/tl-core.js','src/tl-provider.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message);}
 }
 async function startCapture(msg){
  C.check(Number.isInteger(msg.tabId),'INVALID_TAB_ID');C.check(![...runs.values()].some(r=>r.tabId===msg.tabId),'SOURCE_ALREADY_RUNNING');
