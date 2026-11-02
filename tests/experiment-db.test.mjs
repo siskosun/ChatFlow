@@ -1,8 +1,8 @@
-const test=require("node:test");
-const assert=require("node:assert/strict");
-const fs=require("node:fs");
-const path=require("node:path");
-const vm=require("node:vm");
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";\nimport {fileURLToPath} from "node:url";\nconst __dirname=path.dirname(fileURLToPath(import.meta.url));
 
 function withFailedOpen(kind){
   const env={Promise,Error, module:{exports:{}},indexedDB:{

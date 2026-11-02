@@ -1,6 +1,6 @@
-const test=require("node:test");
-const assert=require("node:assert/strict");
-const F=require("../src/experiment-core.js");
+import test from "node:test";
+import assert from "node:assert/strict";
+import F from '../src/experiment-core.js';
 
 test("FF binds one session identity across all transitions of an attempt",async()=>{
  const initial=F.newExperiment(await F.freeze("W","P"),"exp_bound001");
