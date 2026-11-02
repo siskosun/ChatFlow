@@ -424,7 +424,6 @@ async def main():
             passed('context_builder_passage_only_mode_keeps_excerpt_and_complete_source_provenance')
             await workspace.locator('#context-mode').select_option('messages')
             await workspace.locator('.passage-row input[type=checkbox]').uncheck()
-            await workspace.locator('.context-toolbar details summary').click()
             await workspace.locator('#context-include-assets').check()
             async with workspace.expect_download(timeout=30000) as context_assets_download:
                 await workspace.locator('#build-context').click()
