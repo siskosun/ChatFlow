@@ -28,8 +28,8 @@
     check(resolved?.status==='anchored','CONTEXT_PASSAGE_NOT_ANCHORED');
     selectedPassages.push({passage,resolved});
    }
+   if(passageMode==='passages'&&selectedPassages.length===0)continue;
    check(selected.length>0||selectedPassages.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
-   if(passageMode==='passages')check(selectedPassages.length>0,'NO_SELECTED_CONTEXT_PASSAGES');
    const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set([...selected.map(m=>m.nodeId),...selectedPassages.map(x=>x.passage.nodeId)]);
    const rendered=[],sourceDuplicates=[],sourceConflicts=[];
    const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(snapshot))).hex();
@@ -88,6 +88,7 @@
     });
    }
   }
+  check(sourceRecords.length>0,passageMode==='passages'?'NO_SELECTED_CONTEXT_PASSAGES':'EMPTY_CONTEXT_SOURCE');
   const fullText=sections.join('\n\n---\n\n');
   const parts=[];
   for(let start=0;start<fullText.length;){
