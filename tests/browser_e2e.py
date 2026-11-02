@@ -381,6 +381,7 @@ async def main():
             await experiment_page.locator('#ff-list button').first.wait_for(state='visible',timeout=30000)
             await experiment_page.locator('#ff-list button').first.click()
             await experiment_page.locator('#ff-launch').wait_for(state='visible')
+            frozen=await experiment_page.locator('#ff-text').inner_text()
             existing=set(ctx.pages)
             await experiment_page.locator('#ff-launch').click()
             branch_pages=[]
@@ -390,7 +391,7 @@ async def main():
                 await asyncio.sleep(0.25)
             assert len(branch_pages)==2,[(p.url for p in ctx.pages)]
             for branch_page in branch_pages:
-                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg='frozen shared material\n\ncompare two independent answers',timeout=30000)
+                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen,timeout=30000)
                 assert await branch_page.evaluate('window.sends||0')==0
             await experiment_page.locator('#ff-refresh').click()
             await experiment_page.locator('#ff-list button').first.click()
