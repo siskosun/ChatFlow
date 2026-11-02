@@ -120,12 +120,14 @@
    if(passage.status!==resolved.status)await S.updatePassageStatus(passage.passageId,resolved.status,resolved.reason);
    const row=node('div',null,'passage-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedPassageIds.has(passage.passageId);check.disabled=resolved.status!=='anchored';check.setAttribute('aria-label','将重点片段加入上下文：'+passage.text.slice(0,60));
    check.addEventListener('change',()=>{check.checked?contextSelectedPassageIds.add(passage.passageId):contextSelectedPassageIds.delete(passage.passageId);});
-   const info=node('div');info.append(node('strong',passage.text),node('small',(resolved.status==='anchored'?'定位正常':resolved.status==='ambiguous'?'定位有歧义':'来源已变化')+' · '+passage.role+' · '+passage.messageId));
+   const sourceChoice=choices.find(x=>x.path.includes(passage.nodeId));
+   const info=node('div');info.append(node('strong',passage.text),node('small',(resolved.status==='anchored'?'定位正常':resolved.status==='ambiguous'?'定位有歧义':'来源已变化')+' · '+passage.role+' · '+passage.messageId+(sourceChoice?' · '+sourceChoice.label:'')));
    const controls=node('div',null,'actions'),colorSelect=document.createElement('select');
    colorSelect.setAttribute('aria-label','重点片段颜色');
    for(const color of ['yellow','green','blue','pink']){const option=new Option(({yellow:'黄色',green:'绿色',blue:'蓝色',pink:'粉色'})[color],color);colorSelect.add(option);}
    colorSelect.value=passage.color||'yellow';colorSelect.addEventListener('change',async()=>{await S.updatePassageColor(passage.passageId,colorSelect.value);await renderDetail();});
    controls.append(colorSelect);
+   if(resolved.status!=='anchored'&&sourceChoice&&!activeNodes.includes(passage.nodeId))controls.append(button('切换到来源分支',async()=>{branchSelections.set(c.id,sourceChoice.endNode);messageLimit=100;await renderDetail();status('已切换到重点片段来源分支，请重新定位。');}));
    if(resolved.status!=='anchored'&&snapshot.messages.some(m=>m.id===passage.messageId&&m.nodeId===passage.nodeId)&&activeNodes.includes(passage.nodeId))controls.append(button('重新选择片段',async()=>{
     reanchorPassageId=passage.passageId;messageLimit=Math.max(messageLimit,activeNodes.indexOf(passage.nodeId)+1);
     await renderDetail();status('请在原始消息中重新选中文字，再点击“更新重点片段”。');
