@@ -358,7 +358,7 @@ async def main():
             await workspace.get_by_role('button',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
-            for width in [320,360,1280]:
+            for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 await workspace.screenshot(path=str(OUT/f'ux-archive-{width}.png'),full_page=True)
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
@@ -370,7 +370,7 @@ async def main():
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.get_by_role('button',name='打开新聊天').is_visible()
             assert not await workspace.locator('#staging-details').evaluate('(e)=>e.open')
-            for width in [320,360,1280]:
+            for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-handoff-{width}.png'),full_page=True)
