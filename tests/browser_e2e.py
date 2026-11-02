@@ -463,6 +463,30 @@ async def main():
             assert 'Synthetic final answer' in comparison_text,comparison_text
             assert await experiment_page.locator('#ff-reveal').inner_text()==''
             passed('parallel_experiment_k2_manual_send_capture_completion_and_blind_comparison')
+            for branch_count in [3,4]:
+                await experiment_page.locator('#ff-w0').fill('shared material for K='+str(branch_count))
+                await experiment_page.locator('#ff-p').fill('compare independent branches K='+str(branch_count))
+                await experiment_page.locator('#ff-branch-count').select_option(str(branch_count))
+                await experiment_page.locator('#ff-save').click()
+                await experiment_page.locator('#ff-launch').wait_for(state='visible')
+                frozen_k=await experiment_page.locator('#ff-text').inner_text()
+                existing_k=set(ctx.pages)
+                await experiment_page.locator('#ff-launch').click()
+                pages_k=[]
+                for _ in range(100):
+                    pages_k=[p for p in ctx.pages if p not in existing_k and p.url.startswith('https://chatgpt.com/')]
+                    if len(pages_k)>=branch_count:break
+                    await asyncio.sleep(0.25)
+                assert len(pages_k)==branch_count,{'expected':branch_count,'actual':len(pages_k)}
+                for branch_page in pages_k:
+                    await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen_k,timeout=30000)
+                    assert await branch_page.evaluate('window.sends||0')==0
+                passed('parallel_experiment_k'+str(branch_count)+'_opens_exact_branch_count_with_identical_prefill_and_no_send',{'branches':branch_count})
+                await pages_k[-1].close()
+                await experiment_page.locator('#ff-refresh').click()
+                await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
+                for page in pages_k[:-1]:await page.close()
+                await asyncio.sleep(0.5)
             await experiment_page.locator('#ff-enable').uncheck()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
