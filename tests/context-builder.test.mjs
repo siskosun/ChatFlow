@@ -125,3 +125,11 @@ test('passage-only mode skips selected archives without selected passages but re
  assert.equal(out.manifest.sources.length,1);assert.equal(out.manifest.sources[0].captureId,'cap-2');
  assert.equal(out.manifest.passages.length,1);
 });
+
+test('passage-only context respects active-branch scope unless all branches are explicitly enabled',()=>{
+ const s=source(),alt=s.messages.find(m=>m.text==='alternative branch');
+ const passage=TLPassages.create({captureId:'cap-alt',snapshot:s,message:alt,text:'alternative branch',startOffset:0,endOffset:'alternative branch'.length});
+ assert.throws(()=>T.compile([{captureId:'cap-alt',snapshot:s,assetRows:[],passages:[passage]}],{passageMode:'passages'}),/CONTEXT_PASSAGE_OUTSIDE_BRANCH_SCOPE/);
+ const all=T.compile([{captureId:'cap-alt',snapshot:s,assetRows:[],passages:[passage]}],{passageMode:'passages',allBranches:true});
+ assert.equal(all.manifest.passages.length,1);
+});
