@@ -37,7 +37,7 @@
    if(existing?.id)request.captureId=existing.id;
    const r=await call('tl:start',request);selectedId=r.captureId;sourceLookupCaptureId=r.captureId;selectedKeys.clear();messageLimit=100;
    status(existing?'已开始重新采集，将更新同一份本地档案。':allowed?'已开始保存所选对话。可以保持此页或原对话打开，查看文件状态。':'未授予媒体域名权限：开始保存正文，有关附件可能显示为缺失。');await renderRunning();
-  }finally{$('capture').disabled=false;}
+  }catch(e){sourceLookupKey=null;sourceLookupCaptureId=null;throw e;}finally{$('capture').disabled=false;}
  }
  async function renderRunning(){
   const active=await call('tl:sessions'),box=$('running');box.replaceChildren();box.className=active.length?'list':'empty';
