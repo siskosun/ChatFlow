@@ -71,3 +71,14 @@ Each file record contains a unique `key`, `messageId`, `nodeId`, original `name`
 ## Privacy
 
 Signed URLs, cookies, authorization headers, tokens, message body excerpts in diagnostics and file bytes in logs are prohibited. Real user archives remain local and are never used as public test fixtures.
+
+## 0.1 有界 ZIP 导入资源策略
+
+ZIP/ZIP64 兼容不等于允许任意大小的档案恢复。为了防止用户选择的压缩包在本地配额校验之前造成扩展/浏览器内存耗尽，0.1 的 ZIP 读取器设置不可由调用方提高的硬上限：
+
+- ZIP 所有条目累计声明展开大小：256 MiB。
+- 单条目声明展开大小、单条目压缩载荷大小：各 64 MiB。
+- deflate 单条目声明展开 / 压缩比：200 倍。
+- 逐块解压时再次限制实际输出大小不得超过声明值与上述上限。
+
+不满足上述条件的 ZIP 必须在持久化恢复之前拒绝。正常 ZIP 导出未按这些数值限制，**因此超限的大档案可能可以导出、却无法由当前 0.1 导入**；验收时需如实记录，不得称无限大归档已可靠恢复。未来支持大档案需要分块解压并带配额检查地事务化写入 IndexedDB，不可简单提高内存数组阈值。
