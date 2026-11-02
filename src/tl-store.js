@@ -51,7 +51,10 @@
   return transaction(['captures','passages'],'readwrite',async s=>{
    const capture=await request(s.captures.get(record.captureId));C.check(capture?.snapshot,'PASSAGE_SOURCE_CAPTURE_MISSING');
    C.check(capture.snapshot.source?.conversationId===record.conversationId,'PASSAGE_SOURCE_CONVERSATION_MISMATCH');
-   C.check(capture.snapshot.messages.some(m=>m.id===record.messageId&&m.nodeId===record.nodeId),'PASSAGE_SOURCE_MESSAGE_MISSING');
+   const sourceMessage=capture.snapshot.messages.find(m=>m.id===record.messageId&&m.nodeId===record.nodeId);
+   C.check(sourceMessage,'PASSAGE_SOURCE_MESSAGE_MISSING');
+   const resolved=globalThis.TLPassages?.resolve?.(record,capture.snapshot);
+   C.check(resolved?.status==='anchored'&&resolved.message?.id===sourceMessage.id,'PASSAGE_NOT_ANCHORED_TO_SOURCE');
    const prior=await request(s.passages.get(record.passageId));
    if(prior)C.check(prior.captureId===record.captureId&&prior.messageId===record.messageId&&prior.nodeId===record.nodeId,'PASSAGE_IDENTITY_IMMUTABLE');
    s.passages.put({...record,updatedAt:Date.now()});return record.passageId;
