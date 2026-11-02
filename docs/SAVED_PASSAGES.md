@@ -42,6 +42,6 @@ The context manifest records passage ID, capture ID, snapshot hash, conversation
 
 ## UI behavior
 
-The local archive reader lets the user select text inside a displayed message and save it. Saved passages are painted with CSS Custom Highlight API where available; the source message DOM text is not wrapped or rewritten. Users can jump to the original message, include passages in Context Builder, delete them, or explicitly reselect an excerpt in the same source message when stale/ambiguous.
+The local archive reader lets the user select text inside a displayed message and save it. Saved passages are painted with CSS Custom Highlight API where available; the source message DOM text is not wrapped or rewritten. Users can jump to the original message, choose one of four restrained colors, include passages in Context Builder, delete them, or explicitly reselect an excerpt in the same source message when stale/ambiguous.
 
 Real ChatGPT/Edge and human accessibility verification remains a later acceptance phase after engineering and automated tests are complete.
