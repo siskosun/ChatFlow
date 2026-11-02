@@ -33,7 +33,7 @@ function harness(){
  };
  const TLCore={chatUrl(raw,{target=false}={}){const u=new URL(raw);if(target){assert.equal(u.pathname,'/');return{origin:u.origin,url:u.href,conversationId:null};}const m=u.pathname.match(/\/c\/([^/]+)/);if(!m)throw Error('NO_CONVERSATION_ID');return{origin:u.origin,url:u.origin+u.pathname,conversationId:m[1]};}};
  const provider={identify:(raw,options={})=>({identity:TLCore.chatUrl(raw,options)}),get:id=>({mediaUrl:TLCore.mediaUrl})};
- const context=vm.createContext({chrome:api,globalThis:null,ChatFlowProviders:provider,TLCore,ChatFlowExperimentCore:Core,ChatFlowExperimentDB:DB,TLCore,crypto:webcrypto,structuredClone,Date,Promise,URL,TextEncoder,Error,console});
+ const context=vm.createContext({chrome:api,globalThis:null,ChatFlowProviders:provider,TLCore,ChatFlowExperimentCore:Core,ChatFlowExperimentDB:DB,crypto:webcrypto,structuredClone,Date,Promise,URL,TextEncoder,Error,console});
  context.globalThis=context;
  vm.runInContext(fs.readFileSync(path.join(root,'src/experiment-service.js'),'utf8'),context);
  const service=context.ChatFlowExperimentService;
