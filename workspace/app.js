@@ -2,7 +2,7 @@
 (() => {
  'use strict';
  const C=TLCore,S=TLStore,A=TLArchive,$=id=>document.getElementById(id);
- let selectedId=null,selectedKeys=new Set(),contextSelectedIds=new Set(),contextSelectedPassageIds=new Set(),branchSelections=new Map(),reanchorPassageId=null,handoffId=null,planFingerprint=null,staged=new Map(),view='capture',refreshing=false,messageLimit=100,detailEpoch=0;
+ let selectedId=null,selectedKeys=new Set(),contextSelectedIds=new Set(),contextSelectedPassageIds=new Set(),branchSelections=new Map(),reanchorPassageId=null,handoffId=null,planFingerprint=null,staged=new Map(),view='capture',refreshing=false,messageLimit=100,detailEpoch=0,sourceLookupKey=null,sourceLookupCaptureId=null;
  const labels={ready:'可访问快照已保存',partial:'部分保存',capturing:'保存中',interrupted:'已中断',error:'保存失败',cancelled:'已取消',saved:'文件已保存',excluded:'按保存范围跳过',unavailable:'未取得文件字节',discovered:'待下载',downloading:'下载中',corrupt:'本地校验失败',prepared:'接续包已生成',target_opened:'目标窗口已打开',claimed:'准备草稿与文件中',draft_prepared:'草稿已预填',upload_confirmed:'网页确认首批上传',upload_unknown:'首批上传结果未知',injection_blocked:'自动注入已停止',partial_injection:'注入未完整确认',user_verified_upload:'用户已核对首批上传'};
  const errors={HANDOFF_SOURCE_CHANGED:'来源档案或分支已变化，请重新准备接续包。',HANDOFF_SOURCE_CHANGED_REGENERATE:'来源档案已变化，请重新准备接续包。',PASSAGE_COUNT_LIMIT:'每份档案最多保存 5000 条重点片段。',PASSAGE_NOT_ANCHORED_TO_SOURCE:'片段来源已变化，请刷新档案并重新选择。',CONTEXT_PASSAGE_NOT_ANCHORED:'部分重点片段已过期或有歧义，请重新定位后再编译。',CONTEXT_PASSAGE_OUTSIDE_BRANCH_SCOPE:'所选重点片段不属于当前分支；请切换分支或选择全部可访问分支。',NO_SELECTED_CONTEXT_PASSAGES:'请先选择要编译的重点片段。',CHATGPT_PAGE_NOT_READY:'ChatGPT 页面尚未准备好，请打开原对话后重试。',CHATGPT_LOGIN_REQUIRED:'请先在所选 ChatGPT 标签页登录。',NO_CONVERSATION_ID:'请选择已有的 ChatGPT 对话，而不是空白首页。',SOURCE_ALREADY_RUNNING:'这个对话已有采集在运行，请先停止。',LOCAL_STORAGE_FULL:'本地存储空间不足。已保存的文件保留，请先导出 ZIP 或清理本地档案。',MEDIA_PERMISSION_REQUIRED:'未授予 OpenAI 文件域名权限，正文可保存，但有关文件尚未取得字节。',OUT_OF_SAVE_SCOPE:'该文件未尝试下载，因为它不在本次保存范围内。',SAVE_SCOPE_SOURCE_UNRESOLVED:'文件来源或消息位置无法确认，不能判断它是否为当前分支最后生成文件；未自动下载。',LIVE_CACHE_REQUIRES_ALL_SCOPE:'仅保存最后生成文件不能同时开启实时缓存，请选择全部文件或关闭实时缓存。',USER_DRAFT_PRESENT:'目标窗口已有草稿，自动预填已停止，不会覆盖。',SELECTED_FILE_NOT_SAVED:'所选文件尚未取得实际字节，不能加入接续。',CAPTURE_NOT_READY:'该档案仍在采集，或没有可用快照。',SNAPSHOT_HASH_MISMATCH:'档案快照哈希不匹配，恢复已中止。',ARCHIVE_FILE_HASH_MISMATCH:'归档文件哈希不匹配，恢复已中止。',LOCAL_FILE_HASH_MISMATCH:'本地文件校验失败，不会上传。',ZIP_RESOURCE_LIMIT:'档案超过当前版本的安全恢复上限（单文件 64 MiB，合计 256 MiB）；恢复已中止，原有档案未更改。',ZIP_COMPRESSION_RATIO_LIMIT:'ZIP 内文件压缩比例超过安全上限，已拒绝恢复。',ZIP_EXPANSION_LIMIT:'ZIP 实际展开尺寸超过安全上限，已中止恢复。',UNRECOGNIZED_ARCHIVE:'这不是可识别的ChatFlow档案 ZIP。官方导出请使用“对照官方 ZIP”。',INVALID_HANDOFF_BRANCH_PATH:'所选分支路径不完整或已变化，请重新选择分支。',INVALID_CONTEXT_BRANCH_PATH:'所选分支路径不完整，请重新选择分支。'};
  function explain(e){const key=e?.message||String(e);return errors[key]||(/^HTTP_\d+$/.test(key)?'远端文件当前不可取得（'+key+'）；不能据此认定文件已永久删除。':key);}
@@ -16,23 +16,40 @@
  function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
  function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('prepare').hidden=false;$('prepare').textContent='重新生成接续包';status('内容已更改，请重新准备。');}}
  async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
- async function sources(){const rows=await call('tl:sources'),old=$('source').value||new URL(location.href).searchParams.get('source');$('source').replaceChildren();if(!rows.length){$('source').append(new Option('未找到已打开的 ChatGPT 对话',''));return;}for(const r of rows)$('source').append(new Option(r.title||r.url,String(r.id)));if(rows.some(r=>String(r.id)===old))$('source').value=old;}
+ async function sources(){sourceLookupKey=null;sourceLookupCaptureId=null;const rows=await call('tl:sources'),old=$('source').value||new URL(location.href).searchParams.get('source');$('source').replaceChildren();if(!rows.length){$('source').append(new Option('未找到已打开的 ChatGPT 对话',''));return;}for(const r of rows)$('source').append(new Option(r.title||r.url,String(r.id)));if(rows.some(r=>String(r.id)===old))$('source').value=old;}
+ async function captureForSelectedSource(){
+  const tabId=Number($('source').value),scope=$('asset-scope').value;if(!Number.isInteger(tabId)||tabId<=0)return null;
+  const key=String(tabId)+'|'+scope;if(key===sourceLookupKey)return sourceLookupCaptureId?S.get('captures',sourceLookupCaptureId):null;
+  sourceLookupKey=key;sourceLookupCaptureId=null;
+  const openTabs=await call('tl:sources'),source=openTabs.find(row=>Number(row.id)===tabId);if(!source)return null;
+  const identity=C.chatUrl(source.url),matches=(await S.all('captures')).filter(row=>{
+   const saved=row.snapshot?.source||row.source;
+   return !!row.snapshot&&saved?.origin===identity.origin&&saved?.conversationId===identity.conversationId&&(row.saveScope||'all')===scope;
+  }).sort((a,b)=>String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt)));
+  sourceLookupCaptureId=matches[0]?.id||null;return matches[0]||null;
+ }
  function updateScopeUI(){const last=$('asset-scope').value==='last_generated',live=$('live');if(last&&live.checked){live.checked=false;status('已关闭实时缓存：仅保存最后生成文件与实时缓存不能同时使用。');}live.disabled=last;$('scope-hint').textContent=last?'对话正文和可访问分支仍完整保存；只下载当前分支中最近一条助手消息生成的一份文件。用户上传文件和其他分支文件会标记为“按保存范围跳过”；来源或位置不明的文件单独标记为未判定。':'对话正文和可访问分支均保存；尝试下载可识别的用户上传文件和助手生成文件。';$('live-hint').textContent=last?'仅保存最后生成文件与实时缓存不兼容。选择“全部文件”后可开启。':'只对选中的对话生效。关闭浏览器或停止后不会自动恢复。';}
  async function start(){
   const tabId=Number($('source').value);C.check(tabId>0,'NO_CONVERSATION_ID');
   $('capture').disabled=true;
   try{
    let allowed=true;if($('allow-media').checked)allowed=await chrome.permissions.request({origins:chrome.runtime.getManifest().optional_host_permissions});
-   const scope=$('asset-scope').value,r=await call('tl:start',{tabId,live:$('live').checked,scope});selectedId=r.captureId;selectedKeys.clear();messageLimit=100;
-   status(allowed?'已开始保存所选对话。可以保持此页或原对话打开，查看文件状态。':'未授予媒体域名权限：开始保存正文，有关附件可能显示为缺失。');await renderRunning();
+   const scope=$('asset-scope').value,existing=await captureForSelectedSource(),request={tabId,live:$('live').checked,scope};
+   if(existing?.id)request.captureId=existing.id;
+   const r=await call('tl:start',request);selectedId=r.captureId;sourceLookupCaptureId=r.captureId;selectedKeys.clear();messageLimit=100;
+   status(existing?'已开始重新采集，将更新同一份本地档案。':allowed?'已开始保存所选对话。可以保持此页或原对话打开，查看文件状态。':'未授予媒体域名权限：开始保存正文，有关附件可能显示为缺失。');await renderRunning();
   }finally{$('capture').disabled=false;}
  }
  async function renderRunning(){
   const active=await call('tl:sessions'),box=$('running');box.replaceChildren();box.className=active.length?'list':'empty';
   if(!active.length){
-   const c=selectedId&&await S.get('captures',selectedId);
-   if(c?.snapshot){const first=$('continue').hidden;$('capture').hidden=true;$('continue').hidden=false;$('asset-scope').disabled=false;const rows=await S.assets(selectedId),saved=rows.filter(a=>a.state==='saved').length,excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length,scope=c.saveScope==='last_generated'?'当前分支最后生成文件':'全部文件';box.textContent='已保存到本地 · '+c.snapshot.messages.length+' 条消息 · 范围：'+scope+' · '+saved+' 个文件已保存，'+excluded+' 个按范围跳过，'+missing+' 个未取得。';if(first)status('对话已保存，可以继续到新聊天。');return;}
-   $('capture').hidden=false;$('continue').hidden=true;$('asset-scope').disabled=false;box.textContent='选择一段对话开始保存。';return;
+   const c=await captureForSelectedSource();
+   if(c?.snapshot){
+    selectedId=c.id;$('capture').hidden=false;$('capture').textContent='重新采集对话';$('continue').hidden=false;$('asset-scope').disabled=false;
+    const rows=await S.assets(c.id),saved=rows.filter(a=>a.state==='saved').length,excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length,scope=c.saveScope==='last_generated'?'当前分支最后生成文件':'全部文件';
+    box.textContent='已保存到本地 · '+c.snapshot.messages.length+' 条消息 · 范围：'+scope+' · '+saved+' 个文件已保存，'+excluded+' 个按范围跳过，'+missing+' 个未取得。可以重新采集更新这份档案。';return;
+   }
+   selectedId=null;$('capture').hidden=false;$('capture').textContent='保存对话';$('continue').hidden=true;$('asset-scope').disabled=false;box.textContent='选择一段对话开始保存。';return;
   }
   $('capture').hidden=true;$('continue').hidden=true;$('asset-scope').disabled=true;
   for(const r of active){const c=await S.get('captures',r.captureId),el=node('div',null,'panel');el.append(node('strong',c?.snapshot?.title||c?.title||'正在读取对话'),node('p',r.live?'实时缓存已开启':'正在保存','hint'));
@@ -250,7 +267,7 @@
   await download(await A.buildZip(entries),'chatflow-handoff.zip');status('接续包已生成。请解压后上传实际文件，不要假设 ChatGPT 一定能读取 ZIP 内的全部内容。');
  }
  for(const b of document.querySelectorAll('[data-view]'))b.onclick=e=>{e.preventDefault();switchView(b.dataset.view);};
- $('refresh-source').onclick=()=>guard(sources);$('capture').onclick=()=>guard(start);$('source').onchange=()=>{selectedId=null;$('capture').hidden=false;$('continue').hidden=true;guard(renderRunning);};$('asset-scope').onchange=updateScopeUI;$('continue').onclick=()=>guard(async()=>{await choose(selectedId);switchView('handoff');});$('refresh').onclick=()=>guard(async()=>{await refreshArchives();if(selectedId)await renderDetail();});$('build-context').onclick=()=>guard(buildContextPackage);
+ $('refresh-source').onclick=()=>guard(async()=>{await sources();selectedId=null;guard(renderRunning);});$('capture').onclick=()=>guard(start);$('source').onchange=()=>{selectedId=null;sourceLookupKey=null;sourceLookupCaptureId=null;$('capture').hidden=false;$('capture').textContent='保存对话';$('continue').hidden=true;guard(renderRunning);};$('asset-scope').onchange=()=>{selectedId=null;sourceLookupKey=null;sourceLookupCaptureId=null;updateScopeUI();guard(renderRunning);};$('continue').onclick=()=>guard(async()=>{await choose(selectedId);switchView('handoff');});$('refresh').onclick=()=>guard(async()=>{await refreshArchives();if(selectedId)await renderDetail();});$('build-context').onclick=()=>guard(buildContextPackage);
  $('search').oninput=()=>guard(refreshArchives);$('prepare').onclick=()=>guard(prepare);$('instructions').oninput=invalidate;$('batch-limit').onchange=invalidate;
  $('restore').onchange=()=>guard(async()=>{const f=$('restore').files?.[0];if(!f)return;status('校验档案结构、CRC 和文件哈希。校验全部通过后才写入档案。');const id=await A.restore(f);$('restore').value='';await choose(id);switchView('archive');status('档案已恢复。保留原有缺失状态，不会因恢复而变成完整。');await quota();});
  $('open-target').onclick=()=>guard(async()=>{C.check(planFingerprint===fingerprint(),'REGENERATE_HANDOFF_AFTER_CHANGES');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');await call('tl:openHandoff',{id:handoffId});await renderHandoffState();status('新聊天已打开。请核对文件，再由你手动发送。');});
@@ -258,5 +275,5 @@
  $('confirm-upload').onclick=()=>guard(async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
  $('open-experiments').onclick=()=>guard(async()=>{await chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')});});$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
  setInterval(()=>{if(refreshing)return;refreshing=true;Promise.resolve().then(async()=>{if(view==='capture')await renderRunning();if(handoffId)await renderHandoffState();}).catch(()=>{}).finally(()=>refreshing=false);},1500);
- guard(async()=>{await S.open();updateScopeUI();await sources();await refreshArchives();updateContextButton();await quota();await updateSelection();status('就绪。选择一个 ChatGPT 对话开始保存。');});
+ guard(async()=>{await S.open();updateScopeUI();await sources();await renderRunning();await refreshArchives();updateContextButton();await quota();await updateSelection();status('就绪。选择一个 ChatGPT 对话开始保存。');});
 })();
