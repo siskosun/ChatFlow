@@ -1,7 +1,7 @@
 /* ChatFlow controlled parallel-session orchestration. No automatic Send or retry. */
 (() => {
  'use strict';
- const Core=globalThis.ChatFlowExperimentCore,DB=globalThis.ChatFlowExperimentDB;
+ const Core=globalThis.ChatFlowExperimentCore,DB=globalThis.ChatFlowExperimentDB,P=globalThis.ChatFlowProviders;
  const ENABLED='chatflow_experiments_enabled_v1',BIND='chatflow_experiment_bind_',HANDOFF='tl_experiment_handoff_';
  let queue=Promise.resolve();
  const serial=fn=>{const run=queue.then(fn,fn);queue=run.catch(()=>{});return run;};
@@ -30,7 +30,7 @@
  }
  async function claimHandoff(api,sender){
   if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id))throw new Error('EXPERIMENT_SOURCE_TAB_REQUIRED');
-  const tab=await api.tabs.get(sender.tab.id);const target=globalThis.TLCore.chatUrl(tab.url,{target:true});
+  const tab=await api.tabs.get(sender.tab.id);const target=P.identify(tab.url,{target:true}).identity;
   const x=await api.storage.session.get(HANDOFF+tab.id),h=x[HANDOFF+tab.id];if(!h)return null;
   const bind=await binding(api,tab.id);if(!bind||bind.experimentId!==h.experimentId||bind.branch!==h.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
   await api.storage.session.remove(HANDOFF+tab.id);
@@ -39,7 +39,7 @@
  async function prefillAck(api,msg,sender){
   if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id))throw new Error('EXPERIMENT_SOURCE_TAB_REQUIRED');
   const b=await binding(api,sender.tab.id);if(!b||b.experimentId!==msg.experimentId||b.branch!==msg.branch||b.attemptId!==msg.attemptId)throw new Error('EXPERIMENT_BINDING_MISMATCH');
-  const tab=await api.tabs.get(sender.tab.id);globalThis.TLCore.chatUrl(tab.url,{target:true});
+  const tab=await api.tabs.get(sender.tab.id);P.identify(tab.url,{target:true}).identity;
   return serial(()=>advance(b,{status:'pending',phase:'awaiting_send',operationId:b.operationId+'_'+b.branch+'_prefill_ack',
    updates:{prefill:'exact_ack',inputLevel:'exact',tabId:sender.tab.id},reason:'composer prefill exact readback'}));
  }
@@ -103,7 +103,7 @@
    if(!validId(msg.operationId))throw new Error('EXPLICIT_REPREFILL_OPERATION_REQUIRED');
    const row=await DB.read(msg.experimentId),branch=row?.branches?.[msg.branch],attempt=branch?.attempts.at(-1);
    if(!attempt||attempt.status!=='pending'||!Number.isInteger(attempt.evidence?.tabId))throw new Error('NO_PENDING_BRANCH_TAB');
-   const tabId=attempt.evidence.tabId,tab=await api.tabs.get(tabId);globalThis.TLCore.chatUrl(tab.url,{target:true});
+   const tabId=attempt.evidence.tabId,tab=await api.tabs.get(tabId);P.identify(tab.url,{target:true}).identity;
    const b=await binding(api,tabId);if(!b||b.experimentId!==row.id||b.branch!==msg.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
    await api.storage.session.set({[HANDOFF+tabId]:{text:row.frozen.text,experimentId:row.id,branch:msg.branch}});
    await sendReady(api,tabId);return{tabId};
@@ -111,7 +111,7 @@
   if(type==='FF_CAPTURE')return serial(async()=>{
    const row=await DB.read(msg.experimentId),branch=row?.branches?.[msg.branch],attempt=branch?.attempts.at(-1);
    if(!attempt||attempt.status!=='pending'||!Number.isInteger(attempt.evidence?.tabId))throw new Error('NO_PENDING_BRANCH_TAB');
-   const tab=await api.tabs.get(attempt.evidence.tabId),source=globalThis.TLCore.chatUrl(tab.url);
+   const tab=await api.tabs.get(attempt.evidence.tabId),source=P.identify(tab.url).identity;
    const bind=await binding(api,tab.id);if(!bind||bind.experimentId!==row.id||bind.branch!==msg.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
    const result=await ctx.startCapture({tabId:tab.id,scope:'all',live:false});
    await api.storage.session.set({['chatflow_exp_capture_'+result.captureId]:{...bind,captureId:result.captureId}});

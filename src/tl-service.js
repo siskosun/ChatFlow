@@ -1,6 +1,6 @@
 /* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
-importScripts('tl-core.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js');
-const C=globalThis.TLCore,S=globalThis.TLStore,api=chrome,runs=new Map();
+importScripts('tl-core.js','tl-provider.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js');
+const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,api=chrome,runs=new Map();
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
 const trusted=sender=>sender?.id===api.runtime.id;
 function workspace(sender){C.check(trusted(sender)&&String(sender.url||'').startsWith(api.runtime.getURL('workspace/')),'WORKSPACE_ONLY');}
@@ -13,9 +13,9 @@ const boot=(async()=>{
 })().catch(e=>{bootError=errorCode(e);});
 async function sourceRun(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id),'SOURCE_TAB_REQUIRED');const run=runs.get(msg.nonce);C.check(run&&!run.cancelled&&run.tabId===sender.tab.id,'CAPTURE_SESSION_NOT_FOUND');
- const source=C.chatUrl(sender.url||sender.tab.url);C.check(source.conversationId===run.source.conversationId&&source.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');
+ const source=P.identify(sender.url||sender.tab.url).identity;C.check(source.conversationId===run.source.conversationId&&source.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');
  if(run.documentId)C.check(sender.documentId===run.documentId,'SOURCE_DOCUMENT_CHANGED');else{C.check(sender.documentId,'DOCUMENT_ID_UNAVAILABLE');run.documentId=sender.documentId;await keepRuns();}
- const now=C.chatUrl((await api.tabs.get(run.tabId)).url);C.check(now.conversationId===run.source.conversationId&&now.origin===run.source.origin,'SOURCE_NAVIGATED');return run;
+ const now=P.identify((await api.tabs.get(run.tabId)).url).identity;C.check(now.conversationId===run.source.conversationId&&now.origin===run.source.origin,'SOURCE_NAVIGATED');return run;
 }
 async function sendToSource(tabId,message){
  try{return await api.tabs.sendMessage(tabId,message);}catch{await api.scripting.executeScript({target:{tabId},files:['src/tl-core.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message);}
@@ -23,7 +23,7 @@ async function sendToSource(tabId,message){
 async function startCapture(msg){
  C.check(Number.isInteger(msg.tabId),'INVALID_TAB_ID');C.check(![...runs.values()].some(r=>r.tabId===msg.tabId),'SOURCE_ALREADY_RUNNING');
  const scope=msg.scope==null?'all':msg.scope;C.check(['all','last_generated'].includes(scope),'INVALID_SAVE_SCOPE');C.check(!(msg.live&&scope==='last_generated'),'LIVE_CACHE_REQUIRES_ALL_SCOPE');
- const tab=await api.tabs.get(msg.tabId),source=C.chatUrl(tab.url),captureId=msg.captureId||C.id(),previous=await S.get('captures',captureId);
+ const tab=await api.tabs.get(msg.tabId),source=P.identify(tab.url).identity,captureId=msg.captureId||C.id(),previous=await S.get('captures',captureId);
  if(previous){const p=previous.snapshot?.source||previous.source;C.check(p?.conversationId===source.conversationId&&p.origin===source.origin,'CAPTURE_SOURCE_CHANGED');C.check((previous.saveScope||'all')===scope,'CAPTURE_SCOPE_CHANGED');}
  else await S.set('captures',{id:captureId,title:C.scrubText(tab.title||'读取对话中'),source,snapshot:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),state:'capturing',live:!!msg.live,saveScope:scope});
  const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:null,cancelled:false};runs.set(nonce,run);await keepRuns();
@@ -36,7 +36,7 @@ async function stopCapture(captureId){
  await keepRuns();const c=await S.get('captures',captureId);if(c){for(const a of await S.assets(captureId))if(a.state==='downloading')await S.failAsset(captureId,a.key,'CANCELLED_BY_USER');await S.set('captures',{...c,state:c.state==='capturing'?'cancelled':c.state,live:false});}
 }
 async function externalDownload(run,msg){
- const asset=await S.get('assets',[run.captureId,msg.key]);C.check(asset&&asset.state!=='saved'&&asset.state!=='excluded','INVALID_DOWNLOAD_ASSET');const target=C.mediaUrl(msg.url);C.check(await api.permissions.contains({origins:[target.origin+'/*']}),'MEDIA_PERMISSION_REQUIRED');
+ const asset=await S.get('assets',[run.captureId,msg.key]);C.check(asset&&asset.state!=='saved'&&asset.state!=='excluded','INVALID_DOWNLOAD_ASSET');const target=P.get('chatgpt').mediaUrl(msg.url);C.check(await api.permissions.contains({origins:[target.origin+'/*']}),'MEDIA_PERMISSION_REQUIRED');
  const controller=new AbortController();run.controller=controller;const timer=setTimeout(()=>controller.abort(),60000);
  try{
   const r=await fetch(target.href,{method:'GET',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',cache:'no-store',signal:controller.signal});C.check(r.ok,'HTTP_'+r.status);C.check(r.body,'NO_DOWNLOAD_BODY');
@@ -81,14 +81,14 @@ function openHandoff(id){
  });openQueue=operation.catch(()=>{});return operation;
 }
 async function targetHandoff(msg,sender){
- C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');const h=await S.get('handoffs',msg.id);C.check(h&&h.targetTabId===sender.tab.id&&h.targetDocumentId===sender.documentId,'HANDOFF_TARGET_MISMATCH');C.chatUrl(sender.url||sender.tab.url,{target:true});C.chatUrl((await api.tabs.get(sender.tab.id)).url,{target:true});return h;
+ C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');const h=await S.get('handoffs',msg.id);C.check(h&&h.targetTabId===sender.tab.id&&h.targetDocumentId===sender.documentId,'HANDOFF_TARGET_MISMATCH');P.identify(sender.url||sender.tab.url,{target:true}).identity;P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;return h;
 }
 let claimQueue=Promise.resolve();
 async function claim(sender){
  const operation=claimQueue.then(async()=>{
-  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');C.chatUrl(sender.url||sender.tab.url,{target:true});
+  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');P.identify(sender.url||sender.tab.url,{target:true}).identity;
   const h=(await S.all('handoffs')).find(x=>x.targetTabId===sender.tab.id&&x.state==='target_opened');if(!h)return null;
-  C.chatUrl((await api.tabs.get(sender.tab.id)).url,{target:true});await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId});
+  P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId});
   return{id:h.id,prompt:h.prompt,files:h.batches[0].map(i=>({...h.files[i],index:i})),remainingBatches:h.batches.length-1};
  });claimQueue=operation.catch(()=>{});return operation;
 }
@@ -106,7 +106,7 @@ async function handle(msg,sender){
  }
  if(['tl:sources','tl:start','tl:stop','tl:sessions','tl:prepareHandoff','tl:openHandoff','tl:confirmUpload','tl:focusTarget'].includes(msg.type)){
   workspace(sender);
-  if(msg.type==='tl:sources'){const tabs=await api.tabs.query({url:['https://chatgpt.com/*','https://chat.openai.com/*']});return tabs.flatMap(t=>{try{const source=C.chatUrl(t.url);return[{id:t.id,title:C.scrubText(t.title),url:source.url}];}catch{return[];}});}
+  if(msg.type==='tl:sources'){const tabs=await api.tabs.query({url:['https://chatgpt.com/*','https://chat.openai.com/*']});return tabs.flatMap(t=>{try{const source=P.identify(t.url).identity;return[{id:t.id,title:C.scrubText(t.title),url:source.url}];}catch{return[];}});}
   if(msg.type==='tl:start')return startCapture(msg);
   if(msg.type==='tl:stop'){await stopCapture(msg.captureId);return{stopped:true};}
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
@@ -141,6 +141,6 @@ api.action.onClicked.addListener(tab=>{
 api.tabs.onUpdated.addListener((tabId,change,tab)=>{
  ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(()=>{});
  if(change.status==='complete')announce(tabId).catch(()=>{});
- if(change.url)for(const r of runs.values())if(r.tabId===tabId){let same=false;try{const now=C.chatUrl(tab.url);same=now.conversationId===r.source.conversationId&&now.origin===r.source.origin;}catch{}if(!same)stopCapture(r.captureId).catch(()=>{});}
+ if(change.url)for(const r of runs.values())if(r.tabId===tabId){let same=false;try{const now=P.identify(tab.url).identity;same=now.conversationId===r.source.conversationId&&now.origin===r.source.origin;}catch{}if(!same)stopCapture(r.captureId).catch(()=>{});}
 });
 api.tabs.onRemoved.addListener(tabId=>{for(const r of runs.values())if(r.tabId===tabId)stopCapture(r.captureId).catch(()=>{});ChatFlowExperimentService.onTabRemoved(tabId,api).catch(()=>{});});

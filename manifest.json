@@ -53,6 +53,7 @@
       ],
       "js": [
         "src/tl-core.js",
+        "src/tl-provider.js",
         "src/tl-capture.js",
         "src/tl-inject.js"
       ],

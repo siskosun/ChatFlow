@@ -4,10 +4,10 @@
 (() => {
  'use strict';
  if(globalThis.TLCaptureInstalled)return;globalThis.TLCaptureInstalled=true;
- const C=globalThis.TLCore,api=chrome;let active=null;
+ const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,api=chrome;let active=null;
  const code=e=>e?.name==='AbortError'?'CANCELLED_OR_TIMEOUT':/^[A-Z0-9_]{2,100}$/.test(e?.message||'')?e.message:'CAPTURE_REQUEST_FAILED';
  async function message(type,data={},nonce=active?.nonce){const r=await api.runtime.sendMessage({type,nonce,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
- function sameSource(run){const s=C.chatUrl(location.href);C.check(s.conversationId===run.source.conversationId&&s.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');C.check(active===run&&!run.stopped,'CANCELLED_BY_USER');}
+ function sameSource(run){const s=P.identify(location.href).identity;C.check(s.conversationId===run.source.conversationId&&s.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');C.check(active===run&&!run.stopped,'CANCELLED_BY_USER');}
  function status(run,text){
   let host=document.getElementById('chatflow-cache-notice');
   if(!host){host=document.createElement('div');host.id='chatflow-cache-notice';host.setAttribute('role','status');host.style.cssText='position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:330px;padding:10px 14px;background:#eef4fb;color:#23384f;border:1px solid #8193a8;border-radius:8px;font:13px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(host);}
@@ -16,10 +16,7 @@
  }
  function stop(run){run.stopped=true;run.controller?.abort();run.observer?.disconnect();clearInterval(run.timer);if(active===run)active=null;status(null,'ChatFlow：本对话保存已停止；已写入的本地文件保留。');}
  async function fetchResponse(run,path,token,accountId){
-  sameSource(run);const u=new URL(path,run.source.origin),conversationPath='/backend-api/conversation/'+encodeURIComponent(run.source.conversationId);
-  C.check(u.origin===run.source.origin,'CROSS_ORIGIN_AUTH_REQUEST_REJECTED');
-  C.check(u.pathname==='/api/auth/session'||u.pathname===conversationPath||u.pathname.startsWith(conversationPath+'/')||u.pathname.startsWith('/backend-api/files/'),'UNSUPPORTED_READ_ENDPOINT');
-  C.readOnlyRequest('GET');const headers={Accept:'*/*'};if(token)headers.Authorization='Bearer '+token;if(accountId)headers['ChatGPT-Account-ID']=accountId;
+  sameSource(run);const u=P.get('chatgpt').readEndpoint(path,run.source);const headers={Accept:'*/*'};if(token)headers.Authorization='Bearer '+token;if(accountId)headers['ChatGPT-Account-ID']=accountId;
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),60000);run.controller=controller;
   try{const response=await fetch(u.href,{method:'GET',credentials:'include',headers,redirect:'error',cache:'no-store',signal:controller.signal});C.check(response.ok,'HTTP_'+response.status);return{response,close:()=>{clearTimeout(timer);if(run.controller===controller)delete run.controller;}};}
   catch(e){clearTimeout(timer);throw e;}
@@ -33,7 +30,7 @@
   const declared=Number(response.headers.get('content-length')||0);if(declared&&!response.headers.get('content-encoding'))C.check(total===declared,'DOWNLOAD_SIZE_MISMATCH');return message('tl:assetEnd',{key:asset.key,mime},run.nonce);
  }
  async function urlBytes(run,asset,url,token,accountId){
-  const u=new URL(url,run.source.origin);if(u.origin!==run.source.origin){C.mediaUrl(u.href);return message('tl:external',{key:asset.key,url:u.href},run.nonce);}
+  const u=new URL(url,run.source.origin);if(u.origin!==run.source.origin){P.get('chatgpt').mediaUrl(u.href);return message('tl:external',{key:asset.key,url:u.href},run.nonce);}
   const{response,close}=await fetchResponse(run,u.href,token,accountId);try{return await sourceBytes(run,asset,response);}finally{close();}
  }
  async function download(run,asset,token,accountId){
@@ -92,7 +89,7 @@
  }
  function start(nonce,live,scope='all'){
   C.check(['all','last_generated'].includes(scope),'INVALID_SAVE_SCOPE');C.check(!(live&&scope==='last_generated'),'LIVE_CACHE_REQUIRES_ALL_SCOPE');
-  if(active)stop(active);const run={nonce,source:C.chatUrl(location.href),live:!!live,scope,busy:false,stopped:false,dirty:true};active=run;
+  if(active)stop(active);const run={nonce,source:P.identify(location.href).identity,live:!!live,scope,busy:false,stopped:false,dirty:true};active=run;
   if(run.live){
    run.observer=new MutationObserver(records=>{if(records.some(r=>{const e=r.target instanceof Element?r.target:r.target.parentElement;return!e?.closest('#chatflow-cache-notice');}))run.dirty=true;});
    run.observer.observe(document.body||document.documentElement,{childList:true,subtree:true});

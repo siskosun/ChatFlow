@@ -5,7 +5,7 @@
 (() => {
  'use strict';
  if(globalThis.TLInjectInstalled)return;globalThis.TLInjectInstalled=true;
- const C=globalThis.TLCore,api=chrome;let started=false;
+ const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,api=chrome;let started=false;
  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
  const code=e=>/^[A-Z0-9_]{2,100}$/.test(e?.message||'')?e.message:'HANDOFF_NOT_CONFIRMED';
  async function send(type,data={}){const r=await api.runtime.sendMessage({type,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
@@ -21,7 +21,7 @@
   C.check(xs.length===1,'COMPOSER_UNAVAILABLE_OR_AMBIGUOUS');return xs[0];
  }
  function preflight(){
-  C.chatUrl(location.href,{target:true});
+  P.identify(location.href,{target:true}).identity;
   C.check(!document.querySelector('[data-project-id],[data-testid="temporary-chat-banner"],[data-testid="project-header"]'),'NON_STANDARD_CHAT');
   C.check(![...document.querySelectorAll('[data-message-author-role="user"],[data-message-author-role="assistant"]')].some(visible),'EXISTING_CHAT_REJECTED');
   const e=editor();C.check(!value(e).trim(),'USER_DRAFT_PRESENT');
@@ -38,7 +38,7 @@
  }
  async function receiveFile(h,f){
   const parts=[],hash=new C.SHA256();let offset=0;
-  while(offset<f.size){C.chatUrl(location.href,{target:true});const r=await send('tl:handoffChunk',{id:h.id,index:f.index,offset});C.check(r.total===f.size,'HANDOFF_FILE_SIZE_CHANGED');const bytes=C.base64ToBytes(r.data);C.check(bytes.length>0&&offset+bytes.length<=f.size,'HANDOFF_FILE_TRUNCATED');hash.update(bytes);parts.push(bytes);offset+=bytes.length;}
+  while(offset<f.size){P.identify(location.href,{target:true}).identity;const r=await send('tl:handoffChunk',{id:h.id,index:f.index,offset});C.check(r.total===f.size,'HANDOFF_FILE_SIZE_CHANGED');const bytes=C.base64ToBytes(r.data);C.check(bytes.length>0&&offset+bytes.length<=f.size,'HANDOFF_FILE_TRUNCATED');hash.update(bytes);parts.push(bytes);offset+=bytes.length;}
   C.check(offset===f.size&&hash.hex()===f.sha256,'HANDOFF_FILE_HASH_MISMATCH');
   return new File(parts,f.uploadName||f.name,{type:f.mime||'application/octet-stream'});
  }
@@ -65,7 +65,7 @@
    notice('ChatFlow：正在核验冻结任务。不会自动发送消息。');
    let ready=false;for(let i=0;i<40;i++){try{editor();ready=true;break;}catch{await sleep(250);}}
    C.check(ready,'COMPOSER_NOT_READY');const e=preflight();
-   prefill(e,h.text);C.chatUrl(location.href,{target:true});
+   prefill(e,h.text);P.identify(location.href,{target:true}).identity;
    C.check(value(e).replace(/\\r/g,'').trim()===h.text.replace(/\\r/g,'').trim(),'PREFILL_NOT_CONFIRMED');
    await send('tl:experimentPrefillAck',{experimentId:h.experimentId,branch:h.branch,attemptId:h.attemptId});
    notice('ChatFlow：分支 '+h.branch+' 的冻结任务已逐字预填。请核对后由你手动发送。');
@@ -85,10 +85,10 @@
    const e=preflight(),input=generalFileInput();C.check(input.multiple||files.length===1,'FILE_INPUT_IS_SINGLE_ONLY');
    const dt=new DataTransfer();for(const f of files){C.check(f.size>0,'EMPTY_FILE_REJECTED');dt.items.add(f);}
    prefill(e,h.prompt); // Draft is filled only after every file passed hash verification.
-   C.chatUrl(location.href,{target:true});C.check(value(e).trim()===h.prompt.trim(),'USER_DRAFT_CHANGED');
+   P.identify(location.href,{target:true}).identity;C.check(value(e).trim()===h.prompt.trim(),'USER_DRAFT_CHANGED');
    input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));injected=true;
    let confirmed=false;
-   for(let i=0;i<32;i++){await sleep(250);C.chatUrl(location.href,{target:true});if(uploadsConfirmed(files.map(f=>f.name))){confirmed=true;break;}}
+   for(let i=0;i<32;i++){await sleep(250);P.identify(location.href,{target:true}).identity;if(uploadsConfirmed(files.map(f=>f.name))){confirmed=true;break;}}
    await send('tl:handoffStatus',{id:h.id,state:confirmed?'upload_confirmed':'upload_unknown'});
    notice((confirmed?'ChatFlow：网页已确认首批附件上传。':'ChatFlow：已尝试附加首批文件，但上传结果尚未确认，请检查网页。')+'请核对后手动发送。'+(h.remainingBatches?'另有 '+h.remainingBatches+' 批文件，请从档案页下载并手动补充。':''));
   }catch(e){
