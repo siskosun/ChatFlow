@@ -68,7 +68,8 @@ test('branch completion requires exact input, finished assistant evidence and pe
   const tabId=launch.tabIds[branch],sender={id:'chatflow-test',url:'https://chatgpt.com/c/conversation_'+branch,tab:{id:tabId,url:'https://chatgpt.com/c/conversation_'+branch}};
   await h.service.handle({type:'tl:claimExperimentHandoff'}, {id:'chatflow-test',url:'https://chatgpt.com/',tab:{id:tabId,url:'https://chatgpt.com/'}},h.api,{});
   await h.service.handle({type:'tl:experimentPrefillAck',experimentId:created.id,branch,attemptId:launch.attemptIds[branch]},{id:'chatflow-test',url:'https://chatgpt.com/',tab:{id:tabId,url:'https://chatgpt.com/'}},h.api,{});
-  h.tabs.get(tabId).url=sender.url;\n  const cap=await h.msg('FF_CAPTURE',{experimentId:created.id,branch});
+  h.tabs.get(tabId).url=sender.url;
+  const cap=await h.msg('FF_CAPTURE',{experimentId:created.id,branch});
   const bindKey='chatflow_exp_capture_'+cap.runId,bind=h.session.get(bindKey);assert.ok(bind);
   const row=await h.DB.read(created.id),frozen=row.frozen.text;
   const snapshot={source:{conversationId:'conversation_'+branch},integrity:{state:'valid'},messages:[
