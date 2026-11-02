@@ -17,7 +17,8 @@
    const snapshot=source.snapshot;
    check(snapshot?.schema==='threadline.snapshot/1'&&Array.isArray(snapshot.messages)&&Array.isArray(snapshot.active),'INVALID_CONTEXT_SNAPSHOT');
    const activeNodes=Array.isArray(source.activeNodes)?source.activeNodes:snapshot.active;
-   check(activeNodes.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id)),'INVALID_CONTEXT_BRANCH_PATH');
+   check(activeNodes.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(activeNodes).size===activeNodes.length,'INVALID_CONTEXT_BRANCH_PATH');
+   for(let i=1;i<activeNodes.length;i++)check(snapshot.nodes[activeNodes[i]].parent===activeNodes[i-1],'INVALID_CONTEXT_BRANCH_PATH');
    const active=new Set(activeNodes);
    const branchMessages=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
    const messageSelection=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
