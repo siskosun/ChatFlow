@@ -386,6 +386,7 @@ async def main():
             await workspace.locator('.passage-row').filter(has_text='ALTERNATE_BRANCH').get_by_role('button',name='跳转原文').click()
             assert await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').is_visible()
             await workspace.locator('#archive-branch').select_option(label='当前分支')
+            await workspace.locator('.message pre').filter(has_text='known fact at position 0: 0').wait_for(state='visible')
             passed('archive_branch_selector_saves_and_navigates_passages_across_accessible_branches')
             await workspace.get_by_role('button',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
@@ -429,7 +430,7 @@ async def main():
             if passage_cid!=cid:
                 await source_checkbox.uncheck()
                 await passage_source_checkbox.check()
-            await workspace.locator('.passage-row input[type=checkbox]').check()
+            await workspace.locator('.passage-row').filter(has_text='known fact at position 0: 0').locator('input[type=checkbox]').check()
             await workspace.locator('.context-toolbar details summary').click()
             await workspace.locator('#context-mode').select_option('passages')
             async with workspace.expect_download(timeout=30000) as passage_context_download:
@@ -446,7 +447,7 @@ async def main():
                 await passage_source_checkbox.uncheck()
                 await source_checkbox.check()
             await workspace.locator('#context-mode').select_option('messages')
-            await workspace.locator('.passage-row input[type=checkbox]').uncheck()
+            await workspace.locator('.passage-row').filter(has_text='known fact at position 0: 0').locator('input[type=checkbox]').uncheck()
             await workspace.locator('#context-include-assets').check()
             async with workspace.expect_download(timeout=30000) as context_assets_download:
                 await workspace.locator('#build-context').click()
