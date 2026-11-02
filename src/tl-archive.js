@@ -80,7 +80,7 @@
  }
  async function exportCapture(captureId){
   const capture=await S.get('captures',captureId);C.check(capture,'CAPTURE_NOT_FOUND');
-  const rows=await S.assets(captureId),entries=[],paths=new Set(),files=[];
+  const rows=await S.assets(captureId),passageRows=await S.passages(captureId),entries=[],paths=new Set(),files=[];
   for(const a of rows){
    const item={key:a.key,messageId:a.messageId,nodeId:a.nodeId,name:a.name,mime:a.mime,kind:a.kind,origin:a.origin||'unknown',authorRole:a.authorRole||'unknown',ref:a.ref,expectedSize:a.expectedSize,state:a.state,reason:a.reason||null,size:a.size||0,sha256:a.sha256||null,inLatestSnapshot:a.inLatestSnapshot!==false};
    if(a.state==='saved'){
@@ -90,7 +90,7 @@
   }
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
   const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.1'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
-   state:capture.state==='ready'&&files.every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files};
+   state:capture.state==='ready'&&files.every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files,passages:passageRows};
   entries.push({name:'conversation.json',blob:snapshotBlob},{name:'conversation.md',content:C.history(snapshot,{allBranches:true})},{name:'manifest.json',content:JSON.stringify(manifest,null,2)},{name:'diagnostics.json',content:JSON.stringify({schema:1,integrity:snapshot.integrity,files:files.map(a=>({state:a.state,reason:a.reason})),note:'No authentication or signed download URLs are retained.'},null,2)});
   return{blob:await buildZip(entries),manifest};
  }
@@ -129,6 +129,21 @@
    C.check(manifest.integrity.state==='valid'&&manifest.files.every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
   return manifest;
  }
+ function validatePassages(rows,snapshot,archiveId){
+  C.check(Array.isArray(rows)&&rows.length<=100000,'INVALID_ARCHIVE_PASSAGES');
+  const ids=new Set(),messages=new Set(snapshot.messages.map(m=>m.id+'\\u0000'+m.nodeId));
+  return rows.map(p=>{
+   C.check(C.record(p)&&p.schema==='chatflow.passage/1'&&typeof p.passageId==='string'&&p.passageId.length>0&&!ids.has(p.passageId),'INVALID_ARCHIVE_PASSAGE');
+   ids.add(p.passageId);
+   C.check(p.captureId===archiveId&&p.conversationId===snapshot.source.conversationId&&typeof p.messageId==='string'&&typeof p.nodeId==='string'&&messages.has(p.messageId+'\\u0000'+p.nodeId),'INVALID_ARCHIVE_PASSAGE_SOURCE');
+   C.check(/^[a-f0-9]{64}$/.test(p.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(p.messageHash||''),'INVALID_ARCHIVE_PASSAGE_HASH');
+   C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=100000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset,'INVALID_ARCHIVE_PASSAGE_RANGE');
+   C.check(['yellow','green','blue','pink'].includes(p.color)&&['anchored','ambiguous','stale'].includes(p.status),'INVALID_ARCHIVE_PASSAGE_STATE');
+   C.check(typeof p.prefix==='string'&&p.prefix.length<=160&&typeof p.suffix==='string'&&p.suffix.length<=160,'INVALID_ARCHIVE_PASSAGE_CONTEXT');
+   const resolved=globalThis.TLPassages?.resolve?.(p,snapshot);
+   return{...p,captureId:undefined,status:resolved?.status||p.status,reason:resolved?.reason||p.reason||null};
+  });
+ }
  function validatedSnapshot(raw){
   C.check(raw?.schema==='threadline.snapshot/1'&&C.record(raw.nodes)&&Array.isArray(raw.messages)&&Array.isArray(raw.assets),'UNRECOGNIZED_SNAPSHOT');
   C.chatUrl(raw.source?.url);const mapping=Object.create(null);
@@ -153,7 +168,7 @@
   if((rawManifest.saveScope||'all')==='all'&&Array.isArray(rawManifest.files)&&rawManifest.files.some(f=>f?.state==='excluded'))throw new Error('INVALID_ALL_SCOPE_EXCLUSIONS');
   const manifest=validateManifest(rawManifest);
   const rawBlob=await entries.get('conversation.json')?.blob();C.check(rawBlob,'SNAPSHOT_MISSING');C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
-  const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
+  const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),passages=validatePassages(manifest.passages||[],snapshot,manifest.archiveId),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
   for(const m of manifest.files){
    C.check(C.record(m)&&typeof m.key==='string'&&!keys.has(m.key),'INVALID_MANIFEST_ASSET');keys.add(m.key);
    const meta=byKey.get(m.key);C.check(meta,'UNKNOWN_MANIFEST_ASSET');
@@ -182,7 +197,7 @@
    }
   }
   const state=manifest.state==='ready'&&snapshot.integrity.state==='valid'&&files.every(a=>a.state==='saved'||a.state==='excluded')?'ready':'partial';
-  return S.importCapture(snapshot,files,blobs,state,manifest.saveScope||'all');
+  return S.importCapture(snapshot,files,blobs,state,manifest.saveScope||'all',passages);
  }
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}
  async function compareOfficial(captureId,zipBlob){
