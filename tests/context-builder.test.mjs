@@ -9,7 +9,7 @@ for(const name of ['tl-core.js','tl-context.js'])vm.runInThisContext(fs.readFile
 const C=globalThis.TLCore,T=globalThis.TLContext;
 function source(count=6){
  const mapping=Object.create(null);
- for(let i=0;i<count;i++)mapping['n'+i]={parent:i?'n'+(i-1):null,children:i===count-1?['alt']:i===count-2?['n'+(i+1)]:[],message:{id:'m'+i,author:{role:i%2?'assistant':'user'},content:{parts:['message '+i]}}};
+ for(let i=0;i<count;i++)mapping['n'+i]={parent:i?'n'+(i-1):null,children:i===count-1?['alt']:i===count-2?['n'+(i+1)]:[],message:{id:'m'+i,author:{role:i%2?'assistant':'user'},content:{parts:[i===2?'unique phrase 2':'message '+i]}}};
  mapping.alt={parent:'n'+(count-1),children:[],message:{id:'alt-msg',author:{role:'assistant'},content:{parts:['alternative branch']}}};
  const snapshot=C.normalizeConversation({conversation_id:'conversation_context_01',title:'Context fixture',current_node:'n'+(count-1),mapping},'https://chatgpt.com/c/conversation_context_01');
  snapshot.assets=[{key:'a1',messageId:'m1',nodeId:'n1',name:'file.pdf',mime:'application/pdf',origin:'user_uploaded',state:'saved'},{key:'a2',messageId:'m2',nodeId:'n2',name:'lost.csv',mime:'text/csv',origin:'assistant_generated',state:'unavailable',reason:'HTTP_404'}];
@@ -43,9 +43,9 @@ test('invalid and duplicate source archives fail closed',()=>{
 });
 
 test('keyword filtering is explicit, source-linked and token budget never truncates',()=>{
- const s=source(),filtered=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{query:'message 2',tokenBudget:1000});
+ const s=source(),filtered=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{query:'unique phrase 2',tokenBudget:1000});
  assert.deepEqual(filtered.manifest.sources[0].messageIds,['m2']);
- assert.equal(filtered.manifest.options.query,'message 2');
+ assert.equal(filtered.manifest.options.query,'unique phrase 2');
  const over=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{tokenBudget:1000,maxPartChars:1000});
  assert.equal(over.manifest.budgetExceeded,true);
  assert.ok(over.manifest.warnings.includes('TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED'));
