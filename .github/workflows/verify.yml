@@ -1,7 +1,7 @@
 name: verify
 on:
   push:
-    branches: ["threadline/**"]
+    branches: ["cf/**"]
   pull_request:
     branches: ["main"]
 permissions:
@@ -9,7 +9,7 @@ permissions:
 concurrency:
   # Independent commits must not wait on a stale cancelled Windows job.
   # Push/PR events for the SAME source commit share a group; no test is skipped.
-  group: threadline-${{ github.head_ref || github.ref_name }}-${{ github.event.pull_request.head.sha || github.sha }}
+  group: chatflow-${{ github.head_ref || github.ref_name }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 jobs:
   verify:
@@ -44,17 +44,17 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: threadline-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          name: chatflow-candidate-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            dist/threadline-edge-*-candidate.zip
-            dist/threadline-chrome-*-candidate.zip
+            dist/chatflow-edge-*-candidate.zip
+            dist/chatflow-chrome-*-candidate.zip
             dist/SHA256SUMS
           retention-days: 30
       - name: Preserve synthetic verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: threadline-synthetic-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          name: chatflow-synthetic-evidence-${{ github.event.pull_request.head.sha || github.sha }}
           path: test-results/
           if-no-files-found: ignore
           retention-days: 30

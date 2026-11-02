@@ -10,8 +10,8 @@
  const code=e=>/^[A-Z0-9_]{2,100}$/.test(e?.message||'')?e.message:'HANDOFF_NOT_CONFIRMED';
  async function send(type,data={}){const r=await api.runtime.sendMessage({type,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
  function notice(text){
-  let el=document.getElementById('threadline-handoff-notice');
-  if(!el){el=document.createElement('div');el.id='threadline-handoff-notice';el.setAttribute('role','status');el.style.cssText='position:fixed;bottom:12px;right:12px;max-width:400px;z-index:2147483647;padding:12px 16px;border:1px solid #8193a8;border-radius:8px;background:#eef4fb;color:#23384f;font:14px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(el);}
+  let el=document.getElementById('chatflow-handoff-notice');
+  if(!el){el=document.createElement('div');el.id='chatflow-handoff-notice';el.setAttribute('role','status');el.style.cssText='position:fixed;bottom:12px;right:12px;max-width:400px;z-index:2147483647;padding:12px 16px;border:1px solid #8193a8;border-radius:8px;background:#eef4fb;color:#23384f;font:14px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(el);}
   el.textContent=text;
  }
  const visible=e=>!!e&&(e.getClientRects().length>0||e.offsetParent!==null);
@@ -63,7 +63,7 @@
   try{h=await send('tl:claimHandoff');}catch{return;}
   if(!h)return;started=true;let injected=false;
   try{
-   notice('研线：核验本地接续材料。不会自动发送消息。');
+   notice('ChatFlow：核验本地接续材料。不会自动发送消息。');
    let ready=false;for(let i=0;i<40;i++){try{editor();ready=true;break;}catch{await sleep(250);}}
    C.check(ready,'COMPOSER_NOT_READY');preflight();
    const files=[];for(const f of h.files)files.push(await receiveFile(h,f));
@@ -75,10 +75,10 @@
    let confirmed=false;
    for(let i=0;i<32;i++){await sleep(250);C.chatUrl(location.href,{target:true});if(uploadsConfirmed(files.map(f=>f.name))){confirmed=true;break;}}
    await send('tl:handoffStatus',{id:h.id,state:confirmed?'upload_confirmed':'upload_unknown'});
-   notice((confirmed?'研线：网页已确认首批附件上传。':'研线：已尝试附加首批文件，但上传结果尚未确认，请检查网页。')+'请核对后手动发送。'+(h.remainingBatches?'另有 '+h.remainingBatches+' 批文件，请从档案页下载并手动补充。':''));
+   notice((confirmed?'ChatFlow：网页已确认首批附件上传。':'ChatFlow：已尝试附加首批文件，但上传结果尚未确认，请检查网页。')+'请核对后手动发送。'+(h.remainingBatches?'另有 '+h.remainingBatches+' 批文件，请从档案页下载并手动补充。':''));
   }catch(e){
    await send('tl:handoffStatus',{id:h.id,state:injected?'partial_injection':'injection_blocked',code:code(e)}).catch(()=>{});
-   notice('研线：自动接续未确认（'+code(e)+'）。不会自动重试或清除草稿。请回档案页下载接续包，手动上传。');
+   notice('ChatFlow：自动接续未确认（'+code(e)+'）。不会自动重试或清除草稿。请回档案页下载接续包，手动上传。');
   }
  }
  api.runtime.onMessage.addListener((msg,sender,respond)=>{if(sender.id!==api.runtime.id)return false;if(msg?.type==='tl:handoffAvailable'){prepare();respond({ok:true});}return false;});

@@ -9,12 +9,12 @@
  async function message(type,data={},nonce=active?.nonce){const r=await api.runtime.sendMessage({type,nonce,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
  function sameSource(run){const s=C.chatUrl(location.href);C.check(s.conversationId===run.source.conversationId&&s.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');C.check(active===run&&!run.stopped,'CANCELLED_BY_USER');}
  function status(run,text){
-  let host=document.getElementById('threadline-cache-notice');
-  if(!host){host=document.createElement('div');host.id='threadline-cache-notice';host.setAttribute('role','status');host.style.cssText='position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:330px;padding:10px 14px;background:#eef4fb;color:#23384f;border:1px solid #8193a8;border-radius:8px;font:13px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(host);}
+  let host=document.getElementById('chatflow-cache-notice');
+  if(!host){host=document.createElement('div');host.id='chatflow-cache-notice';host.setAttribute('role','status');host.style.cssText='position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:330px;padding:10px 14px;background:#eef4fb;color:#23384f;border:1px solid #8193a8;border-radius:8px;font:13px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(host);}
   host.replaceChildren(document.createTextNode(text));
   if(run&&!run.stopped){const b=document.createElement('button');b.type='button';b.textContent='停止保存';b.style.cssText='margin-left:8px;padding:4px 8px';b.onclick=()=>{stop(run);message('tl:captureFailed',{code:'CANCELLED_BY_USER'},run.nonce).catch(()=>{});};host.append(b);}
  }
- function stop(run){run.stopped=true;run.controller?.abort();run.observer?.disconnect();clearInterval(run.timer);if(active===run)active=null;status(null,'研线：本对话保存已停止；已写入的本地文件保留。');}
+ function stop(run){run.stopped=true;run.controller?.abort();run.observer?.disconnect();clearInterval(run.timer);if(active===run)active=null;status(null,'ChatFlow：本对话保存已停止；已写入的本地文件保留。');}
  async function fetchResponse(run,path,token,accountId){
   sameSource(run);const u=new URL(path,run.source.origin),conversationPath='/backend-api/conversation/'+encodeURIComponent(run.source.conversationId);
   C.check(u.origin===run.source.origin,'CROSS_ORIGIN_AUTH_REQUEST_REJECTED');
@@ -73,7 +73,7 @@
  async function cycle(run){
   if(run.busy||run.stopped)return;run.busy=true;run.dirty=false;
   try{
-   sameSource(run);status(run,run.scope==='last_generated'?'研线：正在查找当前分支最后生成的文件。':'研线：正在读取本对话和可识别文件。');
+   sameSource(run);status(run,run.scope==='last_generated'?'ChatFlow：正在查找当前分支最后生成的文件。':'ChatFlow：正在读取本对话和可识别文件。');
    const session=await json(run,'/api/auth/session');C.check(typeof session.accessToken==='string'&&session.accessToken,'CHATGPT_LOGIN_REQUIRED');const token=session.accessToken,account=session.account?.id||session.activeAccount?.id||session.account_id||null;
    const raw=await json(run,'/backend-api/conversation/'+encodeURIComponent(run.source.conversationId),token,account);sameSource(run);
    const model=C.normalizeConversation(raw,location.href);reconcileVisibleAttachments(model);const selectedKeys=new Set(C.selectAssetKeys(model,run.scope)),scopeAmbiguous=run.scope==='last_generated'&&C.lastGeneratedScopeAmbiguous(model);
@@ -81,24 +81,24 @@
    const selectedAssets=model.assets.filter(a=>a.state!=='excluded'),skipped=model.assets.length-selectedAssets.length,persisted=C.persistedSnapshot(model);C.check(JSON.stringify(persisted).length<=16*1024*1024,'SNAPSHOT_MESSAGE_SIZE_LIMIT');
    const saved=new Set((await message('tl:snapshot',{snapshot:persisted},run.nonce)).savedKeys);let done=0,missing=0;
    for(const a of model.assets){
-    if(a.state==='excluded')continue;sameSource(run);if(saved.has(a.key)){done++;continue;}status(run,'研线：保存文件 '+(done+missing+1)+' / '+selectedAssets.length+'。');
+    if(a.state==='excluded')continue;sameSource(run);if(saved.has(a.key)){done++;continue;}status(run,'ChatFlow：保存文件 '+(done+missing+1)+' / '+selectedAssets.length+'。');
     if(a.reason==='SAVE_SCOPE_SOURCE_UNRESOLVED'){await message('tl:assetFail',{key:a.key,code:'SAVE_SCOPE_SOURCE_UNRESOLVED'},run.nonce);missing++;continue;}
     try{await download(run,a,token,account);done++;}catch(e){const reason=code(e);await message('tl:assetFail',{key:a.key,code:reason},run.nonce);missing++;if(reason==='LOCAL_STORAGE_FULL')throw e;}
    }
-   await message('tl:finish',{},run.nonce);const hasActiveGenerated=model.assets.some(a=>model.active.includes(a.nodeId)&&(a.origin==='assistant_generated'||(!a.origin&&a.kind==='generated'))),noGenerated=run.scope==='last_generated'&&!hasActiveGenerated&&!scopeAmbiguous,scopeNotice=scopeAmbiguous?'当前分支存在来源不明或无法映射的文件，不能安全确定最后生成文件；可能的候选文件均标记为未判定。':noGenerated?'当前分支未识别到助手生成文件，只保存了对话正文。':'';status(run.live?run:null,'研线：已保存 '+done+' 个文件；'+missing+' 个未取得；'+skipped+' 个按范围跳过。'+(scopeNotice?' '+scopeNotice:run.live?'实时缓存已开启。':'请在本地档案中核对完整性。'));
+   await message('tl:finish',{},run.nonce);const hasActiveGenerated=model.assets.some(a=>model.active.includes(a.nodeId)&&(a.origin==='assistant_generated'||(!a.origin&&a.kind==='generated'))),noGenerated=run.scope==='last_generated'&&!hasActiveGenerated&&!scopeAmbiguous,scopeNotice=scopeAmbiguous?'当前分支存在来源不明或无法映射的文件，不能安全确定最后生成文件；可能的候选文件均标记为未判定。':noGenerated?'当前分支未识别到助手生成文件，只保存了对话正文。':'';status(run.live?run:null,'ChatFlow：已保存 '+done+' 个文件；'+missing+' 个未取得；'+skipped+' 个按范围跳过。'+(scopeNotice?' '+scopeNotice:run.live?'实时缓存已开启。':'请在本地档案中核对完整性。'));
    if(!run.live){run.stopped=true;if(active===run)active=null;}
-  }catch(e){const reason=code(e);await message('tl:captureFailed',{code:reason},run.nonce).catch(()=>{});stop(run);status(null,'研线：保存中止（'+reason+'）。已保存的字节保留，未确认的结果不自动重试。');}
+  }catch(e){const reason=code(e);await message('tl:captureFailed',{code:reason},run.nonce).catch(()=>{});stop(run);status(null,'ChatFlow：保存中止（'+reason+'）。已保存的字节保留，未确认的结果不自动重试。');}
   finally{run.busy=false;}
  }
  function start(nonce,live,scope='all'){
   C.check(['all','last_generated'].includes(scope),'INVALID_SAVE_SCOPE');C.check(!(live&&scope==='last_generated'),'LIVE_CACHE_REQUIRES_ALL_SCOPE');
   if(active)stop(active);const run={nonce,source:C.chatUrl(location.href),live:!!live,scope,busy:false,stopped:false,dirty:true};active=run;
   if(run.live){
-   run.observer=new MutationObserver(records=>{if(records.some(r=>{const e=r.target instanceof Element?r.target:r.target.parentElement;return!e?.closest('#threadline-cache-notice');}))run.dirty=true;});
+   run.observer=new MutationObserver(records=>{if(records.some(r=>{const e=r.target instanceof Element?r.target:r.target.parentElement;return!e?.closest('#chatflow-cache-notice');}))run.dirty=true;});
    run.observer.observe(document.body||document.documentElement,{childList:true,subtree:true});
    run.timer=setInterval(async()=>{
     if(run.busy||run.stopped)return;
-    try{sameSource(run);await message('tl:heartbeat',{},run.nonce);if(run.dirty)await cycle(run);}catch(e){stop(run);status(null,'研线：缓存已暂停（'+code(e)+'），请在档案页显式重新开启。');}
+    try{sameSource(run);await message('tl:heartbeat',{},run.nonce);if(run.dirty)await cycle(run);}catch(e){stop(run);status(null,'ChatFlow：缓存已暂停（'+code(e)+'），请在档案页显式重新开启。');}
    },12000);
   }
   cycle(run);

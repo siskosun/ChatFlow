@@ -95,8 +95,8 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 
 | ID | 阶段 | 交付 | 状态 | 依赖 | 完成标准 |
 |---|---|---|---|---|---|
-| CF-PLAN | 计划与基线冻结 | 本计划、候选 SHA、产品范围、UX 与安全不变量 | in_progress | - | 计划写入 ChatFlow；来源和范围可追溯 |
-| CF-01 | 0.7.2 迁移与品牌重置 | 将准确候选代码迁入本仓库；品牌、manifest、构建产物、文档统一改为 ChatFlow；版本改为 0.1；保留 LICENSE/THIRD_PARTY_NOTICES | planned | CF-PLAN | 不改变功能行为；文件清单/来源记录完整；旧仓库不变 |
+| CF-PLAN | 计划与基线冻结 | 本计划、候选 SHA、产品范围、UX 与安全不变量 | done | - | 计划写入 ChatFlow；来源和范围可追溯 |
+| CF-01 | 0.7.2 迁移与品牌重置 | 将准确候选代码迁入本仓库；品牌、manifest、构建产物、文档统一改为 ChatFlow；版本改为 0.1；保留 LICENSE/THIRD_PARTY_NOTICES | in_progress | CF-PLAN | 不改变功能行为；文件清单/来源记录完整；旧仓库不变 |
 | CF-02 | 新仓库工程基线 | ChatFlow 自有 CI、构建、Node/Chromium/IndexedDB 测试、候选 ZIP、BUILD_INFO 与 SHA256SUMS | planned | CF-01 | 在 ChatFlow 准确 HEAD 重新通过全部回归；Ubuntu/Windows 构建成功 |
 | CF-03 | 0.1 功能与安全复核 | 逐项审查采集、文件范围、真实字节、缓存、ZIP 恢复、草稿保护、目标页白名单、上传状态和零自动发送 | planned | CF-02 | 现有 0.7.2 安全不变量均有测试覆盖；缺陷修复有独立回归 |
 | CF-04 | 真实账号验收 | 独立 Edge 配置中的真实 ChatGPT 保存、附件下载、浏览器重启、ZIP 恢复、新聊天接续 | planned | CF-03 | 真实文件字节/哈希、缺失原因、早中末历史事实和上传状态逐项核对；不上传敏感数据 |

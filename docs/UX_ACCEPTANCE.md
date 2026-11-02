@@ -83,3 +83,4 @@ GitHub Actions verify run #41371140704，准确 HEAD `22999dec5f657e6ba4560f5e58
 本轮证据 artifact：`threadline-synthetic-evidence-22999dec5f657e6ba4560f5e589382877afeddad`（ID `13109820089`）。截图包含 `ux-home-last-generated-1280.png`，可用于检查当前桌面布局。
 
 上述仍是合成 ChatGPT 页面和合成数据。真人任务完成率、真实 ChatGPT 页面兼容性与真实附件可用性仍待独立验收。
+\n\n## ChatFlow 0.1 继承说明\n\n本文件中的历史自动化数据来自 ThreadLine 0.7.x 的合成浏览器验收，不代表 ChatFlow 新仓库已通过相同验收，也不代表真人 UX 通过。ChatFlow 必须在自己的准确提交上重跑测试；品牌及界面验收按 docs/PLAN.md 的 CF-05 执行。\n
