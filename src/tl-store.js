@@ -1,7 +1,7 @@
-/* ThreadLine IndexedDB, extension origin only. MIT. */
+/* ChatFlow IndexedDB, extension origin only. MIT. */
 (() => {
  'use strict';
- const C=globalThis.TLCore,NAME='threadline-local-archive-v1';let opening;
+ const C=globalThis.TLCore,NAME='chatflow-local-archive-v1';let opening;
  const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IDB_REQUEST_FAILED'));});
  function open(){
   if(opening)return opening;
