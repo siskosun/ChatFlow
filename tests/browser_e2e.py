@@ -6,6 +6,7 @@ import asyncio
 import base64
 import hashlib
 import io
+import time
 import json
 import tempfile
 import traceback
@@ -90,10 +91,10 @@ def experiment_conversation(conversation_id,prompt):
         'current_node':'assistant-node',
         'mapping':{
             'user-node':{'id':'user-node','parent':None,'children':['assistant-node'],'message':{
-                'id':'user-message','author':{'role':'user'},'create_time':1700000000,
+                'id':'user-message','author':{'role':'user'},'create_time':time.time(),
                 'status':'finished_successfully','content':{'parts':[prompt]},'metadata':{}}},
             'assistant-node':{'id':'assistant-node','parent':'user-node','children':[],'message':{
-                'id':'assistant-message','author':{'role':'assistant'},'create_time':1700000001,
+                'id':'assistant-message','author':{'role':'assistant'},'create_time':time.time(),
                 'status':'finished_successfully','content':{'parts':['Synthetic final answer for '+conversation_id]},'metadata':{}}}
         }
     }
