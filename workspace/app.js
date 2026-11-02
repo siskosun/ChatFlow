@@ -139,7 +139,7 @@
  $('open-target').onclick=()=>guard(async()=>{C.check(planFingerprint===fingerprint(),'REGENERATE_HANDOFF_AFTER_CHANGES');const h=await call('tl:openHandoff',{id:handoffId});await renderHandoffState();status('新聊天已打开。请核对文件，再由你手动发送。');});
  $('focus-target').onclick=()=>guard(()=>call('tl:focusTarget',{id:handoffId}));$('download-handoff').onclick=()=>guard(downloadHandoff);
  $('confirm-upload').onclick=()=>guard(async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
- $('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
+ $('open-experiments').onclick=()=>guard(async()=>{await chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')});});$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
  setInterval(()=>{if(refreshing)return;refreshing=true;Promise.resolve().then(async()=>{if(view==='capture')await renderRunning();if(handoffId)await renderHandoffState();}).catch(()=>{}).finally(()=>refreshing=false);},1500);
  guard(async()=>{await S.open();updateScopeUI();await sources();await refreshArchives();updateContextButton();await quota();await updateSelection();status('就绪。选择一个 ChatGPT 对话开始保存。');});
 })();
