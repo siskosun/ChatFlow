@@ -15,7 +15,7 @@
   check(snapshot?.schema==='threadline.snapshot/1'&&snapshot.source?.conversationId,'INVALID_PASSAGE_SNAPSHOT');
   check(message&&snapshot.messages.some(m=>m.id===message.id&&m.nodeId===message.nodeId),'PASSAGE_MESSAGE_NOT_IN_SNAPSHOT');
   const body=String(message.text||''),selected=String(text||'');
-  check(selected.length>0&&Number.isSafeInteger(startOffset)&&Number.isSafeInteger(endOffset)&&startOffset>=0&&endOffset>startOffset&&endOffset<=body.length,'INVALID_PASSAGE_RANGE');
+  check(selected.length>0&&selected.length<=100000&&Number.isSafeInteger(startOffset)&&Number.isSafeInteger(endOffset)&&startOffset>=0&&endOffset>startOffset&&endOffset<=body.length,'INVALID_PASSAGE_RANGE');
   check(body.slice(startOffset,endOffset)===selected,'PASSAGE_TEXT_OFFSET_MISMATCH');
   const occurrence=occurrences(body,selected).findIndex(x=>x.start===startOffset);
   check(occurrence>=0,'PASSAGE_OCCURRENCE_NOT_FOUND');
@@ -33,7 +33,7 @@
   const out=[];let from=0;
   while(from<=body.length-text.length){
    const start=body.indexOf(text,from);if(start<0)break;
-   out.push({start,end:start+text.length});from=start+Math.max(1,text.length);
+   out.push({start,end:start+text.length});from=start+1;
   }
   return out;
  }
@@ -56,7 +56,7 @@
   if(!candidates.length)return{status:'stale',reason:'PASSAGE_TEXT_NOT_FOUND_IN_SOURCE_MESSAGE',message,candidates:[]};
   if(candidates.length===1)return{status:'anchored',reason:'UNIQUE_EXACT_TEXT_IN_SOURCE_MESSAGE',message,...candidates[0],candidates};
   const ranked=[...candidates].sort((a,b)=>b.score-a.score);
-  if(ranked[0].score>0&&ranked[0].score>ranked[1].score){
+  if(ranked[0].score>=8&&ranked[0].score>ranked[1].score){
    return{status:'anchored',reason:'UNIQUE_CONTEXT_MATCH',message,...ranked[0],candidates};
   }
   return{status:'ambiguous',reason:'MULTIPLE_UNRESOLVED_OCCURRENCES',message,candidates};
