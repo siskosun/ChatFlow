@@ -408,6 +408,21 @@ async def main():
                 text=''.join(z.read(x).decode('utf-8') for x in names if x.startswith('context_part_'))
                 assert 'known fact at position 0: 0' in text and 'known fact at position 119: 2023' in text
             passed('context_builder_exports_traceable_multi_archive_bundle_without_implicit_file_bytes',{'parts':manifest['partCount'],'messages':len(manifest['sources'][0]['messageIds'])})
+            await workspace.locator('.passage-row input[type=checkbox]').check()
+            await workspace.locator('.context-toolbar details summary').click()
+            await workspace.locator('#context-mode').select_option('passages')
+            async with workspace.expect_download(timeout=30000) as passage_context_download:
+                await workspace.locator('#build-context').click()
+            passage_context_file=await passage_context_download.value
+            with zipfile.ZipFile(await passage_context_file.path()) as z:
+                passage_manifest=json.loads(z.read('context_manifest.json'))
+                passage_text=''.join(z.read(x).decode('utf-8') for x in z.namelist() if x.startswith('context_part_'))
+                assert passage_manifest['options']['passageMode']=='passages'
+                assert len(passage_manifest['passages'])==1 and passage_manifest['sources'][0]['messageIds']==[]
+                assert 'known fact at position 0: 0' in passage_text and passage['passageId'] in passage_text
+            passed('context_builder_passage_only_mode_keeps_excerpt_and_complete_source_provenance')
+            await workspace.locator('#context-mode').select_option('messages')
+            await workspace.locator('.passage-row input[type=checkbox]').uncheck()
             await workspace.locator('.context-toolbar details summary').click()
             await workspace.locator('#context-include-assets').check()
             async with workspace.expect_download(timeout=30000) as context_assets_download:
