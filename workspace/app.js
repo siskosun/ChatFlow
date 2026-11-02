@@ -157,7 +157,7 @@
     C.check(pending,'PASSAGE_SELECTION_REQUIRED');
     const prior=reanchorPassageId?passageRows.find(p=>p.passageId===reanchorPassageId):null;
     C.check(!prior||(prior.messageId===m.id&&prior.nodeId===m.nodeId),'PASSAGE_REANCHOR_SOURCE_MISMATCH');
-    const record=TLPassages.create({passageId:prior?.passageId,captureId:c.id,snapshot,message:m,text:pending.text,startOffset:pending.startOffset,endOffset:pending.endOffset});
+    const now=Date.now(),record=TLPassages.create({passageId:prior?.passageId,captureId:c.id,snapshot,message:m,text:pending.text,startOffset:pending.startOffset,endOffset:pending.endOffset,createdAt:prior?.createdAt??now,updatedAt:now,reanchoredAt:prior?now:null,previousMessageHash:prior?.messageHash||null});
     await S.putPassage(record);pending=null;reanchorPassageId=null;save.hidden=true;window.getSelection()?.removeAllRanges();await renderDetail();status(prior?'重点片段已在原始消息内重新定位。':'重点片段已保存，并绑定到原始消息与分支。');
    },'passage-save');save.hidden=true;block.append(save);
    const updatePending=()=>{
