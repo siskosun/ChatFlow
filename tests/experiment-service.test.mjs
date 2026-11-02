@@ -65,14 +65,14 @@ test('branch completion requires exact input, finished assistant evidence and pe
  const created=await h.msg('FF_CREATE',{operationId:'create_00002',branchCount:2,w0:'material',p:'task'});
  const launch=await h.msg('FF_LAUNCH',{experimentId:created.id,operationId:'launch_00002'});
  for(const branch of ['A','B']){
-  const tabId=launch.tabIds[branch],sender={id:'chatflow-test',url:'https://chatgpt.com/c/conversation_'+branch,tab:{id:tabId,url:'https://chatgpt.com/c/conversation_'+branch}};
+  const tabId=launch.tabIds[branch],conversationId='conversation'+branch+'1234567890',sender={id:'chatflow-test',url:'https://chatgpt.com/c/'+conversationId,tab:{id:tabId,url:'https://chatgpt.com/c/'+conversationId}};
   await h.service.handle({type:'tl:claimExperimentHandoff'}, {id:'chatflow-test',url:'https://chatgpt.com/',tab:{id:tabId,url:'https://chatgpt.com/'}},h.api,{});
   await h.service.handle({type:'tl:experimentPrefillAck',experimentId:created.id,branch,attemptId:launch.attemptIds[branch]},{id:'chatflow-test',url:'https://chatgpt.com/',tab:{id:tabId,url:'https://chatgpt.com/'}},h.api,{});
   h.tabs.get(tabId).url=sender.url;
   const cap=await h.msg('FF_CAPTURE',{experimentId:created.id,branch});
   const bindKey='chatflow_exp_capture_'+cap.runId,bind=h.session.get(bindKey);assert.ok(bind);
   const row=await h.DB.read(created.id),frozen=row.frozen.text;
-  const snapshot={source:{conversationId:'conversation_'+branch},integrity:{state:'valid'},messages:[
+  const snapshot={source:{conversationId},integrity:{state:'valid'},messages:[
    {id:'user-'+branch,role:'user',text:frozen,nodeId:'u'},
    {id:'assistant-'+branch,role:'assistant',text:'final answer '+branch,finished:true,nodeId:'a'}
   ]};
