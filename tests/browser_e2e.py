@@ -339,7 +339,7 @@ async def main():
             passed('ux_archive_and_handoff_each_have_one_clear_next_action',{'widths':[320,360,1280],'primary_actions':1})
             passed('workspace_320_360_1280_reflow_and_screenshots')
             await workspace.get_by_role('button',name='我的档案').click()
-            source_checkbox=workspace.locator('.archive-select-row input[type="checkbox"]').first
+            source_checkbox=workspace.locator('.archive-select-row input[data-capture-id="'+cid+'"]')
             await source_checkbox.check()
             assert await workspace.locator('#build-context').is_enabled()
             async with workspace.expect_download(timeout=30000) as context_download:

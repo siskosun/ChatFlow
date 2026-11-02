@@ -42,7 +42,7 @@
  async function refreshArchives(){
   const list=$('archives'),q=$('search').value.trim().toLowerCase(),rows=(await S.all('captures')).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   list.replaceChildren();for(const c of rows){const title=c.snapshot?.title||c.title||'未完成采集';if(q&&!title.toLowerCase().includes(q))continue;
-   const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.snapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
+   const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.snapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.dataset.captureId=c.id;check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
    const b=button('',()=>choose(c.id),'archive-button');b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||c.state)+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
   if(!list.children.length)list.append(node('p','没有匹配的本地档案。','empty'));updateContextButton();
  }
