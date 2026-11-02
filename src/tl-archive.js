@@ -130,14 +130,14 @@
   return manifest;
  }
  function validatePassages(rows,snapshot,archiveId){
-  C.check(Array.isArray(rows)&&rows.length<=100000,'INVALID_ARCHIVE_PASSAGES');
+  C.check(Array.isArray(rows)&&rows.length<=5000,'INVALID_ARCHIVE_PASSAGES');
   const ids=new Set(),messages=new Set(snapshot.messages.map(m=>m.id+'\\u0000'+m.nodeId));
   return rows.map(p=>{
    C.check(C.record(p)&&p.schema==='chatflow.passage/1'&&typeof p.passageId==='string'&&p.passageId.length>0&&!ids.has(p.passageId),'INVALID_ARCHIVE_PASSAGE');
    ids.add(p.passageId);
    C.check(p.captureId===archiveId&&p.conversationId===snapshot.source.conversationId&&typeof p.messageId==='string'&&typeof p.nodeId==='string'&&messages.has(p.messageId+'\\u0000'+p.nodeId),'INVALID_ARCHIVE_PASSAGE_SOURCE');
    C.check(/^[a-f0-9]{64}$/.test(p.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(p.messageHash||''),'INVALID_ARCHIVE_PASSAGE_HASH');
-   C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=100000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset,'INVALID_ARCHIVE_PASSAGE_RANGE');
+   C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=5000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset,'INVALID_ARCHIVE_PASSAGE_RANGE');
    C.check(['yellow','green','blue','pink'].includes(p.color)&&['anchored','ambiguous','stale'].includes(p.status),'INVALID_ARCHIVE_PASSAGE_STATE');
    C.check(typeof p.prefix==='string'&&p.prefix.length<=160&&typeof p.suffix==='string'&&p.suffix.length<=160,'INVALID_ARCHIVE_PASSAGE_CONTEXT');
    const resolved=globalThis.TLPassages?.resolve?.(p,snapshot);
