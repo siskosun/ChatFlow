@@ -101,10 +101,17 @@
    let ready=false;for(let i=0;i<40;i++){try{editor();ready=true;break;}catch{await sleep(250);}}
    C.check(ready,'COMPOSER_NOT_READY');preflight();
    const files=[];for(const f of h.files)files.push(await receiveFile(h,f));
-   const e=preflight(),input=generalFileInput();C.check(input.multiple||files.length===1,'FILE_INPUT_IS_SINGLE_ONLY');
+   const e=preflight();let input=null,manualReason=null;
+   try{input=generalFileInput();if(!input.multiple&&files.length!==1)manualReason='FILE_INPUT_IS_SINGLE_ONLY';}
+   catch(err){if(code(err)==='GENERAL_FILE_INPUT_UNAVAILABLE_OR_AMBIGUOUS')manualReason=code(err);else throw err;}
    const dt=new DataTransfer();for(const f of files){C.check(f.size>0,'EMPTY_FILE_REJECTED');dt.items.add(f);}
    prefill(e,h.prompt); // Draft is filled only after every file passed hash verification.
    P.identify(location.href,{target:true}).identity;C.check(value(e).trim()===h.prompt.trim(),'USER_DRAFT_CHANGED');
+   if(manualReason){
+    await send('tl:handoffStatus',{id:h.id,state:'draft_prepared',code:manualReason});
+    notice('ChatFlow：接续文字已经预填，但当前页面没有可确认的批量附件入口。请返回档案页下载全部接续文件，解压后手动上传并核对；不会自动发送。');
+    return;
+   }
    input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));injected=true;
    let confirmed=false;
    for(let i=0;i<32;i++){await sleep(250);P.identify(location.href,{target:true}).identity;if(uploadsConfirmed(files.map(f=>f.name))){confirmed=true;break;}}
