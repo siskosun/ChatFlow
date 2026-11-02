@@ -1,6 +1,6 @@
 # ChatFlow 0.1 开发计划
 
-**计划状态：** 迁移、核心工程与合成验收已完成；真实账号和真人 UX 门禁仍未完成。  
+**计划状态：** PR #1 工程修复候选通过准确 SHA 自动化；独立终审、真实账号和真人 UX 门禁未完成，暂不合并或发布。  
 **制定日期：** 2026-11-02  
 **目标仓库：** https://github.com/siskosun/ChatFlow  
 **目标版本：** `0.1`  
@@ -136,10 +136,10 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 | CF-PLAN | 计划与基线冻结 | 本计划、候选 SHA、产品范围、UX 与安全不变量 | done | - | 计划写入 ChatFlow；来源和范围可追溯 |
 | CF-01 | 0.7.2 迁移与品牌重置 | 将准确候选代码迁入本仓库；品牌、manifest、构建产物、文档统一改为 ChatFlow；版本改为 0.1；保留许可 | done | CF-PLAN | 文件清单/来源可追溯；旧仓库不变 |
 | CF-02 | 新仓库工程基线 | ChatFlow 自有 CI、构建、Node/Chromium/IndexedDB 测试、候选 ZIP、BUILD_INFO 与 SHA256SUMS | done | CF-01 | ChatFlow 准确 HEAD 的 Ubuntu/Windows CI 全通过；包内版本、源码 SHA 和哈希一致 |
-| CF-03 | 归档引擎安全复核 | 采集、分支、文件范围、真实字节、实时缓存、ZIP 恢复、草稿保护、目标页白名单、上传状态 | done | CF-02 | 87 项 Node 回归、安全测试及 Chromium/IndexedDB 合成验收通过；未知/缺失/排除状态保持分离 |
+| CF-03 | 归档引擎安全复核 | 采集、分支、文件范围、真实字节、实时缓存、ZIP 恢复、草稿保护、目标页白名单、上传状态 | in_review | CF-02 | 87 项 Node 回归、安全测试及 Chromium/IndexedDB 合成验收通过；未知/缺失/排除状态保持分离 |
 | CF-04 | 统一档案协议 | 冻结可移植 schema、manifest、消息/分支/资产引用、版本迁移和冲突规则 | done | CF-03 | ChatFlow archive/1 与 ThreadLine archive/1 导入、往返、哈希/路径/资产关系校验和损坏拒绝测试通过 |
 | CF-05 | Context Builder | 来源选择、消息/分支筛选、预算、分段、索引、可追溯 context manifest | done | CF-04 | 多档案来源、分支筛选、关键词、预算分段、附件哈希、重复消息去重、相同附件字节按哈希去重及冲突版本保留均有测试 |
-| CF-06 | 受控并行会话引擎 | K=2–4 冻结输入、独立新聊天、人工发送、回执/超时/失败分类、盲测/揭盲/裁决 | done | CF-05 | K=2/3/4 合成端到端均验证相同预填、人工发送、采集和盲测；未知状态不重放 |
+| CF-06 | 受控并行会话引擎 | K=2–4 冻结输入、独立新聊天、人工发送、回执/超时/失败分类、盲测/揭盲/裁决 | in_review | CF-05 | K=2/3/4 合成端到端均验证相同预填、人工发送、采集和盲测；未知状态不重放 |
 | CF-07 | Provider Adapter 边界 | ChatGPT 适配器与通用档案/执行层解耦；补齐能力探测和合成契约 | done | CF-03,CF-06 | ChatGPT 适配器完成集成与能力契约测试；未验收的平台返回 unsupported |
 | CF-08 | 真实账号验收 | 独立 Edge 配置中的真实 ChatGPT 保存、附件下载、浏览器重启、ZIP 恢复、Context Builder 与并行接续 | blocked | CF-07 | 必须由所有者在已登录的独立 Edge 配置中执行；云端无真实账号凭据和本地浏览器控制权限 |
 | CF-09 | Uber 式 UX 验收与迭代 | 保存、找回、编译上下文、并行任务；320/360/480/768/1280px、键盘/焦点/读屏 | in_review | CF-05,CF-06 | 五种视口、键盘焦点、标签和状态播报的自动化验收通过；仍需 5 名独立目标用户及真人读屏测试 |
@@ -178,7 +178,9 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 2. 至少 5 名未参与开发的目标用户完成保存—找回—接续任务；另需熟练用户执行 Context Builder 和 K=2–4 并行流程。
 3. 真人读屏/辅助技术验收。
 
-合成测试不能代替上述门禁。未执行项目继续保持 blocked/in_review，不得标记为通过。## 8. 执行约定
+合成测试不能代替上述门禁。未执行项目继续保持 blocked/in_review，不得标记为通过。
+
+## 8. 执行约定
 
 1. 先完成当前阶段，再进入下一阶段；每次只推进一个阶段或一个可独立验收的子任务。
 2. 正式开发、提交、构建和自动化测试在 GitHub 云端执行；不访问用户本机、不请求账号凭据。
@@ -188,10 +190,24 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 6. 连续三次复现同一失败后停止盲目重试，定位根因并记录 blocked/unknown。
 7. 所有任务状态只能使用 `planned`、`in_progress`、`in_review`、`blocked`、`done`、`deferred`。只有证据满足完成标准时才可改为 `done`。
 
-## 9. PR #1 最新准确 HEAD 验证（2026-11-02）
+## 9. PR #1 早期验收收据（历史 HEAD，2026-11-02）
 
 - PR HEAD：`e70e3b36f63de3e0a35dfaa360bea6291ebfb8ca`（分支 `cf/0.1-migration`）。
 - GitHub Actions run [#41393582931](https://github.com/siskosun/ChatFlow/actions/runs/41393582931)：`verify` 与 `windows-baseline` 均 completed / success；该运行对应上述 PR HEAD。
 - 本轮验证确认 Node 安全/回归 89/89、Chromium MV3 合成 E2E 37 项通过、IndexedDB 存储边界工作流通过、Chrome/Edge 候选包构建与校验通过。
 - 此提交包含后续文档更新；运行时代码的最近完整验收提交仍为 `daa26bed54179c99c55e612bb70ebab649ceba37`，PR HEAD 与运行时代码提交不得混称。
 - 当前 PR 仍为 Draft/Open、未合并、未发布。CF-08 真实账号验收为 blocked；CF-09 真人用户与读屏验收尚未完成；CF-10 因依赖未闭合保持 planned。
+
+
+## 10. PR #1 本机阻断审查与修复（2026-11-02）
+
+对 `f17b27088d406973bfb89d5495607001d319c18f` 的本机独立验收为 **BLOCKED**。其自动化测试通过，但发现两个阻断：
+
+- **P1：并行实验错归属**。预填后未充分确认文档及会话，可能将切换后的其他对话采集为当前实验。修复候选记录预填时的 document ID、同一文档上的可信人工发送操作、首次观察的 conversation ID；采集前校验当前 tab、document、conversation、attempt，采集完成后对快照来源复核。身份无法确认时标记 unknown，不自动重试、不得标记 done。
+- **P2：ZIP 导入高内存风险**。旧逻辑允许在单条目中解压接近 4 GiB。修复候选将单条目压缩及展开载荷各限制为 64 MiB，累计展开限制为 256 MiB，deflate 压缩比限制为 200；解压前和流式解压时均检查。当前导出 ZIP 的能力不代表所有大文件 ZIP 均能由 0.1 恢复，超限需明确拒绝并告知。
+
+首轮修复提交 `f0d429d59d7cf177aef1f7d71da48db7a88184c7`：Node 98/98、Windows 通过；Chromium 首个并行分支采集未完成，属于新发现的 SPA 来源识别缺陷，不能将该轮判为通过。后台此前采用可能停留在首次加载位置的 MessageSender.url 解析会话；修订后以当前标签 URL 核验实际 SPA 会话，同时要求精确文档身份与原来源域不变。
+
+**最新已通过工程自动化的运行时代码 HEAD：** `36012a252fba5ca694629f2b79184577d0e90283`。GitHub Actions [run #41402106468](https://github.com/siskosun/ChatFlow/actions/runs/41402106468) 的 `verify` 与 `windows-baseline` 均为 completed/success，Node **99/99**、Chromium MV3 合成端到端 **30/30**、IndexedDB 边界 **7/7**，K=2/3/4 完整人工发送模拟—采集—盲测对照均通过。候选包 artifact `chatflow-candidate-36012a252fba5ca694629f2b79184577d0e90283`，ID `13121289563`。上述均非真实账号验收。
+
+**后续仍未闭合**：新的独立终审、真实已登录 Edge/ChatGPT 账号保存与恢复、真实附件下载/上传、5 名独立目标用户任务测试、真人读屏和 L3 人工 Stop Gate。CF-03 与 CF-06 维持 in_review；CF-08 blocked，CF-09 in_review，CF-10 planned。继续保持 PR Draft，不合并、不发布。
