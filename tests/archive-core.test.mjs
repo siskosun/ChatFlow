@@ -102,11 +102,11 @@ test('workspace renders user data as text and never provides an automatic send a
 
 
 test('ChatFlow archive manifest validates current format and accepts legacy ThreadLine archives',()=>{
- const base={schema:'chatflow.archive/1',formatVersion:1,snapshotPath:'conversation.json',snapshotSha256:'a'.repeat(64),saveScope:'all',files:[{key:'asset-1',state:'saved',size:3,sha256:'b'.repeat(64),path:'assets/b.bin'}]};
+ const base={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.1'},source:{provider:'chatgpt',conversationId:'conversation12345678',origin:'https://chatgpt.com'},snapshotSchema:'threadline.snapshot/1',snapshotPath:'conversation.json',snapshotSha256:'a'.repeat(64),saveScope:'all',integrity:{state:'valid'},state:'ready',files:[{key:'asset-1',messageId:'m1',nodeId:'n1',name:'file.bin',mime:'application/octet-stream',kind:'generated',origin:'assistant_generated',state:'saved',size:3,sha256:'b'.repeat(64),path:'assets/'+'b'.repeat(64)+'.bin'}]};
  assert.equal(A.validateManifest(base).schema,'chatflow.archive/1');
  assert.equal(A.validateManifest({...base,schema:'threadline.archive/1'}).schema,'threadline.archive/1');
  assert.throws(()=>A.validateManifest({...base,files:[...base.files,{...base.files[0]}]}),/INVALID_MANIFEST_ASSET/);
  assert.throws(()=>A.validateManifest({...base,files:[{key:'bad',state:'saved',size:0,sha256:null,path:null}]}),/SAVED_ASSET_WITHOUT_BYTES/);
  assert.throws(()=>A.validateManifest({...base,files:[{key:'skip',state:'excluded',size:0,sha256:'b'.repeat(64),path:null}]}),/EXCLUDED_ASSET_HAS_BYTES/);
- assert.throws(()=>A.validateManifest({...base,files:[{key:'path',state:'saved',size:3,sha256:'b'.repeat(64),path:'../escape'}]}),/UNSAFE_ZIP_PATH/);
+ assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],path:'../escape'}]}),/UNSAFE_ZIP_PATH/);\n assert.throws(()=>A.validateManifest({...base,app:{name:'ThreadLine',version:'0.7.2'}}),/INVALID_ARCHIVE_APP_VERSION/);\n assert.throws(()=>A.validateManifest({...base,source:{...base.source,origin:'https://evil.example'}}),/INVALID_ARCHIVE_ORIGIN/);\n assert.throws(()=>A.validateManifest({...base,state:'ready',files:[{...base.files[0],state:'unavailable',size:0,sha256:null,path:null}]}),/READY_ARCHIVE_HAS_INCOMPLETE_ASSETS/);\n assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],path:'assets/'+'c'.repeat(64)+'.bin'}]}),/ASSET_PATH_HASH_MISMATCH/);
 });

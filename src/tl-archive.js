@@ -89,16 +89,34 @@
   C.check(C.record(manifest)&&['chatflow.archive/1','threadline.archive/1'].includes(manifest.schema),'UNRECOGNIZED_ARCHIVE');
   C.check(manifest.snapshotPath==='conversation.json'&&/^[0-9a-f]{64}$/.test(manifest.snapshotSha256||'')&&Array.isArray(manifest.files),'INVALID_ARCHIVE_MANIFEST');
   C.check(['all','last_generated'].includes(manifest.saveScope||'all'),'INVALID_ARCHIVE_SAVE_SCOPE');
+  if(manifest.schema==='chatflow.archive/1'){
+   C.check(manifest.formatVersion===1&&manifest.app?.name==='ChatFlow'&&/^0\.1(?:$|\.)/.test(manifest.app.version||''),'INVALID_ARCHIVE_APP_VERSION');
+   C.check(manifest.source?.provider==='chatgpt'&&typeof manifest.source.conversationId==='string'&&/^[A-Za-z0-9_-]{8,200}$/.test(manifest.source.conversationId),'INVALID_ARCHIVE_SOURCE');
+   C.check(typeof manifest.source.origin==='string'&&['https://chatgpt.com','https://chat.openai.com'].includes(manifest.source.origin),'INVALID_ARCHIVE_ORIGIN');
+   C.check(manifest.snapshotSchema==='threadline.snapshot/1'&&['ready','partial'].includes(manifest.state)&&C.record(manifest.integrity),'INVALID_ARCHIVE_STATE');
+  }
   const keys=new Set(),paths=new Set();
   for(const file of manifest.files){
-   C.check(C.record(file)&&typeof file.key==='string'&&file.key.length>0&&!keys.has(file.key),'INVALID_MANIFEST_ASSET');
+   C.check(C.record(file)&&typeof file.key==='string'&&file.key.length>0&&file.key.length<=500&&!keys.has(file.key),'INVALID_MANIFEST_ASSET');
    keys.add(file.key);
    C.check(['saved','excluded','unavailable','discovered','downloading','corrupt','missing','unknown'].includes(file.state),'INVALID_MANIFEST_ASSET_STATE');
-   C.check(Number.isSafeInteger(file.size||0)&&(file.size||0)>=0,'INVALID_MANIFEST_ASSET_SIZE');
-   if(file.path!=null){safePath(file.path);C.check(!paths.has(file.path.normalize('NFC')),'DUPLICATE_MANIFEST_PATH');paths.add(file.path.normalize('NFC'));C.check(file.state==='saved'&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'INVALID_SAVED_ASSET_MANIFEST');}
+   C.check(Number.isSafeInteger(file.size)&&file.size>=0,'INVALID_MANIFEST_ASSET_SIZE');
+   if(manifest.schema==='chatflow.archive/1'){
+    C.check(typeof file.messageId==='string'&&file.messageId.length>0&&typeof file.nodeId==='string'&&file.nodeId.length>0,'INVALID_MANIFEST_ASSET_REFERENCE');
+    C.check(typeof file.name==='string'&&file.name.length>0&&typeof file.mime==='string'&&typeof file.kind==='string'&&typeof file.origin==='string','INVALID_MANIFEST_ASSET_METADATA');
+   }
+   if(file.path!=null){
+    safePath(file.path);const normalized=file.path.normalize('NFC');
+    C.check(!paths.has(normalized),'DUPLICATE_MANIFEST_PATH');paths.add(normalized);
+    C.check(file.state==='saved'&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'INVALID_SAVED_ASSET_MANIFEST');
+    C.check(file.path==='assets/'+file.sha256+'.bin','ASSET_PATH_HASH_MISMATCH');
+   }
    if(file.state==='saved')C.check(file.path&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'SAVED_ASSET_WITHOUT_BYTES');
-   if(file.state==='excluded')C.check(!file.path&&!file.sha256,'EXCLUDED_ASSET_HAS_BYTES');
+   if(file.state==='excluded')C.check(!file.path&&!file.sha256&&file.size===0,'EXCLUDED_ASSET_HAS_BYTES');
+   if(!['saved','excluded'].includes(file.state))C.check(!file.path&&!file.sha256&&file.size===0,'UNAVAILABLE_ASSET_HAS_BYTES');
   }
+  if(manifest.schema==='chatflow.archive/1'&&manifest.state==='ready')
+   C.check(manifest.integrity.state==='valid'&&manifest.files.every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
   return manifest;
  }
  function validatedSnapshot(raw){
