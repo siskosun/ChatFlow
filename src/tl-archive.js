@@ -121,7 +121,9 @@
   return out;
  }
  async function restore(blob){
-  const entries=await readZip(blob),manifest=validateManifest(await jsonEntry(entries,'manifest.json'));
+  const entries=await readZip(blob),rawManifest=await jsonEntry(entries,'manifest.json');
+  if((rawManifest.saveScope||'all')==='all'&&Array.isArray(rawManifest.files)&&rawManifest.files.some(f=>f?.state==='excluded'))throw new Error('INVALID_ALL_SCOPE_EXCLUSIONS');
+  const manifest=validateManifest(rawManifest);
   const rawBlob=await entries.get('conversation.json')?.blob();C.check(rawBlob,'SNAPSHOT_MISSING');C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
   const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
   for(const m of manifest.files){

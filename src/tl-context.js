@@ -32,7 +32,7 @@
     nodeIds:[...selectedNodes]
    });
    sections.push('# 来源 '+(sourceRecords.length)+'：'+snapshot.title+'\n\n'+text);
-   const rows=Array.isArray(source.assets)?source.assets:[];
+   const rows=Array.isArray(snapshot.assets)?snapshot.assets:[];
    for(const asset of rows){
     const inScope=selectedNodes.has(asset.nodeId);
     const row=source.assetsRows?.find(x=>x.key===asset.key)||source.assetRows?.find(x=>x.key===asset.key)||null;
