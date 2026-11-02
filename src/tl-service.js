@@ -73,7 +73,7 @@ async function prepareHandoff(msg){
  const h={id:C.id(),captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash:new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex(),createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
-// A fresh window must not load ChatGPT before its tab is durably bound to this handoff.
+// A new tab must not load ChatGPT before it is durably bound to this handoff.
 // Serialize opens as well as claims: repeated UI clicks cannot create duplicate targets.
 let openQueue=Promise.resolve();
 function openHandoff(id,sender){
