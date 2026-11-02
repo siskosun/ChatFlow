@@ -10,36 +10,40 @@
   check(Number.isSafeInteger(tokenBudget)&&tokenBudget>=1000&&tokenBudget<=1000000,'INVALID_CONTEXT_TOKEN_BUDGET');
   check(['messages','passages','mixed'].includes(passageMode),'INVALID_CONTEXT_PASSAGE_MODE');
   const terms=query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const seen=new Set(),seenMessages=new Map(),sourceRecords=[],assetRecords=[],sections=[],duplicateMessages=[],conflictingVersions=[];
+  const seen=new Set(),seenMessages=new Map(),sourceRecords=[],assetRecords=[],sections=[],duplicateMessages=[],conflictingVersions=[],passageRecords=[],excludedSources=[];
   for(const source of sources){
    check(C.record(source)&&typeof source.captureId==='string'&&source.captureId.length>0,'INVALID_CONTEXT_SOURCE');
    check(!seen.has(source.captureId),'DUPLICATE_CONTEXT_SOURCE');seen.add(source.captureId);
    const snapshot=source.snapshot;
    check(snapshot?.schema==='threadline.snapshot/1'&&Array.isArray(snapshot.messages)&&Array.isArray(snapshot.active),'INVALID_CONTEXT_SNAPSHOT');
-   const activeNodes=Array.isArray(source.activeNodes)?source.activeNodes:snapshot.active;
+   check(source.activeNodes==null||Array.isArray(source.activeNodes),'INVALID_CONTEXT_BRANCH_PATH');
+   const activeNodes=source.activeNodes||snapshot.active;
    check(activeNodes.length>0&&activeNodes.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(activeNodes).size===activeNodes.length&&snapshot.nodes[activeNodes[0]].parent===null,'INVALID_CONTEXT_BRANCH_PATH');
    for(let i=1;i<activeNodes.length;i++)check(snapshot.nodes[activeNodes[i]].parent===activeNodes[i-1],'INVALID_CONTEXT_BRANCH_PATH');
    const active=new Set(activeNodes);
-   const branchMessages=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
+   const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m]));
+   const branchMessages=allBranches?snapshot.messages:activeNodes.map(id=>byNode.get(id)).filter(Boolean);
    const messageSelection=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
    const selected=passageMode==='passages'?[]:messageSelection;
-   const selectedPassages=[];
-   for(const passage of source.passages||[]){
+   const selectedPassages=[],passageIds=new Set();
+   for(const passage of passageMode==='messages'?[]:(source.passages||[])){
+    check(!passageIds.has(passage.passageId),'DUPLICATE_CONTEXT_PASSAGE');passageIds.add(passage.passageId);
     check(passage.captureId===source.captureId&&passage.conversationId===snapshot.source.conversationId,'INVALID_CONTEXT_PASSAGE_SOURCE');
     check(allBranches||active.has(passage.nodeId),'CONTEXT_PASSAGE_OUTSIDE_BRANCH_SCOPE');
     if(terms.length&&!terms.every(term=>String(passage.text||'').toLocaleLowerCase().includes(term)))continue;
     const resolved=globalThis.TLPassages?.resolve?.(passage,snapshot);
     check(resolved?.status==='anchored','CONTEXT_PASSAGE_NOT_ANCHORED');
-    selectedPassages.push({passage,resolved});
+    const resolvedPassage={...passage,snapshotHash:globalThis.TLPassages.snapshotHash(snapshot),messageHash:globalThis.TLPassages.messageHash(resolved.message),startOffset:resolved.startOffset,endOffset:resolved.endOffset,status:resolved.status,anchorAtSave:{snapshotHash:passage.snapshotHash,messageHash:passage.messageHash,startOffset:passage.startOffset,endOffset:passage.endOffset},resolution:resolved.reason};
+    selectedPassages.push({passage:resolvedPassage,resolved});passageRecords.push(resolvedPassage);
    }
-   if(passageMode==='passages'&&selectedPassages.length===0)continue;
+   if(passageMode==='passages'&&selectedPassages.length===0){excludedSources.push({captureId:source.captureId,reason:'NO_SELECTED_PASSAGES_AFTER_FILTER'});continue;}
    check(selected.length>0||selectedPassages.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
    const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set([...selected.map(m=>m.nodeId),...selectedPassages.map(x=>x.passage.nodeId)]);
    const rendered=[],sourceDuplicates=[],sourceConflicts=[];
    const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(snapshot))).hex();
    const sourceIndex=sourceRecords.length;
    for(const message of selected){
-    const identity=snapshot.source.conversationId+'\u0000'+message.id+'\u0000'+message.nodeId;
+    const identity=JSON.stringify([snapshot.source.origin,snapshot.source.conversationId,message.id,message.nodeId]);
     const contentHash=new C.SHA256().update(JSON.stringify([message.role,message.text])).hex();
     const previous=seenMessages.get(identity);
     if(previous&&previous.contentHash===contentHash){
@@ -73,7 +77,7 @@
    let text='';
    if(rendered.length){
     const view={...snapshot,messages:rendered,active:rendered.map(m=>m.nodeId)};
-    text=C.history(view,{allBranches:true});
+    text=C.history(view,{allBranches:!!allBranches});
    }else if(selected.length)text='所选消息与之前来源完全重复，已去重；来源快照仍保留在 context manifest。';
    const passageText=selectedPassages.map(({passage})=>'### 重点片段 '+passage.passageId+'\n\n'+passage.text+'\n\n来源：conversation='+passage.conversationId+'；message='+passage.messageId+'；node='+passage.nodeId+'；capture='+passage.captureId+'；snapshot_sha256='+passage.snapshotHash+'；message_sha256='+passage.messageHash+'；offset='+passage.startOffset+'-'+passage.endOffset).join('\n\n');
    const combined=[text,passageText].filter(Boolean).join('\n\n');
@@ -111,16 +115,17 @@
   const missing=assetRecords.filter(a=>a.selectedBranch&&!a.includeBytes&&a.state!=='excluded');
   const excluded=assetRecords.filter(a=>a.selectedBranch&&a.state==='excluded');
   const estimatedTokens=Math.ceil(fullText.length/4);
-  const passageRecords=sourceRecords.flatMap(s=>s.passageIds.map(id=>{const item=sources.find(x=>x.captureId===s.captureId).passages.find(p=>p.passageId===id);return{passageId:id,captureId:item.captureId,snapshotHash:item.snapshotHash,conversationId:item.conversationId,messageId:item.messageId,nodeId:item.nodeId,messageHash:item.messageHash,text:item.text,startOffset:item.startOffset,endOffset:item.endOffset,status:item.status};}));
+
   const manifest={
    schema:'chatflow.context/1',formatVersion:1,generatedAt:new Date().toISOString(),
    options:{allBranches:!!allBranches,maxPartChars,includeSavedAssets:!!includeSavedAssets,query,tokenBudget,passageMode},
    estimatedTokens,tokenBudget,budgetExceeded:estimatedTokens>tokenBudget,
    characterCount:fullText.length,partCount:parts.length,
-   sources:sourceRecords,passages:passageRecords,assets:assetRecords,duplicateMessages,conflictingVersions,
+   sources:sourceRecords,excludedSources,passages:passageRecords,assets:assetRecords,duplicateMessages,conflictingVersions,
    includedAssetCount:included.length,includedAssetReferenceCount:includedReferences.length,missingAssetCount:missing.length,excludedAssetCount:excluded.length,
    warnings:[...sourceRecords.filter(s=>s.integrity?.state!=='valid').map(s=>'SOURCE_PARTIAL:'+s.captureId),...(conflictingVersions.length?['CONFLICTING_ARCHIVE_VERSIONS_PRESERVED']:[]),...(missing.length?['SOME_ASSETS_NOT_INCLUDED']:[]),...(estimatedTokens>tokenBudget?['TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED']:[])]
   };
+  manifest.contentHash=new C.SHA256().update(JSON.stringify({options:manifest.options,sources:sourceRecords,passages:passageRecords,assets:assetRecords,parts})).hex();
   const index=[
    '# ChatFlow 上下文包','',
    '本包由用户选定的本地档案确定性编译。它不包含未选定对话，也不代表模型已读取。',
