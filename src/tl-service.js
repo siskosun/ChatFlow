@@ -21,12 +21,14 @@ async function sendToSource(tabId,message){
  try{return await api.tabs.sendMessage(tabId,message);}catch{await api.scripting.executeScript({target:{tabId},files:['src/tl-core.js','src/tl-provider.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message);}
 }
 async function startCapture(msg){
- C.check(Number.isInteger(msg.tabId),'INVALID_TAB_ID');C.check(![...runs.values()].some(r=>r.tabId===msg.tabId),'SOURCE_ALREADY_RUNNING');
+ C.check(Number.isInteger(msg.tabId),'INVALID_TAB_ID');
+ if(msg.expectedDocumentId!=null)C.check(typeof msg.expectedDocumentId==='string'&&msg.expectedDocumentId.length>0,'INVALID_EXPECTED_DOCUMENT');C.check(![...runs.values()].some(r=>r.tabId===msg.tabId),'SOURCE_ALREADY_RUNNING');
  const scope=msg.scope==null?'all':msg.scope;C.check(['all','last_generated'].includes(scope),'INVALID_SAVE_SCOPE');C.check(!(msg.live&&scope==='last_generated'),'LIVE_CACHE_REQUIRES_ALL_SCOPE');
  const tab=await api.tabs.get(msg.tabId),source=P.identify(tab.url).identity,captureId=msg.captureId||C.id(),previous=await S.get('captures',captureId);
+ if(msg.expectedConversationId)C.check(msg.expectedConversationId===source.conversationId,'SOURCE_CONVERSATION_CHANGED');
  if(previous){const p=previous.snapshot?.source||previous.source;C.check(p?.conversationId===source.conversationId&&p.origin===source.origin,'CAPTURE_SOURCE_CHANGED');C.check((previous.saveScope||'all')===scope,'CAPTURE_SCOPE_CHANGED');}
  else await S.set('captures',{id:captureId,title:C.scrubText(tab.title||'读取对话中'),source,snapshot:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),state:'capturing',live:!!msg.live,saveScope:scope});
- const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:null,cancelled:false};runs.set(nonce,run);await keepRuns();
+ const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:msg.expectedDocumentId||null,cancelled:false};runs.set(nonce,run);await keepRuns();
  try{const response=await sendToSource(tab.id,{type:'tl:capture',nonce,live:run.live,scope:run.scope});C.check(response?.ok,'CHATGPT_PAGE_NOT_READY');}
  catch(e){runs.delete(nonce);await keepRuns();const c=await S.get('captures',captureId);await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});throw new Error('CHATGPT_PAGE_NOT_READY');}
  return{captureId};
