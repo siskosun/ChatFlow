@@ -189,6 +189,15 @@ async def main():
             assert stored['blocked'] in ['ARCHIVE_FILE_MISSING','ARCHIVE_FILE_HASH_MISMATCH'],stored
             assert {x['sha256'] for x in stored['files']}==expected
             passed('zip_roundtrip_restore_and_tamper_rejection_before_capture_commit',stored)
+            legacy_roundtrip=await workspace.evaluate('''async id=>{
+              const out=await TLArchive.exportCapture(id),entries=await TLArchive.readZip(out.blob),manifest=JSON.parse(await (await entries.get('manifest.json').blob()).text());
+              manifest.schema='threadline.archive/1';delete manifest.formatVersion;delete manifest.app;delete manifest.source;delete manifest.snapshotSchema;delete manifest.state;
+              const packed=[];for(const e of entries.values())if(e.name!=='manifest.json')packed.push({name:e.name,blob:await e.blob()});packed.push({name:'manifest.json',content:JSON.stringify(manifest)});
+              const restored=await TLArchive.restore(await TLArchive.buildZip(packed)),capture=await TLStore.get('captures',restored),assets=await TLStore.assets(restored);
+              return{restored,state:capture.state,saveScope:capture.saveScope,saved:assets.filter(a=>a.state==='saved').length,unavailable:assets.filter(a=>a.state==='unavailable').length};
+            }''',cid)
+            assert legacy_roundtrip['state']=='partial' and legacy_roundtrip['saveScope']=='all' and legacy_roundtrip['saved']==7,legacy_roundtrip
+            passed('legacy_threadline_archive_v1_imports_without_rewriting_source_snapshot',legacy_roundtrip)
             invalid_all_scope=await workspace.evaluate('''async id=>{const out=await TLArchive.exportCapture(id),entries=await TLArchive.readZip(out.blob),manifest=JSON.parse(await (await entries.get('manifest.json').blob()).text()),target=manifest.files.find(x=>x.name==='data.csv');target.state='excluded';target.reason='OUT_OF_SAVE_SCOPE';const packed=[];for(const e of entries.values())if(e.name!=='manifest.json')packed.push({name:e.name,blob:await e.blob()});packed.push({name:'manifest.json',content:JSON.stringify(manifest)});let blocked='';try{await TLArchive.restore(await TLArchive.buildZip(packed));}catch(e){blocked=e.message;}return blocked;}''',cid)
             assert invalid_all_scope=='INVALID_ALL_SCOPE_EXCLUSIONS',invalid_all_scope
             passed('all_files_archive_restore_rejects_forged_exclusions')
