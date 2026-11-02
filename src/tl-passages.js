@@ -10,7 +10,7 @@
   check(message&&typeof message.id==='string'&&typeof message.nodeId==='string','INVALID_PASSAGE_MESSAGE');
   return hash({id:message.id,nodeId:message.nodeId,role:message.role,text:String(message.text||'')});
  }
- function create({passageId,captureId,snapshot,message,text,startOffset,endOffset,color='yellow',createdAt=Date.now()}){
+ function create({passageId,captureId,snapshot,message,text,startOffset,endOffset,color='yellow',createdAt=Date.now(),updatedAt=createdAt,reanchoredAt=null,previousMessageHash=null}){
   check(typeof captureId==='string'&&captureId.length>0,'INVALID_PASSAGE_CAPTURE');
   check(snapshot?.schema==='threadline.snapshot/1'&&snapshot.source?.conversationId,'INVALID_PASSAGE_SNAPSHOT');
   check(message&&snapshot.messages.some(m=>m.id===message.id&&m.nodeId===message.nodeId),'PASSAGE_MESSAGE_NOT_IN_SNAPSHOT');
@@ -26,7 +26,7 @@
    messageId:message.id,nodeId:message.nodeId,messageHash:messageHash(message),
    role:message.role,text:selected,prefix:body.slice(Math.max(0,startOffset-160),startOffset),
    suffix:body.slice(endOffset,endOffset+160),startOffset,endOffset,occurrence,
-   color,status:'anchored',createdAt,updatedAt:createdAt
+   color,status:'anchored',createdAt,updatedAt,reanchoredAt,previousMessageHash
   };
  }
  function occurrences(body,text){
