@@ -36,3 +36,16 @@ Evidence: [GitHub Actions run #41392958708](https://github.com/siskosun/ChatFlow
 - Independent human task success, five-user usability study and screen-reader acceptance.
 
 No production security certification or real-account compatibility claim is made from synthetic evidence.
+
+## 2026-11-02 本机阻断审查与修复收据（追加）
+
+针对原审查对象 `f17b27088d406973bfb89d5495607001d319c18f`，本机验收确认两个阻断：
+
+- P1：并行分支对预填后的 document/conversation 身份绑定不足，可能接纳切换到错误会话的采集。
+- P2：ZIP 解压器允许接近 4 GiB 的单条目在内存中展开。
+
+修复方案见 `docs/PLAN.md` §10、`docs/EXPERIMENTS.md` 和 `docs/ARCHIVE_FORMAT.md`。新的控制要求是首次预填 documentId、真实人工发送意图、首次会话 ID、采集前当前文档与标签来源、一致的快照来源；不一致标记 unknown，禁止自动重试。ZIP 导入强制单条目 64 MiB、全部 256 MiB、deflate 压缩比不超过 200，并在展开过程中重复限制。超限大档案暂不支持恢复。
+
+首轮修复 `f0d429d5` 的 Chromium 测试暴露同文档 SPA 路由与历史 MessageSender.url 不一致，导致采集中断。后续 `36012a252fba5ca694629f2b79184577d0e90283` 的 GitHub Actions [#41402106468](https://github.com/siskosun/ChatFlow/actions/runs/41402106468) **Ubuntu/Windows 全部通过**：99/99 Node、30/30 合成 Chromium、7/7 IndexedDB；该收据仅针对准确 SHA，不代表之后的改动已通过。
+
+独立最终审查、已登录账号与真实附件/发送行为、五名独立目标用户、真人读屏、L3 人工 Stop Gate **未执行**。该候选不构成生产安全认证或正式发布许可。
