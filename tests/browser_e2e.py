@@ -132,7 +132,11 @@ async def main():
             if path=='/mnt/data/branch.pdf':return await route.fulfill(content_type='application/pdf',body=BRANCH)
             if path=='/mnt/data/live.txt':return await route.fulfill(content_type='text/plain',body=LIVE)
             return await route.fulfill(status=422,content_type='application/json',body='{"error":"fixture unavailable"}')
-        if p=='/':return await route.fulfill(content_type='text/html',body=TARGET_HTML.replace('__DRAFT__','USER EXISTING DRAFT' if mode['target_draft'] else '').replace('__MODE__',json.dumps(mode['target_mode'])))
+        if p=='/':
+            target_html=TARGET_HTML.replace('__DRAFT__','USER EXISTING DRAFT' if mode['target_draft'] else '').replace('__MODE__',json.dumps(mode['target_mode']))
+            if mode['target_mode']=='no-file-input':
+                target_html=target_html.replace('id="generic" type="file" multiple','id="generic" type="file" multiple disabled')
+            return await route.fulfill(content_type='text/html',body=target_html)
         if p.startswith('/c/'):return await route.fulfill(content_type='text/html',body=SOURCE_HTML)
         return await route.fulfill(status=404,body='UNRECOGNIZED_FIXTURE_ROUTE')
     def passed(name,detail=None):
@@ -351,7 +355,7 @@ async def main():
                 async with ctx.expect_page() as new_page:
                     response=await workspace.evaluate('id=>chrome.runtime.sendMessage({type:"tl:openHandoff",id})',h['id']);assert response['ok'],response
                 target=await new_page.value;await target.wait_for_load_state()
-                await wait_async(workspace,'async id=>{const h=await TLStore.get("handoffs",id);return ["upload_confirmed","upload_unknown","injection_blocked","partial_injection"].includes(h.state)}',arg=h['id'],timeout=60000)
+                await wait_async(workspace,'async id=>{const h=await TLStore.get("handoffs",id);return ["upload_confirmed","upload_unknown","draft_prepared","injection_blocked","partial_injection"].includes(h.state)}',arg=h['id'],timeout=60000)
                 return target,await workspace.evaluate('id=>TLStore.get("handoffs",id)',h['id'])
             target,h=await handoff();assert h['state']=='upload_confirmed',h
             received=await target.evaluate('window.received');assert len(received)==len(h['batches'][0]),received
@@ -374,6 +378,12 @@ async def main():
             assert uh['state']=='upload_unknown',uh
             assert await unknown_target.evaluate('window.sends')==0 and await unknown_target.evaluate('window.uploadEvents')==1
             passed('unrecognized_upload_status_returns_control_without_retry_or_send')
+            missing_input_target,mh=await handoff(target_mode='no-file-input',draft=False)
+            assert mh['state']=='draft_prepared' and mh['lastError']=='GENERAL_FILE_INPUT_UNAVAILABLE_OR_AMBIGUOUS',mh
+            assert 'Continue with exact file data.' in await missing_input_target.locator('#prompt-textarea').input_value()
+            assert await missing_input_target.evaluate('window.sends')==0 and await missing_input_target.evaluate('window.uploadEvents')==0
+            assert '手动上传' in await missing_input_target.locator('#chatflow-handoff-notice').inner_text()
+            passed('missing_chatgpt_attachment_input_keeps_verified_draft_and_prompts_manual_upload')
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('.archive-button').filter(has_text=cap['snapshot']['title']).first.click()
             await workspace.locator('.message pre').first.wait_for(state='visible',timeout=5000)
