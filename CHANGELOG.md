@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to ChatFlow are recorded here. Version 0.1 is an engineering candidate, not a production release.
+All notable changes to ChatFlow are recorded here. Versions 0.1 and 0.2 are engineering candidates, not production releases.
 
 ## 0.1 candidate
 
@@ -27,5 +27,7 @@ All notable changes to ChatFlow are recorded here. Version 0.1 is an engineering
 - Add source-bound Saved Passages with message identity, snapshot/message hashes, offsets and contextual anchors.
 - Add deterministic anchored/ambiguous/stale resolution and non-destructive CSS Custom Highlight rendering in the local archive reader.
 - Add IndexedDB v2 migration, passage CRUD, archive ZIP round-trip and cascade deletion scoped to the owning capture.
-- Add Context Builder full-message, passage-only and mixed modes with passage provenance.
+- Add Context Builder full-message, passage-only and mixed modes with passage provenance, explicit accessible-branch selection, and keyword filtering.
+- Add same-message explicit re-anchoring, four restrained highlight colors, keyboard-focusable message text, and source-branch navigation.
+- Give each ZIP restore a fresh local passage ID while preserving originPassageId, preventing repeated imports from overwriting earlier passages.
 - Real logged-in account, independent-user, screen-reader and human acceptance remain deferred until all feature development and automated engineering gates are complete.
