@@ -376,24 +376,24 @@ async def main():
             alternate_value=await branch_select.evaluate("(e)=>Array.from(e.options).find(o=>o.textContent.startsWith('分支 '))?.value")
             assert alternate_value, 'accessible alternate branch option missing'
             await branch_select.select_option(alternate_value)
-            await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').wait_for(state='visible')
-            await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').evaluate("""pre=>{const text=pre.textContent,needle='ALTERNATE_BRANCH',start=text.indexOf(needle);const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));}""")
+            await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').wait_for(state='visible')
+            await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').evaluate("""pre=>{const text=pre.textContent,needle='Alternative conclusion, not the active path.',start=text.indexOf(needle);const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));}""")
             await workspace.get_by_role('button',name='保存选中片段').click()
-            await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='ALTERNATE_BRANCH')")
-            alternate_passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='ALTERNATE_BRANCH')")
+            await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='Alternative conclusion, not the active path.')")
+            alternate_passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='Alternative conclusion, not the active path.')")
             assert alternate_passage and alternate_passage['nodeId']!=passage['nodeId']
             assert await workspace.locator('.passage-row').count()==2
-            await workspace.locator('.passage-row').filter(has_text='ALTERNATE_BRANCH').get_by_role('button',name='跳转原文').click()
-            assert await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').is_visible()
+            await workspace.locator('.passage-row').filter(has_text='Alternative conclusion, not the active path.').get_by_role('button',name='跳转原文').click()
+            assert await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').is_visible()
             alternate_path=await workspace.locator('#archive-branch').evaluate("(e)=>{const o=e.selectedOptions[0];return o.value;}")
-            alternate_nodes=await workspace.evaluate("""async end=>{const c=(await TLStore.all('captures')).find(x=>x.snapshot?.messages.some(m=>m.text.includes('ALTERNATE_BRANCH')));const path=[],seen=new Set();let n=end;while(n&&c.snapshot.nodes[n]&&!seen.has(n)){seen.add(n);path.unshift(n);n=c.snapshot.nodes[n].parent;}return{captureId:c.id,path};}""",alternate_path)
+            alternate_nodes=await workspace.evaluate("""async end=>{const c=(await TLStore.all('captures')).find(x=>x.snapshot?.messages.some(m=>m.text.includes('Alternative conclusion, not the active path.')));const path=[],seen=new Set();let n=end;while(n&&c.snapshot.nodes[n]&&!seen.has(n)){seen.add(n);path.unshift(n);n=c.snapshot.nodes[n].parent;}return{captureId:c.id,path};}""",alternate_path)
             handoff_result=await workspace.evaluate("""async x=>chrome.runtime.sendMessage({type:'tl:prepareHandoff',captureId:x.captureId,activeNodes:x.path,keys:[],instructions:'Continue from selected branch.',batchLimit:10})""",alternate_nodes)
             assert handoff_result['ok'],handoff_result
             branch_handoff=handoff_result['data']
             assert branch_handoff['sourceConversationId'] and len(branch_handoff['snapshotHash'])==64 and branch_handoff['branchNodeIds']==alternate_nodes['path']
             history_file=await workspace.evaluate("""async id=>{const h=await TLStore.get(id);return h.files.find(x=>x.kind==='history')}""",branch_handoff['id'])
             history_text=await workspace.evaluate("async sha=>(await TLStore.verifiedBlob(sha)).text()",history_file['sha256'])
-            assert 'ALTERNATE_BRANCH' in history_text and 'known fact at position 119: 2023' not in history_text
+            assert 'Alternative conclusion, not the active path.' in history_text and 'known fact at position 119: 2023' not in history_text
             invalid_handoff=await workspace.evaluate("""async x=>chrome.runtime.sendMessage({type:'tl:prepareHandoff',captureId:x.captureId,activeNodes:[x.path[0],x.path[x.path.length-1]],keys:[],instructions:'invalid branch',batchLimit:10})""",alternate_nodes)
             assert not invalid_handoff['ok'] and invalid_handoff['code']=='INVALID_HANDOFF_BRANCH_PATH',invalid_handoff
             passed('handoff_uses_validated_selected_branch_and_rejects_disconnected_paths')
