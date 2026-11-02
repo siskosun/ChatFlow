@@ -41,6 +41,18 @@
   <section id="archive-view" class="view" hidden>
     <div class="view-heading"><button type="button" class="back quiet" data-view="capture">‹ 返回</button><h1>我的档案</h1></div>
     <div class="row"><input id="search" type="search" aria-label="搜索本地档案" placeholder="搜索对话"><button id="refresh" type="button" class="quiet">刷新</button><label class="file-button quiet">恢复 ZIP<input id="restore" type="file" accept=".zip,application/zip"></label></div>
+    <div class="context-toolbar">
+      <p class="hint">勾选多份档案，按来源编译为一个可追溯的上下文包。</p>
+      <button id="build-context" type="button" class="primary" disabled>创建上下文包</button>
+      <details class="advanced compact">
+        <summary>上下文包设置</summary>
+        <label class="check"><input type="checkbox" id="context-all-branches">包含所有可访问分支</label>
+        <label class="check"><input type="checkbox" id="context-include-assets">包含所选档案中的全部已保存附件</label>
+        <label for="context-part-size">每个历史分段字符数</label>
+        <input id="context-part-size" class="small" type="number" min="1000" max="500000" value="120000">
+        <p class="hint">默认只编译当前分支文本，不带入附件字节；来源、消息 ID、完整性和缺失状态仍写入清单。不会自动发送。</p>
+      </details>
+    </div>
     <div class="archive-layout"><aside><div id="archives" class="list" aria-label="本地档案列表"></div></aside><article id="detail"><p class="empty">选择一份档案。</p></article></div>
   </section>
 
@@ -70,5 +82,5 @@
 
   <footer><span>文件保存在当前浏览器中；建议下载 ZIP 备份。</span></footer>
 </main>
-<script src="../src/tl-core.js"></script><script src="../src/tl-store.js"></script><script src="../src/tl-archive.js"></script><script src="app.js"></script>
+<script src="../src/tl-core.js"></script><script src="../src/tl-store.js"></script><script src="../src/tl-archive.js"></script><script src="../src/tl-context.js"></script><script src="app.js"></script>
 </body></html>
