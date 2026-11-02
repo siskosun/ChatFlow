@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const core=fs.readFileSync(new URL('../src/tl-core.js',import.meta.url),'utf8');
+const provider=fs.readFileSync(new URL('../src/tl-provider.js',import.meta.url),'utf8');
 const service=fs.readFileSync(new URL('../src/tl-service.js',import.meta.url),'utf8');
 async function harness({navigationFails=false}={}){
  const records=new Map([['handoff',{id:'handoff',captureId:'capture',state:'prepared',prompt:'Test',files:[{name:'history.md',size:1,sha256:'a'.repeat(64)}],batches:[[0]],missing:[]}]]),events=[],tabs=new Map();

@@ -371,7 +371,7 @@ async def main():
             passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
-            await experiment_page.wait_for_function('typeof ChatFlowExperimentCore!=="undefined"&&typeof ChatFlowExperimentDB!=="undefined"')
+            await experiment_page.wait_for_function('typeof ChatFlowExperimentCore!=="undefined"&&typeof ChatFlowExperimentDB!=="undefined"&&typeof ChatFlowProviders!=="undefined"')\n            provider_caps=await experiment_page.evaluate('ChatFlowProviders.capabilityMatrix()')\n            assert len(provider_caps)==1 and provider_caps[0]['id']=='chatgpt' and provider_caps[0]['capabilities']['manualSendOnly'] is True\n            assert await experiment_page.evaluate('ChatFlowProviders.forUrl("https://claude.ai/")===null')\n            passed('provider_adapter_reports_only_explicitly_supported_chatgpt_capabilities')
             disabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_STATUS"})')
             assert disabled['ok'] and disabled['data']['enabled'] is False
             enabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_SET_ENABLED",enabled:true,ack:"local-only-no-send"})')
