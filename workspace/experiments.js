@@ -1,4 +1,4 @@
-/* Local-only Fork P1 UI. Use textContent for all untrusted experiment data. */
+/* Local-only parallel experiment UI. Use textContent for all untrusted experiment data. */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -474,7 +474,7 @@
         {type:"application/json"});
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url; link.download = snapshot.experiment.id + "-fork-export.json";
+      link.href = url; link.download = snapshot.experiment.id + "-chatflow-experiment.json";
       document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       notice("已导出自包含 JSON。可在实验列表的导入入口经严格验证后导入（哈希与映射重算，不覆盖既有实验）。");

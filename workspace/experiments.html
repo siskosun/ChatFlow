@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>ChatFlow · Fork 对照实验</title>
+  <title>ChatFlow · 并行对照实验</title>
   <style>
     :root{color-scheme:light;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;color:#243247;background:#f5f7fa}
     *{box-sizing:border-box}body{max-width:960px;margin:32px auto;padding:0 18px 50px}
@@ -24,12 +24,12 @@
   </style>
 </head>
 <body>
-  <header><h1>Fork 对照实验（2–4 分支）</h1>
+  <header><h1>并行对照实验（2–4 分支）</h1>
     <p class="subtle">独立于原有课题：冻结材料 → 发起 K 个新标签并逐字预填 → 你手动发送 → 采集 → 去标签对照与裁决。</p>
   </header>
     <p style="background:#eef6ff;border:1px solid #bcd7f5;border-radius:9px;padding:10px 14px;font-size:13px;">⚠ ChatFlow<b>永不自动发送</b>、不点击发送按钮、不重放未确认操作；所有发送都由你亲手完成。</p>
   <section class="surface" aria-label="功能开关">
-    <label class="line" for="ff-enable"><input type="checkbox" id="ff-enable"/>启用本地 Fork 实验存储</label>
+    <label class="line" for="ff-enable"><input type="checkbox" id="ff-enable"/>启用本地 并行实验存储</label>
     <p class="subtle">功能默认关闭。启用后可保存/导入实验；只有你点击「发起」时才会打开 ChatGPT 标签。原有课题与备份不受影响。</p>
     <p id="ff-notice" role="status" aria-live="polite">正在检查本地状态…</p>
   </section>
