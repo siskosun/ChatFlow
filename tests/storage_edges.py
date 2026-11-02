@@ -25,7 +25,7 @@ CASES=r'''async()=>{
   return{id,key,asset};
  }
  const passageCapture=await save('passage',new TextEncoder().encode('passage-source'));
- const passageSnapshot=(await S.get('captures',passageCapture.id)).snapshot,passageMessage=passageSnapshot.messages[0];
+ const passageSnapshot=(await S.get('captures',passageCapture.id)).snapshot,passageMessage=passageSnapshot.messages[0],originalSnapshotHash=TLPassages.snapshotHash(passageSnapshot);
  const passage=TLPassages.create({captureId:passageCapture.id,snapshot:passageSnapshot,message:passageMessage,text:'synthetic source',startOffset:0,endOffset:'synthetic source'.length});
  await S.putPassage(passage);
  check((await S.passages(passageCapture.id)).length===1,'Passage was not persisted');
@@ -33,6 +33,7 @@ CASES=r'''async()=>{
  const auditAt=passage.createdAt+1000;
  await S.putPassage({...passage,color:'green',updatedAt:auditAt,reanchoredAt:auditAt,previousMessageHash:'b'.repeat(64)});
  check((await S.passages(passageCapture.id))[0].color==='green','Passage color did not persist');
+ check(TLPassages.snapshotHash((await S.get('captures',passageCapture.id)).snapshot)===originalSnapshotHash,'Passage metadata mutated the original archive snapshot');
  check(TLPassages.resolve(passage,passageSnapshot).status==='anchored','New passage did not resolve');
  const passageArchive=await TLArchive.exportCapture(passageCapture.id),restoredCaptureId=await TLArchive.restore(passageArchive.blob),restoredPassages=await S.passages(restoredCaptureId);
  check(restoredPassages.length===1&&restoredPassages[0].captureId===restoredCaptureId&&restoredPassages[0].color==='green'&&restoredPassages[0].reanchoredAt===auditAt&&restoredPassages[0].previousMessageHash==='b'.repeat(64),'Passage metadata did not survive archive round trip');
