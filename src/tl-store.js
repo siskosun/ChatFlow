@@ -67,6 +67,10 @@
   C.check(['anchored','ambiguous','stale'].includes(status),'INVALID_PASSAGE_STATUS');
   return transaction(['passages'],'readwrite',async s=>{const row=await request(s.passages.get(passageId));if(!row)return null;const updated={...row,status,reason:reason||null,updatedAt:Date.now()};s.passages.put(updated);return updated;});
  }
+ async function updatePassageColor(passageId,color){
+  C.check(['yellow','green','blue','pink'].includes(color),'INVALID_PASSAGE_COLOR');
+  return transaction(['passages'],'readwrite',async s=>{const row=await request(s.passages.get(passageId));if(!row)return null;const updated={...row,color,updatedAt:Date.now()};s.passages.put(updated);return updated;});
+ }
  const chunks=(captureId,key)=>transaction(['chunks'],'readonly',s=>request(s.chunks.index('owner').getAll(IDBKeyRange.only([captureId,key]))));
  async function snapshot(captureId,model){
   C.check(model?.schema==='threadline.snapshot/1','INVALID_SNAPSHOT');const clean=C.persistedSnapshot(model),now=new Date().toISOString();
@@ -159,5 +163,5 @@
    for(const p of passageRows)s.passages.put({...p,captureId});
   });return captureId;
  }
- globalThis.TLStore=Object.freeze({open,get,all,set,assets,passages,allPassages,putPassage,deletePassage,updatePassageStatus,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
+ globalThis.TLStore=Object.freeze({open,get,all,set,assets,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
 })();
