@@ -55,6 +55,7 @@ No production security certification or real-account compatibility claim is made
 - Passage text is stored as text metadata in extension-owned IndexedDB; it is not inserted into source ChatGPT messages or sent to a remote service.
 - Every passage is bound to capture, conversation, message, branch node, snapshot hash and message hash. Resolver searches only within the same source message.
 - Ambiguous/stale passages cannot be silently mapped to another message; Context Builder rejects them until explicit same-message reselection.
+- Selected branch paths are validated as unique, contiguous paths rooted in the accessible graph; disconnected paths are rejected by Context Builder and handoff preparation. Handoff manifests retain conversation ID, snapshot hash and selected node IDs.
 - IndexedDB v2 adds one object store; migration preserves existing v1 stores and records. Archive deletion cascades only the deleted capture's passage records.
 - ZIP restore validates passage schema and source identity before import. Older archives without passage metadata remain supported.
 - UI uses textContent/DOM APIs and CSS Custom Highlight painting; passage text is not interpreted as HTML.
