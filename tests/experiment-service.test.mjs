@@ -90,3 +90,16 @@ test('manual UI cannot mark a branch done and unknown states are not replayed',a
  const created=await h.msg('FF_CREATE',{operationId:'create_00003',w0:'W',p:'P'});
  await assert.rejects(h.msg('FF_RECORD',{experimentId:created.id,branch:'A',expectedRevision:0,operationId:'manual_done1',attemptId:'att_fake001',status:'done'}),/MANUAL_DONE_NOT_ALLOWED/);
 });
+
+test('browser restart with lost session binding marks a pending branch unknown without replay',async()=>{
+ const h=harness();await h.msg('FF_SET_ENABLED',{enabled:true,ack:'local-only-no-send'});
+ const created=await h.msg('FF_CREATE',{operationId:'create_00004',branchCount:2,w0:'W',p:'P'});
+ const launch=await h.msg('FF_LAUNCH',{experimentId:created.id,operationId:'launch_00004'});
+ const tabId=launch.tabIds.A;
+ await h.api.storage.session.remove('chatflow_experiment_bind_'+tabId);
+ await h.service.recover(h.api,{get:async()=>null});
+ const row=await h.DB.read(created.id);
+ assert.equal(row.branches.A.status,'unknown');
+ assert.equal(h.updated.some(x=>x.patch.url==='https://chatgpt.com/'),true);
+ assert.equal(h.sent.filter(x=>x.type==='TL_EXPERIMENT_HANDOFF_READY').length,2);
+});

@@ -9,7 +9,7 @@ let bootError=null;
 const boot=(async()=>{
  const old=(await api.storage.session.get('tlRuns')).tlRuns||[];
  for(const r of old){const c=await S.get('captures',r.captureId);if(c)await S.set('captures',{...c,state:c.state==='capturing'?'interrupted':c.state,live:false,lastError:'WORKER_RESTARTED_RETRY_EXPLICITLY'});}
- await S.recover([]);await api.storage.session.set({tlRuns:[]});
+ await S.recover([]);await ChatFlowExperimentService.recover(api,S);await api.storage.session.set({tlRuns:[]});
 })().catch(e=>{bootError=errorCode(e);});
 async function sourceRun(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id),'SOURCE_TAB_REQUIRED');const run=runs.get(msg.nonce);C.check(run&&!run.cancelled&&run.tabId===sender.tab.id,'CAPTURE_SESSION_NOT_FOUND');
