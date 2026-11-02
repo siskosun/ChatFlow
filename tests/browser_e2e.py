@@ -159,9 +159,18 @@ async def main():
             assert await workspace.locator('details.advanced').first.evaluate('(e)=>!e.open')
             assert await workspace.get_by_role('heading',name='把这段对话，带到新聊天').is_visible()
             assert await workspace.get_by_role('button',name='保存对话').is_visible()
-            assert await workspace.locator('#asset-scope').input_value()=='all'
+            await workspace.locator('#source').focus()
+            await workspace.keyboard.press('Tab')
+            assert await workspace.evaluate("document.activeElement.id==='refresh-source'")
+            await workspace.keyboard.press('Tab')
+            assert await workspace.evaluate("document.activeElement.id==='asset-scope'")
+            assert await workspace.locator('main').count()==1
+            assert await workspace.locator('#status').get_attribute('role')=='status'
+            assert await workspace.get_by_label('选择要保存的对话').count()==1
+            assert await workspace.get_by_label('文件保存范围').count()==1
+                        assert await workspace.locator('#asset-scope').input_value()=='all'
             assert await workspace.locator('#asset-scope').locator('option').count()==2
-            for width in [320,360,1280]:
+            for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
@@ -482,11 +491,35 @@ async def main():
                     await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen_k,timeout=30000)
                     assert await branch_page.evaluate('window.sends||0')==0
                 passed('parallel_experiment_k'+str(branch_count)+'_opens_exact_branch_count_with_identical_prefill_and_no_send',{'branches':branch_count})
-                await pages_k[-1].close()
+                for index,branch_page in enumerate(pages_k):
+                    assert await branch_page.evaluate('window.sends||0')==0
+                    await branch_page.locator('#user-send').click()
+                    assert await branch_page.evaluate('window.sends||0')==1
+                    label=chr(65+index)
+                    experiment_cid='expbranchK'+str(branch_count)+label+'1234567890'
+                    mode['experiment_prompts'][experiment_cid]=frozen_k
+                    await branch_page.goto('https://chatgpt.com/c/'+experiment_cid)
+                for completed in range(1,branch_count+1):
+                    await experiment_page.locator('#ff-refresh').click()
+                    await experiment_page.locator('#ff-list button').first.click()
+                    await experiment_page.get_by_role('button',name='采集回复（确认已手动发送）').first.click()
+                    for _ in range(60):
+                        await asyncio.sleep(1)
+                        await experiment_page.locator('#ff-refresh').click()
+                        await experiment_page.locator('#ff-list button').first.click()
+                        current_k=await experiment_page.locator('#ff-branch-boxes').inner_text()
+                        if current_k.count('已完成')>=completed:break
+                    assert current_k.count('已完成')>=completed,current_k
+                await experiment_page.locator('#ff-compare-btn').wait_for(state='visible')
+                await experiment_page.locator('#ff-compare-btn').click()
+                await experiment_page.locator('#ff-columns').wait_for(state='visible')
+                comparison_k=await experiment_page.locator('#ff-columns').inner_text()
+                assert 'Synthetic final answer' in comparison_k,comparison_k
+                assert await experiment_page.locator('#ff-reveal').inner_text()==''
+                passed('parallel_experiment_k'+str(branch_count)+'_manual_send_capture_and_blind_comparison',{'branches':branch_count})
+                for page in pages_k:await page.close()
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
-                for page in pages_k[:-1]:await page.close()
-                await asyncio.sleep(0.5)
             await experiment_page.locator('#ff-enable').uncheck()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
