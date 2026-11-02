@@ -13,7 +13,12 @@ const boot=(async()=>{
 })().catch(e=>{bootError=errorCode(e);});
 async function sourceRun(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id),'SOURCE_TAB_REQUIRED');const run=runs.get(msg.nonce);C.check(run&&!run.cancelled&&run.tabId===sender.tab.id,'CAPTURE_SESSION_NOT_FOUND');
- const source=P.identify(sender.url||sender.tab.url).identity;C.check(source.conversationId===run.source.conversationId&&source.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');
+ // The content script may have been injected at a blank new-chat URL and then
+ // stayed in the same document through a ChatGPT history.pushState transition.
+ // MessageSender.url can retain that original document URL; tab.url is the
+ // current route. Preserve origin + exact document + selected conversation gates.
+ let pageOrigin;try{pageOrigin=new URL(sender.url||sender.tab.url).origin;}catch{}
+ C.check(pageOrigin===run.source.origin,'SOURCE_ORIGIN_CHANGED');
  if(run.documentId)C.check(sender.documentId===run.documentId,'SOURCE_DOCUMENT_CHANGED');else{C.check(sender.documentId,'DOCUMENT_ID_UNAVAILABLE');run.documentId=sender.documentId;await keepRuns();}
  const now=P.identify((await api.tabs.get(run.tabId)).url).identity;C.check(now.conversationId===run.source.conversationId&&now.origin===run.source.origin,'SOURCE_NAVIGATED');return run;
 }
