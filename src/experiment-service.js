@@ -24,29 +24,103 @@
    manualNewAttempt:!!event.manualNewAttempt}));
  }
  async function sendReady(api,tabId){try{await api.tabs.sendMessage(tabId,{type:'TL_EXPERIMENT_HANDOFF_READY'});}catch{}}
+ async function invalidateAttempt(api,bind,reason){
+  if(!bind||bind.invalid)return;
+  await saveBinding(api,bind.tabId,{...bind,invalid:true});
+  await advance(bind,{status:'unknown',operationId:bind.operationId+'_'+bind.branch+'_identity_rejected',
+   reason:'branch identity could not be verified ('+reason+'); no capture or automatic retry'});
+ }
  async function onTabUpdated(api,tabId,change){
-  if(change.status!=='complete')return;
-  const x=await api.storage.session.get(HANDOFF+tabId);if(x[HANDOFF+tabId])await sendReady(api,tabId);
+  // The first URL transition after the user gesture is the only conversation
+  // this attempt may capture. Navigating without the gesture is terminal.
+  if(change.url)await serial(async()=>{
+   const b=await binding(api,tabId);
+   if(!b?.prefillDocumentId||b.invalid)return;
+   const row=await DB.read(b.experimentId),attempt=row?.branches?.[b.branch]?.attempts.find(a=>a.id===b.attemptId);
+   if(!attempt||attempt.status!=='pending')return;
+   let source=null;
+   try{source=P.identify(change.url).identity;}catch{
+    try{const target=P.identify(change.url,{target:true}).identity;
+     if(!b.firstConversationId&&target.origin===b.prefillOrigin)return;
+    }catch{}
+    await invalidateAttempt(api,b,'NAVIGATED_OUTSIDE_BOUND_CONVERSATION');return;
+   }
+   if(source.origin!==b.prefillOrigin||(b.firstConversationId&&b.firstConversationId!==source.conversationId)){
+    await invalidateAttempt(api,b,'CONVERSATION_CHANGED');return;
+   }
+   if(!b.firstConversationId){
+    if(b.sendIntentDocumentId!==b.prefillDocumentId){
+     await invalidateAttempt(api,b,'NO_VERIFIED_MANUAL_SEND_INTENT');return;
+    }
+    await saveBinding(api,tabId,{...b,firstConversationId:source.conversationId});
+    await advance(b,{status:'pending',phase:attempt.phase,
+     operationId:b.operationId+'_'+b.branch+'_first_conversation',
+     updates:{firstConversationId:source.conversationId},reason:'first observed new-chat conversation URL bound to attempt'});
+   }
+  });
+  if(change.status==='complete'){
+   const x=await api.storage.session.get(HANDOFF+tabId);
+   if(x[HANDOFF+tabId])await sendReady(api,tabId);
+  }
  }
  async function claimHandoff(api,sender){
-  if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id))throw new Error('EXPERIMENT_SOURCE_TAB_REQUIRED');
-  const tab=await api.tabs.get(sender.tab.id);const target=P.identify(tab.url,{target:true}).identity;
-  const x=await api.storage.session.get(HANDOFF+tab.id),h=x[HANDOFF+tab.id];if(!h)return null;
-  const bind=await binding(api,tab.id);if(!bind||bind.experimentId!==h.experimentId||bind.branch!==h.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
-  await api.storage.session.remove(HANDOFF+tab.id);
-  return {...h,attemptId:bind.attemptId,operationId:bind.operationId};
+  return serial(async()=>{
+   if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id)||!sender.documentId)throw new Error('EXPERIMENT_SOURCE_DOCUMENT_REQUIRED');
+   const tab=await api.tabs.get(sender.tab.id),target=P.identify(tab.url,{target:true}).identity;
+   const senderTarget=P.identify(sender.url,{target:true}).identity;
+   if(senderTarget.origin!==target.origin)throw new Error('EXPERIMENT_SOURCE_NAVIGATED');
+   const x=await api.storage.session.get(HANDOFF+tab.id),h=x[HANDOFF+tab.id];if(!h)return null;
+   const bind=await binding(api,tab.id);
+   if(!bind||bind.invalid||bind.experimentId!==h.experimentId||bind.branch!==h.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
+   if(bind.claimDocumentId&&bind.claimDocumentId!==sender.documentId)throw new Error('EXPERIMENT_DOCUMENT_CHANGED');
+   await saveBinding(api,tab.id,{...bind,claimDocumentId:sender.documentId,claimOrigin:target.origin});
+   await api.storage.session.remove(HANDOFF+tab.id);
+   return {...h,attemptId:bind.attemptId,operationId:bind.operationId};
+  });
  }
  async function prefillAck(api,msg,sender){
-  if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id))throw new Error('EXPERIMENT_SOURCE_TAB_REQUIRED');
-  const b=await binding(api,sender.tab.id);if(!b||b.experimentId!==msg.experimentId||b.branch!==msg.branch||b.attemptId!==msg.attemptId)throw new Error('EXPERIMENT_BINDING_MISMATCH');
-  const tab=await api.tabs.get(sender.tab.id);P.identify(tab.url,{target:true}).identity;
-  return serial(()=>advance(b,{status:'pending',phase:'awaiting_send',operationId:b.operationId+'_'+b.branch+'_prefill_ack',
-   updates:{prefill:'exact_ack',inputLevel:'exact',tabId:sender.tab.id},reason:'composer prefill exact readback'}));
+  return serial(async()=>{
+   if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id)||!sender.documentId)throw new Error('EXPERIMENT_SOURCE_DOCUMENT_REQUIRED');
+   const b=await binding(api,sender.tab.id);
+   if(!b||b.invalid||b.experimentId!==msg.experimentId||b.branch!==msg.branch||b.attemptId!==msg.attemptId)throw new Error('EXPERIMENT_BINDING_MISMATCH');
+   const tab=await api.tabs.get(sender.tab.id),target=P.identify(tab.url,{target:true}).identity;
+   const senderTarget=P.identify(sender.url,{target:true}).identity;
+   if(b.claimDocumentId!==sender.documentId||b.claimOrigin!==target.origin||senderTarget.origin!==target.origin){
+    await invalidateAttempt(api,b,'PREFILL_DOCUMENT_CHANGED');throw new Error('EXPERIMENT_DOCUMENT_CHANGED');
+   }
+   if(b.prefillDocumentId&&b.prefillDocumentId!==sender.documentId){
+    await invalidateAttempt(api,b,'PREFILL_REACK_DOCUMENT_CHANGED');throw new Error('EXPERIMENT_DOCUMENT_CHANGED');
+   }
+   const saved={...b,prefillDocumentId:sender.documentId,prefillOrigin:target.origin,prefillAt:Date.now()};
+   await saveBinding(api,sender.tab.id,saved);
+   return advance(saved,{status:'pending',phase:'awaiting_send',operationId:b.operationId+'_'+b.branch+'_prefill_ack',
+    updates:{prefill:'exact_ack',inputLevel:'exact',tabId:sender.tab.id,prefillDocumentId:sender.documentId},
+    reason:'composer prefill exact readback and document identity verified'});
+  });
  }
+ async function manualSendIntent(api,msg,sender){return serial(async()=>{
+  if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id)||!sender.documentId)throw Error('EXPERIMENT_SOURCE_DOCUMENT_REQUIRED');
+  const b=await binding(api,sender.tab.id),row=b?await DB.read(b.experimentId):null;
+  const attempt=row?.branches?.[b?.branch]?.attempts.find(a=>a.id===b?.attemptId);
+  if(!b||b.invalid||!attempt||attempt.status!=='pending'||attempt.phase!=='awaiting_send'||
+     b.experimentId!==msg.experimentId||b.branch!==msg.branch||b.attemptId!==msg.attemptId||
+     b.prefillDocumentId!==sender.documentId)throw Error('EXPERIMENT_SEND_INTENT_UNBOUND');
+  const tab=await api.tabs.get(sender.tab.id),target=P.identify(tab.url,{target:true}).identity;
+  const page=P.identify(sender.url,{target:true}).identity;
+  if(target.origin!==b.prefillOrigin||page.origin!==b.prefillOrigin){
+   await invalidateAttempt(api,b,'SEND_INTENT_NAVIGATED');throw Error('EXPERIMENT_SEND_INTENT_NAVIGATED');
+  }
+  if(b.sendIntentDocumentId===sender.documentId)return{observed:true};
+  await saveBinding(api,b.tabId,{...b,sendIntentDocumentId:sender.documentId,sendIntentAt:Date.now()});
+  await advance(b,{status:'pending',phase:'awaiting_send',operationId:b.operationId+'_'+b.branch+'_send_intent',
+   updates:{sendIntentObserved:true},reason:'trusted user click/Enter observed on exact prefilled composer; not proof of server send'});
+  return{observed:true};
+ });}
  async function handle(msg,sender,api,ctx){
   const type=msg?.type;
   if(type==='tl:claimExperimentHandoff')return claimHandoff(api,sender);
   if(type==='tl:experimentPrefillAck')return prefillAck(api,msg,sender);
+  if(type==='tl:experimentSendIntent')return manualSendIntent(api,msg,sender);
   if(type==='tl:experimentStatus')return enabled(api);
   if(!String(type||'').startsWith('FF_'))return undefined;
   if(!trustedPage(sender,api))throw new Error('EXPERIMENT_PAGE_ONLY');
@@ -111,13 +185,38 @@
   if(type==='FF_CAPTURE')return serial(async()=>{
    const row=await DB.read(msg.experimentId),branch=row?.branches?.[msg.branch],attempt=branch?.attempts.at(-1);
    if(!attempt||attempt.status!=='pending'||!Number.isInteger(attempt.evidence?.tabId))throw new Error('NO_PENDING_BRANCH_TAB');
-   const tab=await api.tabs.get(attempt.evidence.tabId),source=P.identify(tab.url).identity;
-   const bind=await binding(api,tab.id);if(!bind||bind.experimentId!==row.id||bind.branch!==msg.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
-   const result=await ctx.startCapture({tabId:tab.id,scope:'all',live:false});
-   await api.storage.session.set({['chatflow_exp_capture_'+result.captureId]:{...bind,captureId:result.captureId}});
-   await advance(bind,{status:'pending',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_capture_start',
-    updates:{conversationId:source.conversationId,sessionId:source.conversationId,sentAt:Date.now(),captureId:result.captureId},
-    reason:'user manually requested capture after sending'});
+   if(attempt.evidence.captureId)throw new Error('BRANCH_CAPTURE_ALREADY_STARTED');
+   const tab=await api.tabs.get(attempt.evidence.tabId),bind=await binding(api,tab.id);
+   if(!bind||bind.invalid||bind.experimentId!==row.id||bind.branch!==msg.branch||bind.attemptId!==attempt.id)throw new Error('EXPERIMENT_BINDING_MISMATCH');
+   if(!bind.prefillDocumentId||!bind.firstConversationId||
+      bind.sendIntentDocumentId!==bind.prefillDocumentId||attempt.evidence.sendIntentObserved!==true||
+      attempt.evidence.prefillDocumentId!==bind.prefillDocumentId||
+      attempt.evidence.firstConversationId!==bind.firstConversationId){
+    await invalidateAttempt(api,bind,'FIRST_CONVERSATION_NOT_BOUND');throw new Error('EXPERIMENT_CONVERSATION_UNVERIFIED');
+   }
+   let source,probe;
+   try{
+    source=P.identify(tab.url).identity;
+    if(source.origin!==bind.prefillOrigin||source.conversationId!==bind.firstConversationId)throw Error('CONVERSATION_CHANGED');
+    const frames=await api.scripting.executeScript({target:{tabId:tab.id,allFrames:false},func:()=>location.href});
+    if(!Array.isArray(frames)||frames.length!==1||frames[0].frameId!==0||
+       !frames[0].documentId||frames[0].documentId!==bind.prefillDocumentId||frames[0].result!==tab.url)
+     throw Error('DOCUMENT_CHANGED');
+    probe=frames[0];
+    const again=await api.tabs.get(tab.id);
+    if(again.url!==tab.url)throw Error('CONVERSATION_CHANGED');
+   }catch{
+    await invalidateAttempt(api,bind,'CAPTURE_TAB_OR_DOCUMENT_MISMATCH');throw Error('EXPERIMENT_CAPTURE_IDENTITY_MISMATCH');
+   }
+   const result=await ctx.startCapture({tabId:tab.id,scope:'all',live:false,
+    expectedDocumentId:probe.documentId,expectedConversationId:source.conversationId});
+   const captureBind={...bind,captureDocumentId:probe.documentId,captureId:result.captureId};
+   await saveBinding(api,tab.id,captureBind);
+   await api.storage.session.set({['chatflow_exp_capture_'+result.captureId]:captureBind});
+   await advance(captureBind,{status:'pending',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_capture_start',
+    updates:{conversationId:source.conversationId,sessionId:source.conversationId,
+     captureDocumentId:probe.documentId,sentAt:Date.now(),captureId:result.captureId},
+    reason:'user-requested capture; bound original prefill document and first conversation'});
    return{runId:result.captureId};
   });
   if(type==='FF_COMPARE')return serial(async()=>{
@@ -149,16 +248,34 @@
   }
   throw new Error('UNKNOWN_EXPERIMENT_MESSAGE');
  }
- async function onCaptureFinished(run,store,api){
+ async function onCaptureFinished(run,store,api){return serial(async()=>{
   const key='chatflow_exp_capture_'+run.captureId,x=await api.storage.session.get(key),bind=x[key];if(!bind)return;
   const row=await DB.read(bind.experimentId),attempt=row?.branches?.[bind.branch]?.attempts.find(a=>a.id===bind.attemptId);
   if(!attempt||attempt.status!=='pending')return;
-  const capture=await store.get('captures',run.captureId),snapshot=capture?.snapshot;
+  const current=await binding(api,bind.tabId),capture=await store.get('captures',run.captureId),snapshot=capture?.snapshot;
+  let tab;
+  try{tab=await api.tabs.get(bind.tabId);}catch{}
+  let identity;
+  try{if(tab)identity=P.identify(tab.url).identity;}catch{}
+  if(!current||current.invalid||current.attemptId!==bind.attemptId||
+     current.firstConversationId!==bind.firstConversationId||
+     current.prefillDocumentId!==bind.prefillDocumentId||
+     current.captureDocumentId!==bind.captureDocumentId||
+     bind.captureDocumentId!==attempt.evidence.captureDocumentId||
+     (run.documentId&&run.documentId!==bind.captureDocumentId)||
+     (run.tabId!=null&&run.tabId!==bind.tabId)||
+     identity?.conversationId!==bind.firstConversationId||
+     identity?.origin!==bind.prefillOrigin||
+     snapshot?.source?.conversationId!==bind.firstConversationId||
+     snapshot?.source?.origin!==bind.prefillOrigin){
+   await invalidateAttempt(api,bind,'CAPTURE_FINISHED_ON_DIFFERENT_DOCUMENT');
+   await api.storage.session.remove(key);return;
+  }
   if(!snapshot){await advance(bind,{status:'pending',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_no_snapshot',reason:'capture completed without persisted snapshot'});return;}
   const users=snapshot.messages.filter(m=>m.role==='user'),assistants=snapshot.messages.filter(m=>m.role==='assistant'),last=assistants.at(-1);
   const reply=last?.text||'',classification=await Core.classify(row.frozen.text,users.at(-1)?.text,{trusted:true,complete:users.length>0});
   const signals=['final'];if(last?.finished===true)signals.push('generation');
-  const captureComplete=snapshot.integrity?.state==='valid';
+  const captureComplete=capture?.state==='ready'&&snapshot.integrity?.state==='valid';
   const canComplete=captureComplete&&users.length===1&&reply.length>0&&last?.finished===true&&['exact','canonical_equivalent'].includes(classification.level);
   const updates={captureRunId:run.captureId,messageId:last?.id||null,inputLevel:classification.level,sessionId:snapshot.source.conversationId,
    conversationId:snapshot.source.conversationId,taskCount:users.length,reply,assistantBytes:new TextEncoder().encode(reply).length,
@@ -169,7 +286,7 @@
    await advance(bind,{status:'pending',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_capture_pending',updates,reason:'capture persisted but exact input or completion contract is not satisfied'});
   }
   await api.storage.session.remove(key);
- }
+ });}
  async function recover(api,store){
   for(const row of await DB.list()){
    for(const [branch,state] of Object.entries(row.branches||{})){
