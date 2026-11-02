@@ -87,9 +87,10 @@
     if(current.status==='done')throw new Error('COMPLETED_BRANCH_IMMUTABLE:'+branch);
    }
    for(const branch of Object.keys(row.branches)){
-    const tab=await api.tabs.create({active:false});await api.tabs.update(tab.id,{url:'https://chatgpt.com/'});
+    const tab=await api.tabs.create({active:false});
     const attemptId='att_'+id(),bind={experimentId:row.id,branch,attemptId,operationId:msg.operationId,tabId:tab.id,createdAt:Date.now()};
     await saveBinding(api,tab.id,bind);await api.storage.session.set({[HANDOFF+tab.id]:{text:row.frozen.text,experimentId:row.id,branch}});
+    await api.tabs.update(tab.id,{url:'https://chatgpt.com/'});
     tabIds[branch]=tab.id;attemptIds[branch]=attemptId;
     row=await DB.update(row.id,row.revision,r=>Core.advance(r,{branch,expectedRevision:r.revision,
      operationId:msg.operationId+'_'+branch,attemptId,status:'pending',phase:'created',
