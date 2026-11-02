@@ -14,6 +14,8 @@
   check(typeof captureId==='string'&&captureId.length>0,'INVALID_PASSAGE_CAPTURE');
   check(snapshot?.schema==='threadline.snapshot/1'&&snapshot.source?.conversationId,'INVALID_PASSAGE_SNAPSHOT');
   check(message&&snapshot.messages.some(m=>m.id===message.id&&m.nodeId===message.nodeId),'PASSAGE_MESSAGE_NOT_IN_SNAPSHOT');
+  const canonical=snapshot.messages.filter(m=>m.id===message.id&&m.nodeId===message.nodeId);
+  check(canonical.length===1&&messageHash(canonical[0])===messageHash(message),'PASSAGE_SOURCE_MESSAGE_CHANGED');
   const body=String(message.text||''),selected=String(text||'');
   check(selected.length>0&&selected.length<=5000&&Number.isSafeInteger(startOffset)&&Number.isSafeInteger(endOffset)&&startOffset>=0&&endOffset>startOffset&&endOffset<=body.length,'INVALID_PASSAGE_RANGE');
   check(body.slice(startOffset,endOffset)===selected,'PASSAGE_TEXT_OFFSET_MISMATCH');
@@ -30,6 +32,7 @@
   };
  }
  function occurrences(body,text){
+  check(typeof body==='string'&&typeof text==='string'&&text.length>0,'INVALID_PASSAGE_TEXT');
   const out=[];let from=0;
   while(from<=body.length-text.length){
    const start=body.indexOf(text,from);if(start<0)break;
@@ -41,10 +44,12 @@
  function commonPrefix(a,b){let n=0,max=Math.min(a.length,b.length);while(n<max&&a[n]===b[n])n++;return n;}
  function resolve(record,snapshot){
   check(record?.schema==='chatflow.passage/1'&&snapshot?.schema==='threadline.snapshot/1','INVALID_PASSAGE_RESOLUTION');
+  check(typeof record.text==='string'&&record.text.length>0&&record.text.length<=5000,'INVALID_PASSAGE_TEXT');
   if(snapshot.source?.conversationId!==record.conversationId)return{status:'stale',reason:'CONVERSATION_CHANGED',candidates:[]};
   const matches=snapshot.messages.filter(m=>m.id===record.messageId&&m.nodeId===record.nodeId);
   if(matches.length!==1)return{status:matches.length?'ambiguous':'stale',reason:matches.length?'DUPLICATE_MESSAGE_IDENTITY':'MESSAGE_NOT_FOUND',candidates:[]};
   const message=matches[0],body=String(message.text||'');
+  if(message.role!==record.role)return{status:'stale',reason:'MESSAGE_ROLE_CHANGED',message,candidates:[]};
   if(messageHash(message)===record.messageHash&&body.slice(record.startOffset,record.endOffset)===record.text){
    return{status:'anchored',reason:'EXACT_MESSAGE_HASH_AND_OFFSET',message,startOffset:record.startOffset,endOffset:record.endOffset,candidates:[{start:record.startOffset,end:record.endOffset,score:Infinity}]};
   }
@@ -54,10 +59,10 @@
     commonPrefix(record.suffix||'',body.slice(range.end,range.end+160))
   }));
   if(!candidates.length)return{status:'stale',reason:'PASSAGE_TEXT_NOT_FOUND_IN_SOURCE_MESSAGE',message,candidates:[]};
-  if(candidates.length===1)return{status:'anchored',reason:'UNIQUE_EXACT_TEXT_IN_SOURCE_MESSAGE',message,...candidates[0],candidates};
+  if(candidates.length===1)return{status:'anchored',reason:'UNIQUE_EXACT_TEXT_IN_SOURCE_MESSAGE',message,...candidates[0],startOffset:candidates[0].start,endOffset:candidates[0].end,candidates};
   const ranked=[...candidates].sort((a,b)=>b.score-a.score);
   if(ranked[0].score>=8&&ranked[0].score>ranked[1].score){
-   return{status:'anchored',reason:'UNIQUE_CONTEXT_MATCH',message,...ranked[0],candidates};
+   return{status:'anchored',reason:'UNIQUE_CONTEXT_MATCH',message,...ranked[0],startOffset:ranked[0].start,endOffset:ranked[0].end,candidates};
   }
   return{status:'ambiguous',reason:'MULTIPLE_UNRESOLVED_OCCURRENCES',message,candidates};
  }
