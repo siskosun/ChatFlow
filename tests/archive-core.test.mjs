@@ -108,9 +108,9 @@ test('ChatFlow archive manifest validates current format and accepts legacy Thre
  assert.throws(()=>A.validateManifest({...base,files:[...base.files,{...base.files[0]}]}),/INVALID_MANIFEST_ASSET/);
  assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],state:'saved',size:0,sha256:null,path:null}]}),/SAVED_ASSET_WITHOUT_BYTES/);
  assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],state:'excluded',size:0,sha256:'b'.repeat(64),path:null}]}),/EXCLUDED_ASSET_HAS_BYTES/);
- assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],path:'../escape'}]}),/UNSAFE_ZIP_PATH/);;
- assert.throws(()=>A.validateManifest({...base,app:{name:'ThreadLine',version:'0.7.2'}}),/INVALID_ARCHIVE_APP_VERSION/);;
- assert.throws(()=>A.validateManifest({...base,source:{...base.source,origin:'https://evil.example'}}),/INVALID_ARCHIVE_ORIGIN/);;
- assert.throws(()=>A.validateManifest({...base,state:'ready',files:[{...base.files[0],state:'unavailable',size:0,sha256:null,path:null}]}),/READY_ARCHIVE_HAS_INCOMPLETE_ASSETS/);;
+ assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],path:'../escape'}]}),/UNSAFE_ZIP_PATH/);
+ assert.throws(()=>A.validateManifest({...base,app:{name:'ThreadLine',version:'0.7.2'}}),/INVALID_ARCHIVE_APP_VERSION/);
+ assert.throws(()=>A.validateManifest({...base,source:{...base.source,origin:'https://evil.example'}}),/INVALID_ARCHIVE_ORIGIN/);
+ assert.throws(()=>A.validateManifest({...base,state:'ready',files:[{...base.files[0],state:'unavailable',size:0,sha256:null,path:null}]}),/READY_ARCHIVE_HAS_INCOMPLETE_ASSETS/);
  assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],path:'assets/'+'c'.repeat(64)+'.bin'}]}),/ASSET_PATH_HASH_MISMATCH/);
 });
