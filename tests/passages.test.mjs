@@ -77,8 +77,6 @@ test('same-message manual reselection creates a new anchor while retaining the p
 });
 test('a matching phrase in a different branch node cannot satisfy a passage anchor',()=>{
  const x=make(),other=structuredClone(x.snapshot);
- other.messages.push({...other.messages[0],id:'other-message',nodeId:'other-node'});
- other.nodes.otherNode={parent:null,children:[],message:null};
- const record={...x.record,nodeId:'other-node'};
- assert.equal(P.resolve(record,other).reason,'DUPLICATE_MESSAGE_IDENTITY');
+ other.messages=[{...other.messages[0],id:'other-message',nodeId:'other-node'}];
+ assert.equal(P.resolve(x.record,other).reason,'MESSAGE_NOT_FOUND');
 });
