@@ -33,7 +33,7 @@ CASES=r'''async()=>{
  check((await S.passages(passageCapture.id))[0].color==='green','Passage color did not persist');
  check(TLPassages.resolve(passage,passageSnapshot).status==='anchored','New passage did not resolve');
  const passageArchive=await TLArchive.exportCapture(passageCapture.id),restoredCaptureId=await TLArchive.restore(passageArchive.blob),restoredPassages=await S.passages(restoredCaptureId);
- check(restoredPassages.length===1&&restoredPassages[0].captureId===restoredCaptureId,'Passage metadata did not survive archive round trip');
+ check(restoredPassages.length===1&&restoredPassages[0].captureId===restoredCaptureId&&restoredPassages[0].color==='green','Passage metadata did not survive archive round trip');
  check(TLPassages.resolve(restoredPassages[0],(await S.get('captures',restoredCaptureId)).snapshot).status==='anchored','Restored passage no longer resolves');
  await rejects(()=>S.putPassage({...passage,captureId:'missing-capture'}),'PASSAGE_SOURCE_CAPTURE_MISSING');
  check((await S.get('captures',passageCapture.id)).snapshot.messages.length===1,'Passage operation changed original snapshot');
