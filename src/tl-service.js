@@ -69,7 +69,7 @@ async function prepareHandoff(msg){
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
- const h={id:C.id(),captureId:c.id,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
+ const h={id:C.id(),captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash:new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex(),createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
 // A fresh window must not load ChatGPT before its tab is durably bound to this handoff.
