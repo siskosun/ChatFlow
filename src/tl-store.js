@@ -6,8 +6,10 @@
  function open(name=NAME){
   if(openings.has(name))return openings.get(name);
   const pending=new Promise((resolve,reject)=>{
+   let abandoned=false;
    const r=indexedDB.open(name,2);
    r.onupgradeneeded=()=>{
+    if(abandoned){r.transaction.abort();r.result.close();return;}
     const db=r.result;
     if(!db.objectStoreNames.contains('captures'))db.createObjectStore('captures',{keyPath:'id'});
     if(!db.objectStoreNames.contains('assets')){const a=db.createObjectStore('assets',{keyPath:['captureId','key']});a.createIndex('capture','captureId');}
@@ -16,9 +18,9 @@
     if(!db.objectStoreNames.contains('handoffs'))db.createObjectStore('handoffs',{keyPath:'id'});
     if(!db.objectStoreNames.contains('passages')){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');p.createIndex('createdAt','createdAt');p.createIndex('source',['captureId','conversationId','messageId','nodeId']);}
    };
-   r.onerror=()=>{openings.delete(name);reject(r.error||new Error('IDB_OPEN_FAILED'));};
-   r.onblocked=()=>{openings.delete(name);reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
-   r.onsuccess=()=>{r.result.onversionchange=()=>{r.result.close();openings.delete(name);};resolve(r.result);};
+   r.onerror=()=>{abandoned=true;openings.delete(name);reject(r.error||new Error('IDB_OPEN_FAILED'));};
+   r.onblocked=()=>{abandoned=true;openings.delete(name);reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
+   r.onsuccess=()=>{if(abandoned){r.result.close();return;}r.result.onversionchange=()=>{r.result.close();openings.delete(name);};resolve(r.result);};
   });
   openings.set(name,pending);return pending;
  }
@@ -49,16 +51,19 @@
   C.check(typeof record.captureId==='string'&&record.captureId.length>0&&record.captureId.length<=100&&typeof record.conversationId==='string'&&record.conversationId.length>0&&record.conversationId.length<=200&&typeof record.messageId==='string'&&record.messageId.length>0&&record.messageId.length<=500&&typeof record.nodeId==='string'&&record.nodeId.length>0&&record.nodeId.length<=500,'INVALID_PASSAGE_SOURCE');
   C.check(typeof record.text==='string'&&record.text.length>0&&record.text.length<=5000&&typeof record.prefix==='string'&&record.prefix.length<=160&&typeof record.suffix==='string'&&record.suffix.length<=160&&Number.isSafeInteger(record.startOffset)&&Number.isSafeInteger(record.endOffset)&&record.startOffset>=0&&record.endOffset>record.startOffset,'INVALID_PASSAGE_RANGE');
   C.check(/^[a-f0-9]{64}$/.test(record.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(record.messageHash||''),'INVALID_PASSAGE_HASH');
+  C.check(['yellow','green','blue','pink'].includes(record.color)&&record.status==='anchored'&&Number.isFinite(record.createdAt)&&Number.isFinite(record.updatedAt)&&Number.isSafeInteger(record.occurrence)&&record.occurrence>=0,'INVALID_PASSAGE_METADATA');
   return transaction(['captures','passages'],'readwrite',async s=>{
    const capture=await request(s.captures.get(record.captureId));C.check(capture?.snapshot,'PASSAGE_SOURCE_CAPTURE_MISSING');
    C.check(capture.snapshot.source?.conversationId===record.conversationId,'PASSAGE_SOURCE_CONVERSATION_MISMATCH');
    C.check(globalThis.TLPassages.snapshotHash(capture.snapshot)===record.snapshotHash,'PASSAGE_SNAPSHOT_HASH_MISMATCH');
    const sourceMessage=capture.snapshot.messages.find(m=>m.id===record.messageId&&m.nodeId===record.nodeId);
    C.check(sourceMessage,'PASSAGE_SOURCE_MESSAGE_MISSING');
+   C.check(globalThis.TLPassages.messageHash(sourceMessage)===record.messageHash&&sourceMessage.role===record.role&&sourceMessage.text.slice(record.startOffset,record.endOffset)===record.text&&record.endOffset-record.startOffset===record.text.length,'PASSAGE_MESSAGE_HASH_MISMATCH');
    const resolved=globalThis.TLPassages?.resolve?.(record,capture.snapshot);
    C.check(resolved?.status==='anchored'&&resolved.message?.id===sourceMessage.id,'PASSAGE_NOT_ANCHORED_TO_SOURCE');
    const prior=await request(s.passages.get(record.passageId));
-   if(prior)C.check(prior.captureId===record.captureId&&prior.messageId===record.messageId&&prior.nodeId===record.nodeId,'PASSAGE_IDENTITY_IMMUTABLE');
+   if(prior)C.check(prior.captureId===record.captureId&&prior.messageId===record.messageId&&prior.nodeId===record.nodeId&&prior.createdAt===record.createdAt,'PASSAGE_IDENTITY_IMMUTABLE');
+   else C.check(await request(s.passages.index('capture').count(record.captureId))<5000,'PASSAGE_COUNT_LIMIT');
    s.passages.put({...record,updatedAt:Date.now()});return record.passageId;
   });
  }
@@ -156,9 +161,10 @@
   });
  }
  async function importCapture(snapshotData,items,blobs,state,saveScope='all',passageRows=[]){
-  const captureId=C.id();for(const[sha,blob]of blobs){C.check(await C.hashBlob(blob)===sha,'IMPORT_HASH_MISMATCH');await putBlob(blob);}
+  const captureId=C.id();for(const[sha,blob]of blobs)C.check(blob instanceof Blob&&blob.size>0&&await C.hashBlob(blob)===sha,'IMPORT_HASH_MISMATCH');
   const snapshotCopy=C.persistedSnapshot(snapshotData),importedPassages=passageRows.map(p=>({...p,originPassageId:p.originPassageId||p.passageId,passageId:C.id(),captureId}));
-  await transaction(['captures','assets','passages'],'readwrite',s=>{
+  await transaction(['captures','assets','passages','files'],'readwrite',s=>{
+   for(const[sha,blob]of blobs)s.files.put({sha256:sha,blob,size:blob.size});
    s.captures.put({id:captureId,snapshot:snapshotCopy,state,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),imported:true,live:false,saveScope});for(const a of items)s.assets.put({...a,captureId});
    for(const p of importedPassages)s.passages.put(p);
   });return captureId;
