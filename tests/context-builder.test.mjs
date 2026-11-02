@@ -71,3 +71,21 @@ test('different archived versions of the same message are both preserved and fla
  assert.ok(out.parts.join('').includes('revised message text'));
  assert.ok(out.manifest.warnings.includes('CONFLICTING_ARCHIVE_VERSIONS_PRESERVED'));
 });
+
+test('identical saved asset bytes across selected archives are packaged once with all source references retained',()=>{
+ const s1=source(),s2=source(),row={key:'a1',state:'saved',sha256:'a'.repeat(64),size:12};
+ const out=T.compile([{captureId:'cap-a',snapshot:s1,assetRows:[row]},{captureId:'cap-b',snapshot:s2,assetRows:[row]}],{includeSavedAssets:true});
+ assert.equal(out.manifest.assets.filter(a=>a.includeBytes).length,2);
+ assert.equal(out.manifest.includedAssetReferenceCount,2);
+ assert.equal(out.manifest.includedAssetCount,1);
+ assert.equal(out.assets.length,1);
+ assert.equal(out.assets[0].sha256,'a'.repeat(64));
+ assert.ok(out.index.includes('来源引用：2'));
+});
+test('conflicting sizes for the same content hash fail closed',()=>{
+ const s1=source(),s2=source();
+ assert.throws(()=>T.compile([
+  {captureId:'cap-a',snapshot:s1,assetRows:[{key:'a1',state:'saved',sha256:'a'.repeat(64),size:12}]},
+  {captureId:'cap-b',snapshot:s2,assetRows:[{key:'a1',state:'saved',sha256:'a'.repeat(64),size:13}]}
+ ],{includeSavedAssets:true}),/CONFLICTING_ASSET_HASH_SIZE/);
+});

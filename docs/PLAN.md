@@ -140,7 +140,7 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 | CF-02 | 新仓库工程基线 | ChatFlow 自有 CI、构建、Node/Chromium/IndexedDB 测试、候选 ZIP、BUILD_INFO 与 SHA256SUMS | done | CF-01 | ChatFlow 准确 HEAD 的 Ubuntu/Windows CI 全通过；包内版本、源码 SHA 和哈希一致 |
 | CF-03 | 归档引擎安全复核 | 采集、分支、文件范围、真实字节、实时缓存、ZIP 恢复、草稿保护、目标页白名单、上传状态 | done | CF-02 | 87 项 Node 回归、安全测试及 Chromium/IndexedDB 合成验收通过；未知/缺失/排除状态保持分离 |
 | CF-04 | 统一档案协议 | 冻结可移植 schema、manifest、消息/分支/资产引用、版本迁移和冲突规则 | done | CF-03 | ChatFlow archive/1 与 ThreadLine archive/1 导入、往返、哈希/路径/资产关系校验和损坏拒绝测试通过 |
-| CF-05 | Context Builder | 来源选择、消息/分支筛选、预算、分段、索引、可追溯 context manifest | done | CF-04 | 多档案来源、分支筛选、关键词、预算分段、附件哈希、重复消息去重及冲突版本保留均有测试 |
+| CF-05 | Context Builder | 来源选择、消息/分支筛选、预算、分段、索引、可追溯 context manifest | done | CF-04 | 多档案来源、分支筛选、关键词、预算分段、附件哈希、重复消息去重、相同附件字节按哈希去重及冲突版本保留均有测试 |
 | CF-06 | 受控并行会话引擎 | K=2–4 冻结输入、独立新聊天、人工发送、回执/超时/失败分类、盲测/揭盲/裁决 | done | CF-05 | K=2/3/4 合成端到端均验证相同预填、人工发送、采集和盲测；未知状态不重放 |
 | CF-07 | Provider Adapter 边界 | ChatGPT 适配器与通用档案/执行层解耦；补齐能力探测和合成契约 | done | CF-03,CF-06 | ChatGPT 适配器完成集成与能力契约测试；未验收的平台返回 unsupported |
 | CF-08 | 真实账号验收 | 独立 Edge 配置中的真实 ChatGPT 保存、附件下载、浏览器重启、ZIP 恢复、Context Builder 与并行接续 | blocked | CF-07 | 必须由所有者在已登录的独立 Edge 配置中执行；云端无真实账号凭据和本地浏览器控制权限 |
