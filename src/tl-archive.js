@@ -1,4 +1,4 @@
-/* ThreadLine archive I/O. MIT.
+/* ChatFlow archive I/O. MIT.
  * ZIP headers/ZIP64 layout adapted from thekester/chatgpt-export src/zip.js,
  * pinned 13568bf75688de74a5af563b20d5ccd28f4ad532. Original LICENSE is retained.
  * Blob payloads are streamed for CRC/SHA; never serialized into persistent Base64.
