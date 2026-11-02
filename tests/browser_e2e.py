@@ -369,6 +369,35 @@ async def main():
                         payload=z.read('assets/'+item['sha256']+'.bin')
                         assert hashlib.sha256(payload).hexdigest()==item['sha256']
             passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
+            experiment_page=await ctx.new_page()
+            await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
+            await experiment_page.wait_for_function('typeof ChatFlowExperimentCore!=="undefined"&&typeof ChatFlowExperimentDB!=="undefined"')
+            disabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_STATUS"})')
+            assert disabled['ok'] and disabled['data']['enabled'] is False
+            enabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_SET_ENABLED",enabled:true,ack:"local-only-no-send"})')
+            assert enabled['ok'] and enabled['data']['enabled'] is True
+            created=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_CREATE",operationId:"e2e-create-20261102",branchCount:2,w0:"frozen shared material",p:"compare two independent answers"})')
+            assert created['ok'],created
+            experiment_id=created['data']['id']
+            record=await experiment_page.evaluate('id=>chrome.runtime.sendMessage({type:"FF_READ",id})',experiment_id)
+            frozen=record['data']['frozen']['text']
+            existing=set(ctx.pages)
+            launched=await experiment_page.evaluate('id=>chrome.runtime.sendMessage({type:"FF_LAUNCH",experimentId:id,operationId:"e2e-launch-20261102"})',experiment_id)
+            assert launched['ok'] and launched['data']['branchCount']==2,launched
+            branch_pages=[]
+            for _ in range(80):
+                branch_pages=[p for p in ctx.pages if p not in existing and p.url.startswith('https://chatgpt.com/')]
+                if len(branch_pages)>=2:break
+                await asyncio.sleep(0.25)
+            assert len(branch_pages)==2,[(p.url for p in ctx.pages)]
+            for branch_page in branch_pages:
+                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen,timeout=30000)
+                assert await branch_page.evaluate('window.sends||0')==0
+            record=await experiment_page.evaluate('id=>chrome.runtime.sendMessage({type:"FF_READ",id})',experiment_id)
+            assert all(record['data']['branches'][b]['attempts'][-1]['phase']=='awaiting_send' for b in ['A','B'])
+            assert all(record['data']['branches'][b]['attempts'][-1]['evidence']['inputLevel']=='exact' for b in ['A','B'])
+            passed('parallel_experiment_k2_freezes_identical_input_and_prefills_without_sending',{'branches':2})
+            await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_SET_ENABLED",enabled:false,ack:"local-only-no-send"})')
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
         except Exception as e:
