@@ -420,6 +420,22 @@ async def main():
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.get_by_role('button',name='打开新聊天').is_visible()
             assert not await workspace.locator('#staging-details').evaluate('(e)=>e.open')
+            await workspace.locator('#handoff-view .back').click()
+            alternate_value=await workspace.locator('#archive-branch').evaluate("(e)=>Array.from(e.options).find(o=>o.textContent.startsWith('分支 '))?.value")
+            assert alternate_value
+            await workspace.locator('#archive-branch').select_option(alternate_value)
+            await workspace.get_by_role('button',name='继续这段对话').click()
+            assert await workspace.locator('#open-target').is_disabled()
+            assert await workspace.locator('#prepare').is_visible()
+            await workspace.get_by_role('button',name='准备新对话').click()
+            await wait_async(workspace,'async()=>!document.querySelector("#open-target").disabled',timeout=30000)
+            await workspace.locator('#handoff-view .back').click()
+            await workspace.locator('#archive-branch').select_option(label='当前分支')
+            await workspace.get_by_role('button',name='继续这段对话').click()
+            assert await workspace.locator('#open-target').is_disabled()
+            await workspace.get_by_role('button',name='准备新对话').click()
+            await wait_async(workspace,'async()=>!document.querySelector("#open-target").disabled',timeout=30000)
+            passed('prepared_handoff_invalidates_and_rebuilds_when_selected_branch_changes')
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
