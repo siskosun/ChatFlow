@@ -133,8 +133,6 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 
 | ID | 阶段 | 交付 | 状态 | 依赖 | 完成标准 |
 |---|---|---|---|---|---|
-| ID | 阶段 | 交付 | 状态 | 依赖 | 完成标准 |
-|---|---|---|---|---|---|
 | CF-PLAN | 计划与基线冻结 | 本计划、候选 SHA、产品范围、UX 与安全不变量 | done | - | 计划写入 ChatFlow；来源和范围可追溯 |
 | CF-01 | 0.7.2 迁移与品牌重置 | 将准确候选代码迁入本仓库；品牌、manifest、构建产物、文档统一改为 ChatFlow；版本改为 0.1；保留许可 | done | CF-PLAN | 文件清单/来源可追溯；旧仓库不变 |
 | CF-02 | 新仓库工程基线 | ChatFlow 自有 CI、构建、Node/Chromium/IndexedDB 测试、候选 ZIP、BUILD_INFO 与 SHA256SUMS | done | CF-01 | ChatFlow 准确 HEAD 的 Ubuntu/Windows CI 全通过；包内版本、源码 SHA 和哈希一致 |
@@ -189,3 +187,11 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 5. PR、CI、合成网页、真实账号和真人 UX 是不同证据等级。不得把其中一类结果冒充另一类。
 6. 连续三次复现同一失败后停止盲目重试，定位根因并记录 blocked/unknown。
 7. 所有任务状态只能使用 `planned`、`in_progress`、`in_review`、`blocked`、`done`、`deferred`。只有证据满足完成标准时才可改为 `done`。
+
+## 9. PR #1 最新准确 HEAD 验证（2026-11-02）
+
+- PR HEAD：`e70e3b36f63de3e0a35dfaa360bea6291ebfb8ca`（分支 `cf/0.1-migration`）。
+- GitHub Actions run [#41393582931](https://github.com/siskosun/ChatFlow/actions/runs/41393582931)：`verify` 与 `windows-baseline` 均 completed / success；该运行对应上述 PR HEAD。
+- 本轮验证确认 Node 安全/回归 89/89、Chromium MV3 合成 E2E 37 项通过、IndexedDB 存储边界工作流通过、Chrome/Edge 候选包构建与校验通过。
+- 此提交包含后续文档更新；运行时代码的最近完整验收提交仍为 `daa26bed54179c99c55e612bb70ebab649ceba37`，PR HEAD 与运行时代码提交不得混称。
+- 当前 PR 仍为 Draft/Open、未合并、未发布。CF-08 真实账号验收为 blocked；CF-09 真人用户与读屏验收尚未完成；CF-10 因依赖未闭合保持 planned。
