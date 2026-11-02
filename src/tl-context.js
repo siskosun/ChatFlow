@@ -5,7 +5,10 @@
  const check=C.check;
  function compile(sources,{allBranches=false,maxPartChars=120000,includeSavedAssets=false,query='',tokenBudget=100000}={}){
   check(Array.isArray(sources)&&sources.length>0&&sources.length<=100,'INVALID_CONTEXT_SOURCES');
-  check(Number.isSafeInteger(maxPartChars)&&maxPartChars>=1000&&maxPartChars<=500000,'INVALID_CONTEXT_PART_SIZE');\n  check(typeof query==='string'&&query.length<=500,'INVALID_CONTEXT_QUERY');check(Number.isSafeInteger(tokenBudget)&&tokenBudget>=1000&&tokenBudget<=1000000,'INVALID_CONTEXT_TOKEN_BUDGET');\n  const terms=query.toLocaleLowerCase().split(/\\s+/).filter(Boolean);
+  check(Number.isSafeInteger(maxPartChars)&&maxPartChars>=1000&&maxPartChars<=500000,'INVALID_CONTEXT_PART_SIZE');
+  check(typeof query==='string'&&query.length<=500,'INVALID_CONTEXT_QUERY');
+  check(Number.isSafeInteger(tokenBudget)&&tokenBudget>=1000&&tokenBudget<=1000000,'INVALID_CONTEXT_TOKEN_BUDGET');
+  const terms=query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const seen=new Set(),sourceRecords=[],assetRecords=[],sections=[];
   for(const source of sources){
    check(C.record(source)&&typeof source.captureId==='string'&&source.captureId.length>0,'INVALID_CONTEXT_SOURCE');
@@ -13,8 +16,9 @@
    const snapshot=source.snapshot;
    check(snapshot?.schema==='threadline.snapshot/1'&&Array.isArray(snapshot.messages)&&Array.isArray(snapshot.active),'INVALID_CONTEXT_SNAPSHOT');
    const active=new Set(snapshot.active);
-   const selected=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
-   check(selected.length>0,'EMPTY_CONTEXT_SOURCE');
+   const branchMessages=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
+   const selected=terms.length?branchMessages.filter(m=>terms.some(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
+   check(selected.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
    const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set(selected.map(m=>m.nodeId));
    const view={...snapshot,messages:selected,active:selected.map(m=>m.nodeId)};
    const text=C.history(view,{allBranches:true});
@@ -27,7 +31,8 @@
     title:snapshot.title,
     snapshotHash,
     integrity:snapshot.integrity,
-    branchMode:allBranches?'all_accessible':'captured_active_branch',query,
+    branchMode:allBranches?'all_accessible':'captured_active_branch',
+    query,
     messageIds:[...selectedIds],
     nodeIds:[...selectedNodes]
    });
@@ -35,7 +40,7 @@
    const rows=Array.isArray(snapshot.assets)?snapshot.assets:[];
    for(const asset of rows){
     const inScope=selectedNodes.has(asset.nodeId);
-    const row=source.assetsRows?.find(x=>x.key===asset.key)||source.assetRows?.find(x=>x.key===asset.key)||null;
+    const row=source.assetRows?.find(x=>x.key===asset.key)||null;
     const state=row?.state||asset.state||'unknown';
     const saved=state==='saved'&&!!row?.sha256&&row.size>0;
     assetRecords.push({
@@ -60,8 +65,9 @@
   const estimatedTokens=Math.ceil(fullText.length/4);
   const manifest={
    schema:'chatflow.context/1',formatVersion:1,generatedAt:new Date().toISOString(),
-   options:{allBranches:!!allBranches,maxPartChars,includeSavedAssets:!!includeSavedAssets},
-   estimatedTokens,characterCount:fullText.length,partCount:parts.length,
+   options:{allBranches:!!allBranches,maxPartChars,includeSavedAssets:!!includeSavedAssets,query,tokenBudget},
+   estimatedTokens,tokenBudget,budgetExceeded:estimatedTokens>tokenBudget,
+   characterCount:fullText.length,partCount:parts.length,
    sources:sourceRecords,assets:assetRecords,
    includedAssetCount:included.length,missingAssetCount:missing.length,excludedAssetCount:excluded.length,
    warnings:[...sourceRecords.filter(s=>s.integrity?.state!=='valid').map(s=>'SOURCE_PARTIAL:'+s.captureId),...(missing.length?['SOME_ASSETS_NOT_INCLUDED']:[]),...(estimatedTokens>tokenBudget?['TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED']:[])]
@@ -70,7 +76,9 @@
    '# ChatFlow 上下文包','',
    '本包由用户选定的本地档案确定性编译。它不包含未选定对话，也不代表模型已读取。',
    '来源数：'+sourceRecords.length+'；消息数：'+sourceRecords.reduce((n,s)=>n+s.messageIds.length,0),
-   '分段数：'+parts.length+'；字符数：'+fullText.length+'；估算 token：'+estimatedTokens+'（粗略估算；预算 '+tokenBudget+'）',\n   ...(query?['关键词筛选：'+query]:[]),\n   ...(estimatedTokens>tokenBudget?['警告：估算内容超过 token 预算，已完整分段而非静默截断；请缩小来源或分批上传。']:[]),
+   '分段数：'+parts.length+'；字符数：'+fullText.length+'；估算 token：'+estimatedTokens+'（粗略估算；预算 '+tokenBudget+'）',
+   ...(query?['关键词筛选：'+query]:[]),
+   ...(estimatedTokens>tokenBudget?['警告：估算内容超过 token 预算，已完整分段而非静默截断；请缩小来源或分批上传。']:[]),
    '实际附件字节：'+included.length+'；未纳入/不可用：'+missing.length+'；按范围排除：'+excluded.length,
    '',
    '## 来源索引',
