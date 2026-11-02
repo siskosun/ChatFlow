@@ -58,6 +58,21 @@
   });if(found<0)return false;used.add(found);}
   return names.length>0;
  }
+ async function prepareExperiment(){
+  let h;try{h=await send('tl:claimExperimentHandoff');}catch(e){notice('ChatFlow：并行分支预填未确认（'+code(e)+'）。请检查目标页；不会自动重试。');return;}
+  if(!h)return;
+  try{
+   notice('ChatFlow：正在核验冻结任务。不会自动发送消息。');
+   let ready=false;for(let i=0;i<40;i++){try{editor();ready=true;break;}catch{await sleep(250);}}
+   C.check(ready,'COMPOSER_NOT_READY');const e=preflight();
+   prefill(e,h.text);C.chatUrl(location.href,{target:true});
+   C.check(value(e).replace(/\\r/g,'').trim()===h.text.replace(/\\r/g,'').trim(),'PREFILL_NOT_CONFIRMED');
+   await send('tl:experimentPrefillAck',{experimentId:h.experimentId,branch:h.branch,attemptId:h.attemptId});
+   notice('ChatFlow：分支 '+h.branch+' 的冻结任务已逐字预填。请核对后由你手动发送。');
+  }catch(e){
+   notice('ChatFlow：分支 '+h.branch+' 预填未确认（'+code(e)+'）。不会自动发送或重试；请回实验页手动重新预填。');
+  }
+ }
  async function prepare(){
   if(started)return;let h;
   try{h=await send('tl:claimHandoff');}catch{return;}
@@ -81,6 +96,6 @@
    notice('ChatFlow：自动接续未确认（'+code(e)+'）。不会自动重试或清除草稿。请回档案页下载接续包，手动上传。');
   }
  }
- api.runtime.onMessage.addListener((msg,sender,respond)=>{if(sender.id!==api.runtime.id)return false;if(msg?.type==='tl:handoffAvailable'){prepare();respond({ok:true});}return false;});
+ api.runtime.onMessage.addListener((msg,sender,respond)=>{if(sender.id!==api.runtime.id)return false;if(msg?.type==='tl:handoffAvailable'){prepare();respond({ok:true});}if(msg?.type==='TL_EXPERIMENT_HANDOFF_READY'){prepareExperiment();respond({ok:true});}return false;});
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>prepare(),{once:true});else prepare();
 })();
