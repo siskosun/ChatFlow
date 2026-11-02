@@ -174,7 +174,7 @@ async def main():
             await workspace.get_by_role('button',name='继续这段对话').click()
             await workspace.get_by_role('heading',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
-            await workspace.get_by_role('link',name='研线首页').click()
+            await workspace.get_by_role('link',name='ChatFlow首页').click()
             passed('ux_after_save_replaces_save_action_with_continue_action')
             stored=await workspace.evaluate('''async id=>{
               const out=await TLArchive.exportCapture(id),entries=await TLArchive.readZip(out.blob),files=[];
