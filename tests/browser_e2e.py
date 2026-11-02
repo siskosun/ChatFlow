@@ -362,7 +362,15 @@ async def main():
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('.archive-button').filter(has_text=cap['snapshot']['title']).first.click()
             await workspace.locator('.message pre').first.wait_for(state='visible',timeout=5000)
-            await workspace.locator('.message pre').first.evaluate("""pre=>{const text=pre.textContent,needle='known fact at position 0: 0',start=text.indexOf(needle);if(start<0)throw Error('passage fixture text missing');const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));}""")
+            first_passage_text='known fact at position 0: 0'
+            first_passage_pre=workspace.locator('.message pre').filter(has_text=first_passage_text).first
+            assert await first_passage_pre.get_attribute('tabindex')=='0'
+            await first_passage_pre.focus()
+            await first_passage_pre.evaluate("""(pre,needle)=>{const start=pre.textContent.indexOf(needle);if(start<0)throw Error('passage fixture text missing');const range=document.createRange();range.setStart(pre.firstChild,start);range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);}""",first_passage_text)
+            await workspace.keyboard.down('Shift')
+            for _ in first_passage_text: await workspace.keyboard.press('ArrowRight')
+            await workspace.keyboard.up('Shift')
+            await workspace.get_by_role('button',name='保存选中片段').first.wait_for(state='visible')
             await workspace.get_by_role('button',name='保存选中片段').first.click()
             await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='known fact at position 0: 0')")
             passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='known fact at position 0: 0')")
