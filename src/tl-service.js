@@ -130,7 +130,7 @@ async function handle(msg,sender){
  if(msg.type==='tl:captureFailed'){const c=await S.get('captures',run.captureId);if(c)await S.set('captures',{...c,state:c.snapshot?'partial':'error',live:false,lastError:/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:'CAPTURE_FAILED'});run.controller?.abort();runs.delete(run.nonce);await keepRuns();return{stopped:true};}
  throw new Error('UNKNOWN_OPERATION');
 }
-api.runtime.onMessage.addListener((msg,sender,respond)=>{if(!msg||typeof msg.type!=='string'||!msg.type.startsWith('tl:'))return false;handle(msg,sender).then(data=>respond({ok:true,data})).catch(e=>respond({ok:false,code:errorCode(e)}));return true;});
+api.runtime.onMessage.addListener((msg,sender,respond)=>{if(!msg||typeof msg.type!=='string'||(!msg.type.startsWith('tl:')&&!msg.type.startsWith('FF_')))return false;handle(msg,sender).then(data=>respond({ok:true,data})).catch(e=>respond({ok:false,code:errorCode(e)}));return true;});
 let workspaceOpening=Promise.resolve();
 api.action.onClicked.addListener(tab=>{
  workspaceOpening=workspaceOpening.catch(()=>{}).then(async()=>{
