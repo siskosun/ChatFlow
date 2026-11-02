@@ -89,7 +89,7 @@
    }else files.push({...item,path:null});
   }
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
-  const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.1'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
+  const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.2'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
    state:capture.state==='ready'&&files.every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files,passages:passageRows};
   entries.push({name:'conversation.json',blob:snapshotBlob},{name:'conversation.md',content:C.history(snapshot,{allBranches:true})},{name:'manifest.json',content:JSON.stringify(manifest,null,2)},{name:'diagnostics.json',content:JSON.stringify({schema:1,integrity:snapshot.integrity,files:files.map(a=>({state:a.state,reason:a.reason})),note:'No authentication or signed download URLs are retained.'},null,2)});
   return{blob:await buildZip(entries),manifest};
