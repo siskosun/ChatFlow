@@ -83,8 +83,23 @@ document.getElementById('generic').addEventListener('change',async e=>{
 </script></body></html>'''
 SOURCE_HTML='<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Synthetic source conversation</title></head><body><main><p>Selected synthetic research conversation. No account.</p></main></body></html>'
 
+def experiment_conversation(conversation_id,prompt):
+    return {
+        'conversation_id':conversation_id,
+        'title':'Synthetic parallel experiment',
+        'current_node':'assistant-node',
+        'mapping':{
+            'user-node':{'id':'user-node','parent':None,'children':['assistant-node'],'message':{
+                'id':'user-message','author':{'role':'user'},'create_time':1700000000,
+                'status':'finished_successfully','content':{'parts':[prompt]},'metadata':{}}},
+            'assistant-node':{'id':'assistant-node','parent':'user-node','children':[],'message':{
+                'id':'assistant-message','author':{'role':'assistant'},'create_time':1700000001,
+                'status':'finished_successfully','content':{'parts':['Synthetic final answer for '+conversation_id]},'metadata':{}}}
+        }
+    }
+
 async def main():
-    mode={'live':False,'request_count':0,'write_requests':[],'sandbox_paths':[],'file_download_ids':[],'target_mode':'ready','target_draft':False}
+    mode={'live':False,'request_count':0,'write_requests':[],'sandbox_paths':[],'file_download_ids':[],'target_mode':'ready','target_draft':False,'experiment_prompts':{}}
     async def route_handler(route):
         request=route.request;u=urlparse(request.url);p=u.path
         if request.method not in ['GET','HEAD']:
@@ -97,6 +112,11 @@ async def main():
         if p=='/backend-api/conversation/'+CID_AMBIG:
             mode['request_count']+=1
             return await route.fulfill(json=conversation(False,True,CID_AMBIG))
+        if p.startswith('/backend-api/conversation/'):
+            experiment_id=p.rsplit('/',1)[1]
+            if experiment_id in mode['experiment_prompts']:
+                mode['request_count']+=1
+                return await route.fulfill(json=experiment_conversation(experiment_id,mode['experiment_prompts'][experiment_id]))
         if p.startswith('/backend-api/files/download/'):
             fid=p.rsplit('/',1)[1];mode['file_download_ids'].append(fid)
             if fid in FILES:return await route.fulfill(json={'download_url':'https://chatgpt.com/backend-api/files/content/'+fid})
@@ -418,6 +438,31 @@ async def main():
             branch_text=await experiment_page.locator('#ff-branch-boxes').inner_text()
             assert '待你手动发送' in branch_text or 'awaiting_send' in branch_text,branch_text
             passed('parallel_experiment_k2_freezes_identical_input_and_prefills_without_sending',{'branches':2})
+            for index,branch_page in enumerate(branch_pages):
+                assert await branch_page.evaluate('window.sends||0')==0
+                await branch_page.locator('#user-send').click()
+                assert await branch_page.evaluate('window.sends||0')==1
+                experiment_cid='expbranch'+('A' if index==0 else 'B')+'1234567890'
+                mode['experiment_prompts'][experiment_cid]=frozen
+                await branch_page.goto('https://chatgpt.com/c/'+experiment_cid)
+            for completed in [1,2]:
+                await experiment_page.locator('#ff-refresh').click()
+                await experiment_page.locator('#ff-list button').first.click()
+                await experiment_page.get_by_role('button',name='采集回复（完成后自动核对完成条件）').first.click()
+                for _ in range(60):
+                    await asyncio.sleep(1)
+                    await experiment_page.locator('#ff-refresh').click()
+                    await experiment_page.locator('#ff-list button').first.click()
+                    current_branches=await experiment_page.locator('#ff-branch-boxes').inner_text()
+                    if current_branches.count('已完成')>=completed:break
+                assert current_branches.count('已完成')>=completed,current_branches
+            await experiment_page.locator('#ff-compare-btn').wait_for(state='visible')
+            await experiment_page.locator('#ff-compare-btn').click()
+            await experiment_page.locator('#ff-columns').wait_for(state='visible')
+            comparison_text=await experiment_page.locator('#ff-columns').inner_text()
+            assert 'Synthetic final answer' in comparison_text,comparison_text
+            assert await experiment_page.locator('#ff-reveal').inner_text()==''
+            passed('parallel_experiment_k2_manual_send_capture_completion_and_blind_comparison')
             await experiment_page.locator('#ff-enable').uncheck()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
