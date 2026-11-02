@@ -95,7 +95,7 @@
     box.appendChild(detail);
     if (info.status === "pending" && attempt && Number.isInteger(ev.tabId)) {
       const row = document.createElement("p");
-      if (!ev.sessionId) {
+      if (!ev.sessionId && ev.prefill !== 'exact_ack') {
         const re = document.createElement("button");
         re.type = "button"; re.className = "secondary";
         re.textContent = "重新预填此分支";
@@ -106,7 +106,7 @@
       } else if (info.phase !== "capturing") {
         const cap = document.createElement("button");
         cap.type = "button"; cap.className = "secondary";
-        cap.textContent = "采集回复（完成后自动核对完成条件）";
+        cap.textContent = "采集回复（确认已手动发送）";
         cap.addEventListener("click", async () => {
           const started = await runOperation(
             {type:"FF_CAPTURE", experimentId:data.id, branch}, cap);
