@@ -117,3 +117,11 @@ test('passage context refuses ambiguous or stale anchors instead of guessing',()
  assert.throws(()=>T.compile([{captureId:'cap-1',snapshot:changed,assetRows:[],passages:[passage]}],{passageMode:'passages'}),/CONTEXT_PASSAGE_NOT_ANCHORED/);
  assert.throws(()=>T.compile([{captureId:'cap-1',snapshot:s,assetRows:[],passages:[]}],{passageMode:'passages'}),/EMPTY_CONTEXT_SOURCE|NO_SELECTED_CONTEXT_PASSAGES/);
 });
+
+test('passage-only mode skips selected archives without selected passages but retains their absence in no source list',()=>{
+ const s=source(),message=s.messages.find(m=>m.id==='m2'),text='unique phrase 2',start=message.text.indexOf(text);
+ const passage=TLPassages.create({captureId:'cap-2',snapshot:s,message,text,startOffset:start,endOffset:start+text.length});
+ const out=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[],passages:[]},{captureId:'cap-2',snapshot:s,assetRows:[],passages:[passage]}],{passageMode:'passages'});
+ assert.equal(out.manifest.sources.length,1);assert.equal(out.manifest.sources[0].captureId,'cap-2');
+ assert.equal(out.manifest.passages.length,1);
+});
