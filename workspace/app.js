@@ -20,13 +20,12 @@
  async function captureForSelectedSource(){
   const tabId=Number($('source').value),scope=$('asset-scope').value;if(!Number.isInteger(tabId)||tabId<=0)return null;
   const key=String(tabId)+'|'+scope;if(key===sourceLookupKey)return sourceLookupCaptureId?S.get('captures',sourceLookupCaptureId):null;
-  sourceLookupKey=key;sourceLookupCaptureId=null;
-  const openTabs=await call('tl:sources'),source=openTabs.find(row=>Number(row.id)===tabId);if(!source)return null;
+  const openTabs=await call('tl:sources'),source=openTabs.find(row=>Number(row.id)===tabId);if(!source){sourceLookupKey=key;sourceLookupCaptureId=null;return null;}
   const identity=C.chatUrl(source.url),matches=(await S.all('captures')).filter(row=>{
    const saved=row.snapshot?.source||row.source;
    return !!row.snapshot&&saved?.origin===identity.origin&&saved?.conversationId===identity.conversationId&&(row.saveScope||'all')===scope;
   }).sort((a,b)=>String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt)));
-  sourceLookupCaptureId=matches[0]?.id||null;return matches[0]||null;
+  sourceLookupKey=key;sourceLookupCaptureId=matches[0]?.id||null;return matches[0]||null;
  }
  function updateScopeUI(){const last=$('asset-scope').value==='last_generated',live=$('live');if(last&&live.checked){live.checked=false;status('已关闭实时缓存：仅保存最后生成文件与实时缓存不能同时使用。');}live.disabled=last;$('scope-hint').textContent=last?'对话正文和可访问分支仍完整保存；只下载当前分支中最近一条助手消息生成的一份文件。用户上传文件和其他分支文件会标记为“按保存范围跳过”；来源或位置不明的文件单独标记为未判定。':'对话正文和可访问分支均保存；尝试下载可识别的用户上传文件和助手生成文件。';$('live-hint').textContent=last?'仅保存最后生成文件与实时缓存不兼容。选择“全部文件”后可开启。':'只对选中的对话生效。关闭浏览器或停止后不会自动恢复。';}
  async function start(){
