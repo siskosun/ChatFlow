@@ -100,7 +100,7 @@
   C.check(manifest.snapshotPath==='conversation.json'&&/^[0-9a-f]{64}$/.test(manifest.snapshotSha256||'')&&Array.isArray(manifest.files),'INVALID_ARCHIVE_MANIFEST');
   C.check(['all','last_generated'].includes(manifest.saveScope||'all'),'INVALID_ARCHIVE_SAVE_SCOPE');
   if(manifest.schema==='chatflow.archive/1'){
-   C.check(manifest.formatVersion===1&&manifest.app?.name==='ChatFlow'&&/^0\.1(?:$|\.)/.test(manifest.app.version||''),'INVALID_ARCHIVE_APP_VERSION');
+   C.check(manifest.formatVersion===1&&manifest.app?.name==='ChatFlow'&&/^0\.(?:1|2)(?:$|\.)/.test(manifest.app.version||''),'INVALID_ARCHIVE_APP_VERSION');
    C.check(manifest.source?.provider==='chatgpt'&&typeof manifest.source.conversationId==='string'&&/^[A-Za-z0-9_-]{8,200}$/.test(manifest.source.conversationId),'INVALID_ARCHIVE_SOURCE');
    C.check(typeof manifest.source.origin==='string'&&['https://chatgpt.com','https://chat.openai.com'].includes(manifest.source.origin),'INVALID_ARCHIVE_ORIGIN');
    C.check(manifest.snapshotSchema==='threadline.snapshot/1'&&['ready','partial'].includes(manifest.state)&&C.record(manifest.integrity),'INVALID_ARCHIVE_STATE');
