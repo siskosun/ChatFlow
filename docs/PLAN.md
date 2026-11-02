@@ -157,20 +157,20 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 
 ## 7. 当前工程验收记录
 
-**当前 ChatFlow HEAD：** `bcd2211f4b9e2d388504011c7a8f5fa6a199c18b`  
-**GitHub Actions PR run：** [#41392111850](https://github.com/siskosun/ChatFlow/actions/runs/41392111850)  
+**最近一次完整 CI 验证的运行时代码提交：** `daa26bed54179c99c55e612bb70ebab649ceba37`  
+**GitHub Actions PR run：** [#41392958708](https://github.com/siskosun/ChatFlow/actions/runs/41392958708)  
 **PR：** [#1](https://github.com/siskosun/ChatFlow/pull/1)，保持 Draft，未合并、未发布。
 
 该准确提交的 Ubuntu 与 Windows 两套工作流全部通过：
 
-- Node 安全与回归：**87/87**。
-- Chromium MV3 合成端到端：**37 项通过**，包含归档/恢复、旧 ThreadLine ZIP 兼容、Context Builder、K=2/3/4 并行完整执行、只读来源请求及关键 UX 流程。
+- Node 安全与回归：**89/89**。
+- Chromium MV3 合成端到端：**37 项通过**，包含归档/恢复、旧 ThreadLine ZIP 兼容、Context Builder（含跨档案相同附件字节去重）、K=2/3/4 并行完整执行、只读来源请求及关键 UX 流程。
 - IndexedDB 浏览器存储边界：工作流通过，覆盖共享文件引用、并发删除、分块中断、损坏文件及接续提交边界。
 - Chrome/Edge 候选包：构建、ZIP 完整性、manifest、运行时脚本清单、许可文件和 SHA256SUMS 校验通过。
 - UX 自动化：320、360、480、768、1280px 无横向溢出；首页、档案页、接续页和并行实验页有键盘焦点/标签/状态检查。
 - 候选包只包含实际运行时脚本，排除未被 manifest 或工作区引用的旧导出器脚本。当前外层候选 artifact 大小约 196,619 字节；不代表运行速度或资源占用改善。
 
-候选 artifact：`chatflow-candidate-bcd2211f4b9e2d388504011c7a8f5fa6a199c18b`（ID `13117008674`）。合成证据 artifact：`chatflow-synthetic-evidence-bcd2211f4b9e2d388504011c7a8f5fa6a199c18b`（ID `13117198393`）。
+候选 artifact：`chatflow-candidate-daa26bed54179c99c55e612bb70ebab649ceba37`（ID `13118191970`，外层 ZIP 196,848 字节）。该提交的合成证据 artifact 由同一 Actions run 保存。
 
 **尚未完成的外部验收：**
 
