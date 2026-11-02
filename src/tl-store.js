@@ -45,8 +45,8 @@
  const passages=captureId=>transaction(['passages'],'readonly',s=>request(s.passages.index('capture').getAll(captureId)));
  const allPassages=()=>transaction(['passages'],'readonly',s=>request(s.passages.getAll()));
  async function putPassage(record){
-  C.check(record?.schema==='chatflow.passage/1'&&typeof record.passageId==='string'&&record.passageId.length>0,'INVALID_PASSAGE_RECORD');
-  C.check(typeof record.captureId==='string'&&typeof record.conversationId==='string'&&typeof record.messageId==='string'&&typeof record.nodeId==='string','INVALID_PASSAGE_SOURCE');
+  C.check(record?.schema==='chatflow.passage/1'&&typeof record.passageId==='string'&&record.passageId.length>0&&record.passageId.length<=100,'INVALID_PASSAGE_RECORD');
+  C.check(typeof record.captureId==='string'&&record.captureId.length>0&&record.captureId.length<=100&&typeof record.conversationId==='string'&&record.conversationId.length>0&&record.conversationId.length<=200&&typeof record.messageId==='string'&&record.messageId.length>0&&record.messageId.length<=500&&typeof record.nodeId==='string'&&record.nodeId.length>0&&record.nodeId.length<=500,'INVALID_PASSAGE_SOURCE');
   C.check(typeof record.text==='string'&&record.text.length>0&&record.text.length<=5000&&typeof record.prefix==='string'&&record.prefix.length<=160&&typeof record.suffix==='string'&&record.suffix.length<=160&&Number.isSafeInteger(record.startOffset)&&Number.isSafeInteger(record.endOffset)&&record.startOffset>=0&&record.endOffset>record.startOffset,'INVALID_PASSAGE_RANGE');
   C.check(/^[a-f0-9]{64}$/.test(record.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(record.messageHash||''),'INVALID_PASSAGE_HASH');
   return transaction(['captures','passages'],'readwrite',async s=>{
