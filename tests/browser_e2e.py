@@ -37,20 +37,11 @@ def xlsx_fixture():
         z.writestr('xl/worksheets/sheet1.xml','<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>synthetic 42</t></is></c></row></sheetData></worksheet>')
     return b.getvalue()
 FILES={
- 'file_csv':('data.csv','text/csv',b'id,value
-1,42
-2,77
-'),
+ 'file_csv':('data.csv','text/csv',b'id,value\\n1,42\\n2,77\\n'),
  'file_sheet':('research.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',xlsx_fixture()),
  'file_image':('diagram.png','image/png',base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1x8AAAAASUVORK5CYII=')),
- 'file_second':('data.csv','text/csv',b'id,value
-1,99
-')}
-PDF=b'%PDF-1.4
-1 0 obj<</Type/Catalog>>endobj
-trailer<</Root 1 0 R>>
-%%EOF
-'
+ 'file_second':('data.csv','text/csv',b'id,value\\n1,99\\n')}
+PDF=b'%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\ntrailer<</Root 1 0 R>>\\n%%EOF\\n'
 LIVE=b'live-cache-byte-proof-314159'
 FINAL=b'last-generated-file-proof-271828'
 BRANCH=b'alternative-branch-file-proof-161803'
