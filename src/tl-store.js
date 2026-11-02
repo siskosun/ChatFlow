@@ -131,10 +131,11 @@
  async function removeCapture(captureId){
   // Delete only this archive and its handoffs. Compute shared-blob references under
   // one transaction, not from a stale snapshot that races another capture commit.
-  await transaction(['captures','assets','chunks','files','handoffs'],'readwrite',async s=>{
+  await transaction(['captures','assets','chunks','files','handoffs','passages'],'readwrite',async s=>{
    const current=await request(s.captures.get(captureId));if(!current)return;
    C.check(!current.live&&current.state!=='capturing','STOP_CAPTURE_BEFORE_DELETE');
    const removed=await request(s.assets.index('capture').getAll(captureId));
+   for(const passage of await request(s.passages.index('capture').getAll(captureId)))s.passages.delete(passage.passageId);
    const candidateHashes=new Set(removed.map(a=>a.sha256).filter(Boolean));
    s.captures.delete(captureId);for(const a of removed)s.assets.delete([captureId,a.key]);
    for(const key of await request(s.chunks.index('capture').getAllKeys(captureId)))s.chunks.delete(key);
@@ -145,11 +146,12 @@
    for(const sha of candidateHashes)if(sha&&!references.has(sha))s.files.delete(sha);
   });
  }
- async function importCapture(snapshotData,items,blobs,state,saveScope='all'){
+ async function importCapture(snapshotData,items,blobs,state,saveScope='all',passageRows=[]){
   const captureId=C.id();for(const[sha,blob]of blobs){C.check(await C.hashBlob(blob)===sha,'IMPORT_HASH_MISMATCH');await putBlob(blob);}
   const snapshotCopy=C.persistedSnapshot(snapshotData);
-  await transaction(['captures','assets'],'readwrite',s=>{
+  await transaction(['captures','assets','passages'],'readwrite',s=>{
    s.captures.put({id:captureId,snapshot:snapshotCopy,state,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),imported:true,live:false,saveScope});for(const a of items)s.assets.put({...a,captureId});
+   for(const p of passageRows)s.passages.put({...p,captureId});
   });return captureId;
  }
  globalThis.TLStore=Object.freeze({open,get,all,set,assets,passages,allPassages,putPassage,deletePassage,updatePassageStatus,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
