@@ -338,6 +338,36 @@ async def main():
                 await workspace.screenshot(path=str(OUT/f'ux-handoff-{width}.png'),full_page=True)
             passed('ux_archive_and_handoff_each_have_one_clear_next_action',{'widths':[320,360,1280],'primary_actions':1})
             passed('workspace_320_360_1280_reflow_and_screenshots')
+            await workspace.get_by_role('button',name='我的档案').click()
+            source_checkbox=workspace.locator('.archive-select-row input[type="checkbox"]').first
+            await source_checkbox.check()
+            assert await workspace.locator('#build-context').is_enabled()
+            async with workspace.expect_download(timeout=30000) as context_download:
+                await workspace.locator('#build-context').click()
+            context_file=await context_download.value
+            context_path=await context_file.path()
+            with zipfile.ZipFile(context_path) as z:
+                names=set(z.namelist())
+                manifest=json.loads(z.read('context_manifest.json'))
+                assert 'context_index.md' in names and any(x.startswith('context_part_') for x in names)
+                assert manifest['schema']=='chatflow.context/1' and len(manifest['sources'])==1
+                assert not any(x.startswith('assets/') for x in names)
+                text=''.join(z.read(x).decode('utf-8') for x in names if x.startswith('context_part_'))
+                assert 'known fact at position 0: 0' in text and 'known fact at position 119: 2023' in text
+            passed('context_builder_exports_traceable_multi_archive_bundle_without_implicit_file_bytes',{'parts':manifest['partCount'],'messages':len(manifest['sources'][0]['messageIds'])})
+            await workspace.locator('#context-include-assets').check()
+            async with workspace.expect_download(timeout=30000) as context_assets_download:
+                await workspace.locator('#build-context').click()
+            context_assets_file=await context_assets_download.value
+            with zipfile.ZipFile(await context_assets_file.path()) as z:
+                asset_paths=[x for x in z.namelist() if x.startswith('assets/')]
+                manifest=json.loads(z.read('context_manifest.json'))
+                assert asset_paths and manifest['includedAssetCount']==len(asset_paths)
+                for item in manifest['assets']:
+                    if item['includeBytes']:
+                        payload=z.read('assets/'+item['sha256']+'.bin')
+                        assert hashlib.sha256(payload).hexdigest()==item['sha256']
+            passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
         except Exception as e:
