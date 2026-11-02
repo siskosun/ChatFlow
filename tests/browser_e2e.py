@@ -149,7 +149,8 @@ async def main():
         profile=Path(tmp)/'profile';ctx,extension=await launch(pw,profile)
         workspace=None
         try:
-            source=await ctx.new_page();await source.goto(SOURCE)
+            source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
+            assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
             workspace=await ctx.new_page();await workspace.goto('chrome-extension://'+extension+'/workspace/index.html')
             await workspace.wait_for_function('typeof TLStore!=="undefined"&&typeof TLArchive!=="undefined"')
             await wait_async(workspace,'()=>document.querySelector("#source").value!==""')
@@ -355,7 +356,7 @@ async def main():
             assert len(await target.locator('#prompt-textarea').input_value())<4000
             events=await target.evaluate('window.uploadEvents');await target.reload();await asyncio.sleep(2)
             assert await target.evaluate('window.uploadEvents')==0 and events==1
-            passed('new_window_receives_verified_bytes_and_early_middle_late_history_without_send')
+            passed('new_tab_receives_verified_bytes_and_early_middle_late_history_without_send')
             passed('handoff_reload_does_not_reinject_camera_untouched_unique_upload_names')
             draft_target,dh=await handoff(draft=True)
             assert dh['state']=='injection_blocked' and dh['lastError']=='USER_DRAFT_PRESENT',dh
