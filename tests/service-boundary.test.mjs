@@ -17,7 +17,7 @@ async function harness({navigationFails=false}={}){
  const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,ChatFlowExperimentService:{handle:async()=>undefined,recover:async()=>{},onTabUpdated:async()=>{},onTabRemoved:async()=>{},onCaptureFinished:async()=>{}},importScripts(){},structuredClone});
  vm.runInContext(core,context);
  vm.runInContext(provider,context);
- vm.runInContext(service+'\n globalThis.TEST_BOUNDARY={openHandoff,claim,targetHandoff,handle,boot};',context);
+ vm.runInContext(service+'\n globalThis.TEST_BOUNDARY={openHandoff,claim,targetHandoff,handle,sourceRun,runs,boot};',context);
  await context.TEST_BOUNDARY.boot;
  return{...context.TEST_BOUNDARY,events,records,tabs,api};
 }
@@ -58,4 +58,17 @@ test('source-page callers cannot start captures or prepare handoffs through work
  const h=await harness(),sender={id:'extension',tab:{id:17},url:'https://chatgpt.com/'};
  for(const type of ['tl:start','tl:prepareHandoff','tl:openHandoff'])await assert.rejects(h.handle({type,id:'handoff'},sender),/WORKSPACE_ONLY/);
  await assert.rejects(h.handle({type:'tl:sources'},{id:'other-extension',url:'chrome-extension://extension/workspace/index.html'}),/FOREIGN_EXTENSION/);
+});
+
+test('capture accepts stale same-origin sender document URL after same-document SPA routing, not a foreign route',async()=>{
+ const h=await harness(),conversationId='conversation_new123456789',nonce='capture_nonce_123456789';
+ h.tabs.set(42,{id:42,url:'https://chatgpt.com/c/'+conversationId});
+ const run={nonce,tabId:42,source:{origin:'https://chatgpt.com',conversationId},captureId:'capture123',documentId:'doc-42',cancelled:false};
+ h.runs.set(nonce,run);
+ const sender={id:'extension',tab:{id:42,url:'https://chatgpt.com/'},url:'https://chatgpt.com/',documentId:'doc-42'};
+ assert.equal(await h.sourceRun({nonce},sender),run);
+ await assert.rejects(h.sourceRun({nonce},{...sender,documentId:'doc-foreign'}),/SOURCE_DOCUMENT_CHANGED/);
+ await assert.rejects(h.sourceRun({nonce},{...sender,url:'https://attacker.invalid/'}),/SOURCE_ORIGIN_CHANGED/);
+ h.tabs.get(42).url='https://chatgpt.com/c/another_conversation_123456';
+ await assert.rejects(h.sourceRun({nonce},sender),/SOURCE_NAVIGATED/);
 });
