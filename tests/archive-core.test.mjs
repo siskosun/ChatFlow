@@ -99,3 +99,14 @@ test('ZIP64 end records can describe small test entries without allocating gigab
 test('workspace renders user data as text and never provides an automatic send action',()=>{
  const ui=fs.readFileSync(path.join(root,'workspace/app.js'),'utf8'),inject=fs.readFileSync(path.join(root,'src/tl-inject.js'),'utf8');assert.equal(/\.innerHTML\s*=/.test(ui),false);assert.equal(/(?:send-button|submit).*\.click\s*\(/i.test(inject),false);assert.match(inject,/HANDOFF_FILE_HASH_MISMATCH/);assert.match(inject,/USER_DRAFT_PRESENT/);
 });
+
+
+test('ChatFlow archive manifest validates current format and accepts legacy ThreadLine archives',()=>{
+ const base={schema:'chatflow.archive/1',formatVersion:1,snapshotPath:'conversation.json',snapshotSha256:'a'.repeat(64),saveScope:'all',files:[{key:'asset-1',state:'saved',size:3,sha256:'b'.repeat(64),path:'assets/b.bin'}]};
+ assert.equal(A.validateManifest(base).schema,'chatflow.archive/1');
+ assert.equal(A.validateManifest({...base,schema:'threadline.archive/1'}).schema,'threadline.archive/1');
+ assert.throws(()=>A.validateManifest({...base,files:[...base.files,{...base.files[0]}]}),/INVALID_MANIFEST_ASSET/);
+ assert.throws(()=>A.validateManifest({...base,files:[{key:'bad',state:'saved',size:0,sha256:null,path:null}]}),/SAVED_ASSET_WITHOUT_BYTES/);
+ assert.throws(()=>A.validateManifest({...base,files:[{key:'skip',state:'excluded',size:0,sha256:'b'.repeat(64),path:null}]}),/EXCLUDED_ASSET_HAS_BYTES/);
+ assert.throws(()=>A.validateManifest({...base,files:[{key:'path',state:'saved',size:3,sha256:'b'.repeat(64),path:'../escape'}]}),/UNSAFE_ZIP_PATH/);
+});

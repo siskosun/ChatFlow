@@ -79,12 +79,28 @@
    }else files.push({...item,path:null});
   }
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
-  const manifest={schema:'threadline.archive/1',archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',
+  const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.1'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
    state:capture.state==='ready'&&files.every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files};
   entries.push({name:'conversation.json',blob:snapshotBlob},{name:'conversation.md',content:C.history(snapshot,{allBranches:true})},{name:'manifest.json',content:JSON.stringify(manifest,null,2)},{name:'diagnostics.json',content:JSON.stringify({schema:1,integrity:snapshot.integrity,files:files.map(a=>({state:a.state,reason:a.reason})),note:'No authentication or signed download URLs are retained.'},null,2)});
   return{blob:await buildZip(entries),manifest};
  }
  async function jsonEntry(entries,name,max=32*1024**2){const e=entries.get(name);C.check(e&&e.size<=max,'MISSING_OR_LARGE_JSON');return JSON.parse(await(await e.blob()).text());}
+ function validateManifest(manifest){
+  C.check(C.record(manifest)&&['chatflow.archive/1','threadline.archive/1'].includes(manifest.schema),'UNRECOGNIZED_ARCHIVE');
+  C.check(manifest.snapshotPath==='conversation.json'&&/^[0-9a-f]{64}$/.test(manifest.snapshotSha256||'')&&Array.isArray(manifest.files),'INVALID_ARCHIVE_MANIFEST');
+  C.check(['all','last_generated'].includes(manifest.saveScope||'all'),'INVALID_ARCHIVE_SAVE_SCOPE');
+  const keys=new Set(),paths=new Set();
+  for(const file of manifest.files){
+   C.check(C.record(file)&&typeof file.key==='string'&&file.key.length>0&&!keys.has(file.key),'INVALID_MANIFEST_ASSET');
+   keys.add(file.key);
+   C.check(['saved','excluded','unavailable','discovered','downloading','corrupt','missing','unknown'].includes(file.state),'INVALID_MANIFEST_ASSET_STATE');
+   C.check(Number.isSafeInteger(file.size||0)&&(file.size||0)>=0,'INVALID_MANIFEST_ASSET_SIZE');
+   if(file.path!=null){safePath(file.path);C.check(!paths.has(file.path.normalize('NFC')),'DUPLICATE_MANIFEST_PATH');paths.add(file.path.normalize('NFC'));C.check(file.state==='saved'&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'INVALID_SAVED_ASSET_MANIFEST');}
+   if(file.state==='saved')C.check(file.path&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'SAVED_ASSET_WITHOUT_BYTES');
+   if(file.state==='excluded')C.check(!file.path&&!file.sha256,'EXCLUDED_ASSET_HAS_BYTES');
+  }
+  return manifest;
+ }
  function validatedSnapshot(raw){
   C.check(raw?.schema==='threadline.snapshot/1'&&C.record(raw.nodes)&&Array.isArray(raw.messages)&&Array.isArray(raw.assets),'UNRECOGNIZED_SNAPSHOT');
   C.chatUrl(raw.source?.url);const mapping=Object.create(null);
@@ -105,8 +121,7 @@
   return out;
  }
  async function restore(blob){
-  const entries=await readZip(blob),manifest=await jsonEntry(entries,'manifest.json');
-  C.check(manifest.schema==='threadline.archive/1'&&manifest.snapshotPath==='conversation.json'&&Array.isArray(manifest.files),'UNRECOGNIZED_ARCHIVE');
+  const entries=await readZip(blob),manifest=validateManifest(await jsonEntry(entries,'manifest.json'));
   const rawBlob=await entries.get('conversation.json')?.blob();C.check(rawBlob,'SNAPSHOT_MISSING');C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
   const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
   for(const m of manifest.files){
@@ -159,5 +174,5 @@
   }
   return{schema:1,checkedAt:new Date().toISOString(),records,note:'Only exact file IDs and unambiguous original filenames are recognized. Unmatched files do not prove absence from the official export. Unknown mapping formats and historical-file availability require a real account sample.'};
  }
- globalThis.TLArchive=Object.freeze({crc,safePath,buildZip,readZip,exportCapture,restore,validatedSnapshot,compareOfficial});
+ globalThis.TLArchive=Object.freeze({crc,safePath,buildZip,readZip,exportCapture,restore,validateManifest,validatedSnapshot,compareOfficial});
 })();
