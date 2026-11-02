@@ -16,7 +16,9 @@
    check(!seen.has(source.captureId),'DUPLICATE_CONTEXT_SOURCE');seen.add(source.captureId);
    const snapshot=source.snapshot;
    check(snapshot?.schema==='threadline.snapshot/1'&&Array.isArray(snapshot.messages)&&Array.isArray(snapshot.active),'INVALID_CONTEXT_SNAPSHOT');
-   const active=new Set(snapshot.active);
+   const activeNodes=Array.isArray(source.activeNodes)?source.activeNodes:snapshot.active;
+   check(activeNodes.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id)),'INVALID_CONTEXT_BRANCH_PATH');
+   const active=new Set(activeNodes);
    const branchMessages=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
    const messageSelection=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
    const selected=passageMode==='passages'?[]:messageSelection;
@@ -58,7 +60,8 @@
     title:snapshot.title,
     snapshotHash,
     integrity:snapshot.integrity,
-    branchMode:allBranches?'all_accessible':'captured_active_branch',
+    branchMode:allBranches?'all_accessible':'selected_branch',
+    branchNodeIds:allBranches?[]:[...activeNodes],
     query,
     messageIds:[...selectedIds],
     nodeIds:[...selectedNodes],
