@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import {createHash,randomBytes} from 'node:crypto';
+import {deflateRawSync} from 'node:zlib';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 for(const name of ['tl-core.js','tl-archive.js'])vm.runInThisContext(fs.readFileSync(path.join(root,'src',name),'utf8'),{filename:name});
@@ -113,4 +114,38 @@ test('ChatFlow archive manifest validates current format and accepts legacy Thre
  assert.throws(()=>A.validateManifest({...base,source:{...base.source,origin:'https://evil.example'}}),/INVALID_ARCHIVE_ORIGIN/);
  assert.throws(()=>A.validateManifest({...base,state:'ready',files:[{...base.files[0],state:'unavailable',size:0,sha256:null,path:null}]}),/READY_ARCHIVE_HAS_INCOMPLETE_ASSETS/);
  assert.throws(()=>A.validateManifest({...base,files:[{...base.files[0],path:'assets/'+'c'.repeat(64)+'.bin'}]}),/ASSET_PATH_HASH_MISMATCH/);
+});
+
+
+test('ZIP metadata refuses 4 GiB expansion before allocating file bodies, even with overridden budget',async()=>{
+ const zip=new Uint8Array(await(await A.buildZip([{name:'tiny',content:'Z'}])).arrayBuffer());
+ const dv=new DataView(zip.buffer),eocd=zip.length-22,central=dv.getUint32(eocd+16,true);
+ dv.setUint32(central+24,0xffffffff-1,true); // declared uncompressed ~4 GiB
+ await assert.rejects(()=>A.readZip(new Blob([zip])),/ZIP_RESOURCE_LIMIT/);
+ await assert.rejects(()=>A.readZip(new Blob([zip]),{maxExpanded:4*1024**3,maxEntry:4*1024**3}),/ZIP_RESOURCE_LIMIT/);
+});
+
+test('ZIP rejects huge declared compression ratios before inflating',async()=>{
+ const zip=new Uint8Array(await(await A.buildZip([{name:'tiny',content:'Z'}])).arrayBuffer());
+ const dv=new DataView(zip.buffer),eocd=zip.length-22,central=dv.getUint32(eocd+16,true);
+ dv.setUint16(central+10,8,true);dv.setUint32(central+24,5*1024*1024,true);
+ await assert.rejects(()=>A.readZip(new Blob([zip])),/ZIP_COMPRESSION_RATIO_LIMIT/);
+});
+
+test('valid deflate/raw reads, but a lying expanded size fails while streaming',async()=>{
+ const name='payload.txt',plain=new TextEncoder().encode('Mixed abcde '.repeat(80)),compressed=deflateRawSync(plain);
+ const checksum=await A.crc(new Blob([plain]));
+ const len=new TextEncoder().encode(name).length;
+ const local=new DataView(new ArrayBuffer(30));local.setUint32(0,0x04034b50,true);local.setUint16(4,20,true);local.setUint16(8,8,true);
+ local.setUint32(14,checksum,true);local.setUint32(18,compressed.length,true);local.setUint32(22,plain.length,true);local.setUint16(26,len,true);
+ const central=new DataView(new ArrayBuffer(46));central.setUint32(0,0x02014b50,true);central.setUint16(4,20,true);central.setUint16(6,20,true);central.setUint16(10,8,true);
+ central.setUint32(16,checksum,true);central.setUint32(20,compressed.length,true);central.setUint32(24,plain.length,true);central.setUint16(28,len,true);
+ const end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,1,true);end.setUint16(10,1,true);
+ end.setUint32(12,46+len,true);end.setUint32(16,30+len+compressed.length,true);
+ const zip=new Blob([local.buffer,name,compressed,central.buffer,name,end.buffer]);
+ const decoded=await A.readZip(zip),b=await decoded.get(name).blob();assert.equal(await b.text(),new TextDecoder().decode(plain));
+ central.setUint32(24,plain.length-1,true);
+ const lying=new Blob([local.buffer,name,compressed,central.buffer,name,end.buffer]);
+ const entries=await A.readZip(lying);
+ await assert.rejects(()=>entries.get(name).blob(),/ZIP_EXPANSION_LIMIT/);
 });
