@@ -276,12 +276,22 @@
   const reply=last?.text||'',classification=await Core.classify(row.frozen.text,users.at(-1)?.text,{trusted:true,complete:users.length>0});
   const signals=['final'];if(last?.finished===true)signals.push('generation');
   const captureComplete=capture?.state==='ready'&&snapshot.integrity?.state==='valid';
-  const canComplete=captureComplete&&users.length===1&&reply.length>0&&last?.finished===true&&['exact','canonical_equivalent'].includes(classification.level);
-  const updates={captureRunId:run.captureId,messageId:last?.id||null,inputLevel:classification.level,sessionId:snapshot.source.conversationId,
+  // First-route observation alone cannot distinguish a newly created conversation
+  // from an old one the user visited just after clicking Send. Require the
+  // server-issued message timestamp to agree with the observed send intent.
+  // Unknown/missing timestamps fail closed; allow two minutes of clock skew.
+  const sendTime=users[0]?.timestamp*1000;
+  const timelyInput=users.length===1&&Number.isFinite(sendTime)&&sendTime>0&&
+   Number.isFinite(bind.sendIntentAt)&&sendTime>=bind.sendIntentAt-120000&&sendTime<=Date.now()+120000;
+  const canComplete=captureComplete&&timelyInput&&reply.length>0&&last?.finished===true&&['exact','canonical_equivalent'].includes(classification.level);
+  const updates={sendTimestampVerified:timelyInput,captureRunId:run.captureId,messageId:last?.id||null,inputLevel:classification.level,sessionId:snapshot.source.conversationId,
    conversationId:snapshot.source.conversationId,taskCount:users.length,reply,assistantBytes:new TextEncoder().encode(reply).length,
    captureComplete,persisted:true,endSignals:signals,capturedAt:Date.now()};
   if(canComplete){
    await advance(bind,{status:'done',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_done',updates,reason:'complete snapshot; exact input; final assistant message finished'});
+  }else if(captureComplete&&!timelyInput){
+   await advance(bind,{status:'unknown',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_input_timestamp_unverified',updates,
+    reason:'captured conversation was not proven newly sent after the frozen prefill; cannot attribute to this attempt'});
   }else{
    await advance(bind,{status:'pending',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_capture_pending',updates,reason:'capture persisted but exact input or completion contract is not satisfied'});
   }
