@@ -19,8 +19,12 @@
  async function sources(){sourceLookupKey=null;sourceLookupCaptureId=null;const rows=await call('tl:sources'),old=$('source').value||new URL(location.href).searchParams.get('source');$('source').replaceChildren();if(!rows.length){$('source').append(new Option('未找到已打开的 ChatGPT 对话',''));return;}for(const r of rows)$('source').append(new Option(r.title||r.url,String(r.id)));if(rows.some(r=>String(r.id)===old))$('source').value=old;}
  async function captureForSelectedSource(){
   const tabId=Number($('source').value),scope=$('asset-scope').value;if(!Number.isInteger(tabId)||tabId<=0)return null;
-  const key=String(tabId)+'|'+scope;if(key===sourceLookupKey)return sourceLookupCaptureId?S.get('captures',sourceLookupCaptureId):null;
-  const openTabs=await call('tl:sources'),source=openTabs.find(row=>Number(row.id)===tabId);if(!source){sourceLookupKey=key;sourceLookupCaptureId=null;return null;}
+  const openTabs=await call('tl:sources'),source=openTabs.find(row=>Number(row.id)===tabId);
+  if(!source){sourceLookupKey=null;sourceLookupCaptureId=null;return null;}
+  // A ChatGPT tab can navigate to another conversation without changing tabId.
+  // Cached archive selection is valid only for this exact source URL and save scope.
+  const key=String(tabId)+'|'+scope+'|'+source.url;
+  if(key===sourceLookupKey)return sourceLookupCaptureId?S.get('captures',sourceLookupCaptureId):null;
   const identity=C.chatUrl(source.url),matches=(await S.all('captures')).filter(row=>{
    const saved=row.snapshot?.source||row.source;
    return !!row.snapshot&&saved?.origin===identity.origin&&saved?.conversationId===identity.conversationId&&(row.saveScope||'all')===scope;
