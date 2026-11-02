@@ -355,6 +355,7 @@ async def main():
                 text=''.join(z.read(x).decode('utf-8') for x in names if x.startswith('context_part_'))
                 assert 'known fact at position 0: 0' in text and 'known fact at position 119: 2023' in text
             passed('context_builder_exports_traceable_multi_archive_bundle_without_implicit_file_bytes',{'parts':manifest['partCount'],'messages':len(manifest['sources'][0]['messageIds'])})
+            await workspace.locator('.context-toolbar details summary').click()
             await workspace.locator('#context-include-assets').check()
             async with workspace.expect_download(timeout=30000) as context_assets_download:
                 await workspace.locator('#build-context').click()
@@ -362,7 +363,7 @@ async def main():
             with zipfile.ZipFile(await context_assets_file.path()) as z:
                 asset_paths=[x for x in z.namelist() if x.startswith('assets/')]
                 manifest=json.loads(z.read('context_manifest.json'))
-                assert asset_paths and manifest['includedAssetCount']==len(asset_paths)
+                assert asset_paths and len(asset_paths)==len({item['sha256'] for item in manifest['assets'] if item['includeBytes']})
                 for item in manifest['assets']:
                     if item['includeBytes']:
                         payload=z.read('assets/'+item['sha256']+'.bin')
