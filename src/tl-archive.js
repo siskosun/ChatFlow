@@ -141,7 +141,7 @@
    C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=5000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset&&p.endOffset-p.startOffset===p.text.length&&Number.isSafeInteger(p.occurrence)&&p.occurrence>=0,'INVALID_ARCHIVE_PASSAGE_RANGE');
    C.check(['yellow','green','blue','pink'].includes(p.color)&&['anchored','ambiguous','stale'].includes(p.status),'INVALID_ARCHIVE_PASSAGE_STATE');
    C.check(typeof p.prefix==='string'&&p.prefix.length<=160&&typeof p.suffix==='string'&&p.suffix.length<=160,'INVALID_ARCHIVE_PASSAGE_CONTEXT');
-   C.check(typeof p.role==='string'&&p.role.length<=30&&Number.isFinite(p.createdAt)&&Number.isFinite(p.updatedAt),'INVALID_ARCHIVE_PASSAGE_METADATA');
+   C.check(typeof p.role==='string'&&p.role.length<=30&&Number.isFinite(p.createdAt)&&Number.isFinite(p.updatedAt)&&(p.reanchoredAt==null||Number.isFinite(p.reanchoredAt))&&(p.previousMessageHash==null||/^[a-f0-9]{64}$/.test(p.previousMessageHash)),'INVALID_ARCHIVE_PASSAGE_METADATA');
    const resolved=globalThis.TLPassages?.resolve?.(p,snapshot);
    return{...p,captureId:undefined,status:resolved?.status||p.status,reason:resolved?.reason||p.reason||null};
   });
