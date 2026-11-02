@@ -35,7 +35,7 @@ test('popup has no deletion UI or all-site permission request',()=>{
  for(const forbidden of ['auto-delete','delete-projects','confirm-auto-delete','review-delete'])assert.equal(html.includes(forbidden),false,forbidden);
  assert.match(popup,/EXTERNAL_MEDIA_HOSTS/);
 });
-test('all shipped classic JavaScript parses, independent of string guards',()=>{
+test('all source classic JavaScript parses, independent of string guards',()=>{
  for(const dir of ['src','popup'])for(const file of fs.readdirSync(path.join(ROOT,dir))){if(file.endsWith('.js'))new vm.Script(read(dir+'/'+file),{filename:dir+'/'+file});}
 });
 test('background validates sender and media host before fetch',async()=>{
@@ -52,9 +52,20 @@ test('background validates sender and media host before fetch',async()=>{
  await new Promise(r=>setTimeout(r,0));assert.equal(response.ok,true);
  assert.equal(calls.length,1);assert.equal(calls[0].options.credentials,'omit');assert.equal(calls[0].options.redirect,'error');assert.equal(calls[0].options.referrerPolicy,'no-referrer');
 });
-test('built Edge package carries restricted manifest and non-destructive scripts',()=>{
+test('built Edge package contains only active runtime scripts and restricted permissions',()=>{
  const edge=path.join(ROOT,'dist','edge');assert.equal(fs.existsSync(edge),true);
- const built=JSON.parse(fs.readFileSync(path.join(edge,'manifest.json'),'utf8'));assert.deepEqual(built.optional_host_permissions,hosts);
- const c=fs.readFileSync(path.join(edge,'src','content.js'),'utf8');assert.equal(destructive(c),false);
- assert.equal(fs.readFileSync(path.join(edge,'src','picker.js'),'utf8').includes('runDelete'),false);
+ const built=JSON.parse(fs.readFileSync(path.join(edge,'manifest.json'),'utf8'));
+ assert.deepEqual(built.optional_host_permissions,hosts);
+ const runtime=new Set([
+  ...built.content_scripts.flatMap(x=>x.js),
+  built.background.service_worker,
+  'src/tl-store.js','src/experiment-core.js','src/experiment-db.js','src/experiment-service.js',
+  'workspace/app.js','workspace/experiments.js',
+  'src/tl-archive.js','src/tl-context.js'
+ ]);
+ for(const file of runtime)assert.equal(fs.existsSync(path.join(edge,file)),true,'missing runtime file '+file);
+ for(const legacy of ['src/background.js','src/content.js','src/picker.js','src/render.js','src/zip.js','lib/marked.umd.js','popup/popup.html'])
+  assert.equal(fs.existsSync(path.join(edge,legacy)),false,'unused legacy file shipped: '+legacy);
+ const scripts=[...runtime].filter(x=>x.endsWith('.js'));
+ for(const file of scripts){const source=fs.readFileSync(path.join(edge,file),'utf8');assert.equal(destructive(source),false,file);}
 });

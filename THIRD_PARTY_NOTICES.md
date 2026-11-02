@@ -6,7 +6,7 @@ Repository: https://github.com/thekester/chatgpt-export
 Pinned commit: 13568bf75688de74a5af563b20d5ccd28f4ad532 (v0.6.59).  
 License: MIT. The upstream copyright and license text are preserved in LICENSE.
 
-Bundled upstream-derived components include the read-only capture/rendering pipeline, ZIP implementation, and marked renderer. ChatFlow's archive adapter and local-storage orchestration are separate integration code. Destructive source-conversation actions are not part of the active ChatFlow UI or runtime.
+The candidate package does not ship the upstream exporter scripts verbatim. `src/tl-capture.js` adapts the read-only endpoint/capture pattern, and `src/tl-archive.js` adapts the ZIP record layout from the pinned upstream implementation. The older upstream `content.js`, `picker.js`, `render.js`, `zip.js`, and marked renderer remain in the repository for provenance and audit only; the candidate build explicitly excludes them. ChatFlow's archive validation, local-storage orchestration, and user interface are separate integration code. Destructive source-conversation actions are not part of the active ChatFlow runtime.
 
 ## MoveChat
 
@@ -18,7 +18,7 @@ MoveChat informed the safe new-chat File/DataTransfer interaction, page identity
 
 ## Other components
 
-- `marked` is included under its upstream license in its source header; the pinned upstream project carries the relevant notice.
+- The marked renderer is retained in the source repository for provenance but is not included in ChatFlow candidate packages.
 - No external runtime scripts or cloud services are loaded.
 
 ## ThreadLine Fork experiment engine

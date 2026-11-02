@@ -9,7 +9,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
-INCLUDE = ["src", "workspace", "icons", "lib"]
+INCLUDE_DIRS = ["workspace", "icons"]
+RUNTIME_FILES = [
+    "src/tl-core.js",
+    "src/tl-provider.js",
+    "src/tl-capture.js",
+    "src/tl-inject.js",
+    "src/tl-store.js",
+    "src/tl-archive.js",
+    "src/tl-context.js",
+    "src/experiment-core.js",
+    "src/experiment-db.js",
+    "src/experiment-service.js",
+    "src/tl-service.js",
+]
 manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
 assert manifest["version"] == "0.1"
 assert manifest["manifest_version"] == 3
@@ -29,8 +42,14 @@ DIST.mkdir()
 for browser in ("chrome", "edge"):
     out = DIST / browser
     out.mkdir()
-    for folder in INCLUDE:
+    for folder in INCLUDE_DIRS:
         shutil.copytree(ROOT / folder, out / folder)
+    for relative in RUNTIME_FILES:
+        source = ROOT / relative
+        assert source.is_file(), f"Missing runtime file: {relative}"
+        target = out / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
     for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
         shutil.copyfile(ROOT / name, out / name)
 
@@ -74,9 +93,18 @@ for browser in ("chrome", "edge"):
         assert "workspace/index.html" in z.namelist()
         assert "LICENSE" in z.namelist()
         assert "THIRD_PARTY_NOTICES.md" in z.namelist()
+        packaged_files = set(z.namelist())
         for script in packaged_manifest["content_scripts"]:
-            assert all(path in z.namelist() for path in script["js"])
-        assert packaged_manifest["background"]["service_worker"] in z.namelist()
+            assert all(path in packaged_files for path in script["js"])
+        assert packaged_manifest["background"]["service_worker"] in packaged_files
+        assert all(path in packaged_files for path in RUNTIME_FILES)
+        assert not any(path.startswith("lib/") for path in packaged_files)
+        assert not any(path.startswith("popup/") for path in packaged_files)
+        for legacy in (
+            "src/background.js", "src/content.js", "src/picker.js",
+            "src/render.js", "src/zip.js", "lib/marked.umd.js",
+        ):
+            assert legacy not in packaged_files, f"Unused legacy code shipped: {legacy}"
 
     print("BUILT", browser, commit)
 
