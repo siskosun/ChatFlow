@@ -385,6 +385,17 @@ async def main():
             assert await workspace.locator('.passage-row').count()==2
             await workspace.locator('.passage-row').filter(has_text='ALTERNATE_BRANCH').get_by_role('button',name='跳转原文').click()
             assert await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').is_visible()
+            alternate_path=await workspace.locator('#archive-branch').evaluate("(e)=>{const o=e.selectedOptions[0];return o.value;}")
+            alternate_nodes=await workspace.evaluate("""async end=>{const c=(await TLStore.all('captures')).find(x=>x.snapshot?.messages.some(m=>m.text.includes('ALTERNATE_BRANCH')));const path=[],seen=new Set();let n=end;while(n&&c.snapshot.nodes[n]&&!seen.has(n)){seen.add(n);path.unshift(n);n=c.snapshot.nodes[n].parent;}return{captureId:c.id,path};}""",alternate_path)
+            handoff_result=await workspace.evaluate("""async x=>chrome.runtime.sendMessage({type:'tl:prepareHandoff',captureId:x.captureId,activeNodes:x.path,keys:[],instructions:'Continue from selected branch.',batchLimit:10})""",alternate_nodes)
+            assert handoff_result.ok,handoff_result
+            branch_handoff=handoff_result.data
+            history_file=branch_handoff.files.find(x=>x.kind==='history')
+            history_text=await workspace.evaluate("async sha=>(await TLStore.verifiedBlob(sha)).text()",history_file.sha256)
+            assert 'ALTERNATE_BRANCH' in history_text and 'known fact at position 119: 2023' not in history_text
+            invalid_handoff=await workspace.evaluate("""async x=>chrome.runtime.sendMessage({type:'tl:prepareHandoff',captureId:x.captureId,activeNodes:[x.path[0],x.path[x.path.length-1]],keys:[],instructions:'invalid branch',batchLimit:10})""",alternate_nodes)
+            assert not invalid_handoff.ok and invalid_handoff.code==='INVALID_HANDOFF_BRANCH_PATH',invalid_handoff
+            passed('handoff_uses_validated_selected_branch_and_rejects_disconnected_paths')
             await workspace.locator('#archive-branch').select_option(label='当前分支')
             await workspace.locator('.message pre').filter(has_text='known fact at position 0: 0').wait_for(state='visible')
             passed('archive_branch_selector_saves_and_navigates_passages_across_accessible_branches')
