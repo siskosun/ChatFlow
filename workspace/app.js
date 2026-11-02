@@ -139,8 +139,9 @@
   for(const passage of passageRows){
    const resolved=passageStates.get(passage.passageId);if(resolved?.status!=='anchored')continue;
    const pre=messageElements.get(passage.messageId+'\u0000'+passage.nodeId),textNode=pre?.firstChild;
-   if(!(textNode instanceof Text)||!resolved.end||resolved.end>textNode.length)continue;
-   const range=document.createRange();range.setStart(textNode,resolved.startOffset??resolved.start);range.setEnd(textNode,resolved.endOffset??resolved.end);
+   const start=resolved.startOffset??resolved.start,end=resolved.endOffset??resolved.end;
+   if(!(textNode instanceof Text)||!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||end>textNode.length)continue;
+   const range=document.createRange();range.setStart(textNode,start);range.setEnd(textNode,end);
    rangesByColor.get(passage.color||'yellow')?.push(range);
   }
   const registry=globalThis.CSS?.highlights;
