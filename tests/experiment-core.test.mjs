@@ -152,13 +152,12 @@ test("FF cannot assign the same conversation to both finished branches",async()=
  assert.throws(()=>F.advance(state,{branch:"B",expectedRevision:1,operationId:"op_sess002",
    attemptId:"att_sess002",status:"done",phase:"capturing",evidence}),/same session/);
 });
-test("FF isolation settings default to unknown and legacy core is independent",async()=>{
+test("FF isolation settings default to unknown and branch settings are independent",async()=>{
  const state=F.newExperiment(await F.freeze("W","P"),"exp_isolate1");
  assert.equal(state.branches.A.isolation.checks.model,"unknown");
  assert.equal(state.branches.B.isolation.checks.memory,"unknown");
  assert.notStrictEqual(state.branches.A.isolation,state.branches.B.isolation);
- const legacy=require("../core.js");
- assert.equal(legacy.emptyState().schema,2);
+ assert.notStrictEqual(state.branches.A.isolation.checks,state.branches.B.isolation.checks);
 });
 
 

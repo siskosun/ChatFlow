@@ -43,7 +43,7 @@ test('invalid and duplicate source archives fail closed',()=>{
 });
 
 test('keyword filtering is explicit, source-linked and token budget never truncates',()=>{
- const s=source(),filtered=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{query:'unique phrase 2',tokenBudget:1000});
+ const s=source(500),filtered=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{query:'unique phrase 2',tokenBudget:1000});
  assert.deepEqual(filtered.manifest.sources[0].messageIds,['m2']);
  assert.equal(filtered.manifest.options.query,'unique phrase 2');
  const over=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{tokenBudget:1000,maxPartChars:1000});
