@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "ChatFlow",
+  "version": "0.1",
+  "version_name": "0.1 candidate - real account acceptance pending",
+  "minimum_chrome_version": "116",
+  "description": "Save selected ChatGPT conversations and actual files locally, verify archives, and continue in a new chat without sending.",
+  "homepage_url": "https://github.com/siskosun/ChatFlow",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "ChatFlow",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/tl-service.js"
+  },
+  "side_panel": {
+    "default_path": "workspace/index.html"
+  },
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs",
+    "downloads",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://oaiusercontent.com/*",
+    "https://*.oaiusercontent.com/*",
+    "https://oaistatic.com/*",
+    "https://*.oaistatic.com/*",
+    "https://images.openai.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "src/tl-core.js",
+        "src/tl-capture.js",
+        "src/tl-inject.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
+  "incognito": "not_allowed"
+}
