@@ -21,13 +21,14 @@ async function harness({navigationFails=false}={}){
  await context.TEST_BOUNDARY.boot;
  return{...context.TEST_BOUNDARY,events,records,tabs,api};
 }
+const workspaceSender={id:'extension',url:'chrome-extension://extension/workspace/index.html',tab:{id:10,windowId:9,url:'chrome-extension://extension/workspace/index.html'}};
 test('new chat opens as a tab in the workspace window after handoff ownership is persisted',async()=>{
  const h=await harness(),result=await h.openHandoff('handoff',workspaceSender);
  assert.equal(result.targetTabId,17);assert.equal(result.targetWindowId,9);
  assert.deepEqual(h.events,['create-tab','persist:target_opened','navigate']);
  assert.equal(h.tabs.get(17).url,'https://chatgpt.com/');assert.equal(h.tabs.get(17).windowId,9);
 });
-test('concurrent double-click opens exactly one target window',async()=>{
+test('concurrent double-click opens exactly one target tab',async()=>{
  const h=await harness(),results=await Promise.allSettled([h.openHandoff('handoff',workspaceSender),h.openHandoff('handoff',workspaceSender)]);
  assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
  assert.match(results.find(x=>x.status==='rejected').reason.message,/HANDOFF_ALREADY_OPENED/);
@@ -80,7 +81,7 @@ test('capture accepts stale same-origin sender document URL after same-document 
 });
 
 
-test('prepared handoff rejects changed or deleted source before opening any window',async()=>{
+test('prepared handoff rejects changed or deleted source before opening any tab',async()=>{
  const h=await harness(),snapshot={assets:[],source:{conversationId:'conversation_test'},messages:[]};
  h.records.set('capture',{id:'capture',snapshot});
  h.records.get('handoff').snapshotHash=createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
