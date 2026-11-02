@@ -41,3 +41,14 @@ test('invalid and duplicate source archives fail closed',()=>{
  assert.throws(()=>T.compile([{captureId:'x',snapshot:s},{captureId:'x',snapshot:s}]),/DUPLICATE_CONTEXT_SOURCE/);
  assert.throws(()=>T.compile([{captureId:'x',snapshot:s}],{maxPartChars:10}),/INVALID_CONTEXT_PART_SIZE/);
 });
+
+test('keyword filtering is explicit, source-linked and token budget never truncates',()=>{
+ const s=source(),filtered=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{query:'message 2',tokenBudget:1000});
+ assert.deepEqual(filtered.manifest.sources[0].messageIds,['m2']);
+ assert.equal(filtered.manifest.options.query,'message 2');
+ const over=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[]}],{tokenBudget:1000,maxPartChars:1000});
+ assert.equal(over.manifest.budgetExceeded,true);
+ assert.ok(over.manifest.warnings.includes('TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED'));
+ assert.ok(over.parts.join('').includes('message 5'));
+ assert.throws(()=>T.compile([{captureId:'cap-1',snapshot:s}],{query:'no-such-message'}),/NO_CONTEXT_MATCHES_FOR_SOURCE/);
+});
