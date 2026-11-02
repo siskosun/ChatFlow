@@ -54,7 +54,7 @@
         <input id="context-token-budget" class="small" type="number" min="1000" max="1000000" value="100000">
         <label for="context-part-size">每个历史分段字符数</label>
         <input id="context-part-size" class="small" type="number" min="1000" max="500000" value="120000">
-        <p class="hint">默认只编译当前分支文本，不带入附件字节；关键词是确定性文本筛选，不是语义检索。超出预算时完整分段并提示，不静默截断。不会自动发送。</p>
+        <p class="hint">默认只编译当前分支文本，不带入附件字节；多个关键词需同时命中同一条消息，是确定性文本筛选，不是语义检索。超出预算时完整分段并提示，不静默截断。不会自动发送。</p>
       </details>
     </div>
     <div class="archive-layout"><aside><div id="archives" class="list" aria-label="本地档案列表"></div></aside><article id="detail"><p class="empty">选择一份档案。</p></article></div>

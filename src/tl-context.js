@@ -17,7 +17,7 @@
    check(snapshot?.schema==='threadline.snapshot/1'&&Array.isArray(snapshot.messages)&&Array.isArray(snapshot.active),'INVALID_CONTEXT_SNAPSHOT');
    const active=new Set(snapshot.active);
    const branchMessages=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
-   const selected=terms.length?branchMessages.filter(m=>terms.some(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
+   const selected=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
    check(selected.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
    const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set(selected.map(m=>m.nodeId));
    const view={...snapshot,messages:selected,active:selected.map(m=>m.nodeId)};
