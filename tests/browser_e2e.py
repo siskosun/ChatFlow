@@ -383,7 +383,7 @@ async def main():
             alternate_passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='ALTERNATE_BRANCH')")
             assert alternate_passage and alternate_passage['nodeId']!=passage['nodeId']
             assert await workspace.locator('.passage-row').count()==2
-            await workspace.locator('.passage-row').nth(1).get_by_role('button',name='跳转原文').click()
+            await workspace.locator('.passage-row').filter(has_text='ALTERNATE_BRANCH').get_by_role('button',name='跳转原文').click()
             assert await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').is_visible()
             await workspace.locator('#archive-branch').select_option(label='当前分支')
             passed('archive_branch_selector_saves_and_navigates_passages_across_accessible_branches')
