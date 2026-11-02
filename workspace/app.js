@@ -215,7 +215,7 @@
  async function downloadHandoff(){
   C.check(handoffId,'HANDOFF_NOT_PREPARED');const h=await S.get('handoffs',handoffId),entries=[];
   for(let b=0;b<h.batches.length;b++)for(const i of h.batches[b]){const f=h.files[i];entries.push({name:'batch-'+String(b+1).padStart(3,'0')+'/'+C.safeName(f.uploadName||f.name),blob:await S.verifiedBlob(f.sha256)});}
-  entries.push({name:'handoff_prompt.md',content:h.prompt},{name:'handoff_manifest.json',content:JSON.stringify({schema:1,files:h.files,batches:h.batches,missing:h.missing,excluded:h.excluded||[],note:'A prepared pack is not proof of webpage upload or model reading.'},null,2)});
+  entries.push({name:'handoff_prompt.md',content:h.prompt},{name:'handoff_manifest.json',content:JSON.stringify({schema:1,captureId:h.captureId,sourceConversationId:h.sourceConversationId,snapshotHash:h.snapshotHash,branchNodeIds:h.branchNodeIds||[],files:h.files,batches:h.batches,missing:h.missing,excluded:h.excluded||[],note:'A prepared pack is not proof of webpage upload or model reading.'},null,2)});
   await download(await A.buildZip(entries),'chatflow-handoff.zip');status('接续包已生成。请解压后上传实际文件，不要假设 ChatGPT 一定能读取 ZIP 内的全部内容。');
  }
  for(const b of document.querySelectorAll('[data-view]'))b.onclick=e=>{e.preventDefault();switchView(b.dataset.view);};
