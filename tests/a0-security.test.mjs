@@ -14,7 +14,7 @@ test('manifest uses a narrow OpenAI media-host allowlist',()=>{
  assert.deepEqual(manifest.host_permissions,['https://chatgpt.com/*','https://chat.openai.com/*']);
  assert.deepEqual(manifest.optional_host_permissions,hosts);
  assert.equal(JSON.stringify(manifest).includes('<all_urls>'),false);
- assert.equal(manifest.name,'ThreadLine Archive');
+ assert.equal(manifest.name,'ChatFlow');
 });
 test('content script has no destructive conversation or project API path',()=>{
  for(const forbidden of ['deleteConversationPermanently','autoDeleteExported','autoDeleteProjectsAfterExport','projectDeletionCandidates','managerDeletedDuringScan','pendingDeletion','autoDeleteAfterExport'])assert.equal(content.includes(forbidden),false,forbidden);
