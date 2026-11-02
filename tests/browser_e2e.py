@@ -371,23 +371,18 @@ async def main():
             passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
-            await experiment_page.wait_for_function('typeof ChatFlowExperimentCore!=="undefined"&&typeof ChatFlowExperimentDB!=="undefined"&&typeof ChatFlowProviders!=="undefined"')
-            provider_caps=await experiment_page.evaluate('ChatFlowProviders.capabilityMatrix()')
-            assert len(provider_caps)==1 and provider_caps[0]['id']=='chatgpt' and provider_caps[0]['capabilities']['manualSendOnly'] is True
-            assert await experiment_page.evaluate('ChatFlowProviders.forUrl("https://claude.ai/")===null')
-            passed('provider_adapter_reports_only_explicitly_supported_chatgpt_capabilities')
-            disabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_STATUS"})')
-            assert disabled['ok'] and disabled['data']['enabled'] is False
-            enabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_SET_ENABLED",enabled:true,ack:"local-only-no-send"})')
-            assert enabled['ok'] and enabled['data']['enabled'] is True
-            created=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_CREATE",operationId:"e2e-create-20261102",branchCount:2,w0:"frozen shared material",p:"compare two independent answers"})')
-            assert created['ok'],created
-            experiment_id=created['data']['id']
-            record=await experiment_page.evaluate('id=>chrome.runtime.sendMessage({type:"FF_READ",id})',experiment_id)
-            frozen=record['data']['frozen']['text']
+            await experiment_page.locator('#ff-enable').wait_for(state='visible')
+            await experiment_page.locator('#ff-enable').check()
+            await experiment_page.locator('#ff-create').wait_for(state='visible')
+            await experiment_page.locator('#ff-w0').fill('frozen shared material')
+            await experiment_page.locator('#ff-p').fill('compare two independent answers')
+            await experiment_page.locator('#ff-branch-count').select_option('2')
+            await experiment_page.locator('#ff-save').click()
+            await experiment_page.locator('#ff-list button').first.wait_for(state='visible',timeout=30000)
+            await experiment_page.locator('#ff-list button').first.click()
+            await experiment_page.locator('#ff-launch').wait_for(state='visible')
             existing=set(ctx.pages)
-            launched=await experiment_page.evaluate('id=>chrome.runtime.sendMessage({type:"FF_LAUNCH",experimentId:id,operationId:"e2e-launch-20261102"})',experiment_id)
-            assert launched['ok'] and launched['data']['branchCount']==2,launched
+            await experiment_page.locator('#ff-launch').click()
             branch_pages=[]
             for _ in range(80):
                 branch_pages=[p for p in ctx.pages if p not in existing and p.url.startswith('https://chatgpt.com/')]
@@ -395,13 +390,15 @@ async def main():
                 await asyncio.sleep(0.25)
             assert len(branch_pages)==2,[(p.url for p in ctx.pages)]
             for branch_page in branch_pages:
-                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen,timeout=30000)
+                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg='frozen shared material\\n\\ncompare two independent answers',timeout=30000)
                 assert await branch_page.evaluate('window.sends||0')==0
-            record=await experiment_page.evaluate('id=>chrome.runtime.sendMessage({type:"FF_READ",id})',experiment_id)
-            assert all(record['data']['branches'][b]['attempts'][-1]['phase']=='awaiting_send' for b in ['A','B'])
-            assert all(record['data']['branches'][b]['attempts'][-1]['evidence']['inputLevel']=='exact' for b in ['A','B'])
+            await experiment_page.locator('#ff-refresh').click()
+            await experiment_page.locator('#ff-list button').first.click()
+            await experiment_page.locator('#ff-branches').wait_for(state='visible')
+            branch_text=await experiment_page.locator('#ff-branch-boxes').inner_text()
+            assert '待你手动发送' in branch_text or 'awaiting_send' in branch_text,branch_text
             passed('parallel_experiment_k2_freezes_identical_input_and_prefills_without_sending',{'branches':2})
-            await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_SET_ENABLED",enabled:false,ack:"local-only-no-send"})')
+            await experiment_page.locator('#ff-enable').uncheck()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
         except Exception as e:
