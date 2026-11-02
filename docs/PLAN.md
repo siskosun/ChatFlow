@@ -1,9 +1,9 @@
-# ChatFlow 0.1 开发计划
+# ChatFlow 开发计划（0.1 基线 + 0.2 重点片段扩展）
 
-**计划状态：** PR #1 工程修复候选通过准确 SHA 自动化；独立终审、真实账号和真人 UX 门禁未完成，暂不合并或发布。  
+**计划状态：** 0.1 工程候选自动化通过；0.2 Saved Passages 已纳入，开发中。真实账号、独立用户与真人验收统一安排在全部功能开发及自动化工程门禁完成之后。  
 **制定日期：** 2026-11-02  
 **目标仓库：** https://github.com/siskosun/ChatFlow  
-**目标版本：** `0.1`  
+**目标版本：** `0.1` 基线；重点片段为 `0.2` 增量  
 **唯一正式计划：** 本文件。实施状态、依赖和验收证据均以本文件为准。
 
 ## 1. 产品定义
@@ -143,7 +143,7 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 | CF-07 | Provider Adapter 边界 | ChatGPT 适配器与通用档案/执行层解耦；补齐能力探测和合成契约 | done | CF-03,CF-06 | ChatGPT 适配器完成集成与能力契约测试；未验收的平台返回 unsupported |
 | CF-08 | 真实账号验收 | 独立 Edge 配置中的真实 ChatGPT 保存、附件下载、浏览器重启、ZIP 恢复、Context Builder 与并行接续 | blocked | CF-07 | 必须由所有者在已登录的独立 Edge 配置中执行；云端无真实账号凭据和本地浏览器控制权限 |
 | CF-09 | Uber 式 UX 验收与迭代 | 保存、找回、编译上下文、并行任务；320/360/480/768/1280px、键盘/焦点/读屏 | in_review | CF-05,CF-06 | 五种视口、键盘焦点、标签和状态播报的自动化验收通过；仍需 5 名独立目标用户及真人读屏测试 |
-| CF-10 | 0.1 完整交付 | 最终 README、安装说明、准确提交构建包、哈希、变更记录和验收报告 | planned | CF-08,CF-09 | 准确 SHA 的 CI 全绿；真实账号与真人 UX 门禁完成；版本号为 0.1；无已知阻断缺陷 |
+| CF-10 | 0.1 工程候选封版 | 最终 README、安装说明、准确提交构建包、哈希、变更记录和工程验收报告 | in_review | CF-02,CF-03,CF-04,CF-05,CF-06,CF-07 | 准确 SHA 的 CI 全绿；工程缺陷关闭；真实账号与真人 UX 明确列为后置验收，不冒充完成 |
 
 ### 验收基线
 
@@ -222,3 +222,71 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 对应 [GitHub Actions #41402826380](https://github.com/siskosun/ChatFlow/actions/runs/41402826380)：Ubuntu `verify`、Windows `windows-baseline` 均 completed/success；**Node 101/101、Chromium MV3 合成 E2E 30/30、IndexedDB 边界 7/7**。K=2、K=3、K=4 全部完成手动发送模拟、读取结果和盲测。候选 artifact ID `13122281915`，仅可用于独立配置下进一步验收，不得作为生产正式版。
 
 本轮未执行真实已登录 ChatGPT、五名独立用户、真人读屏、独立终审及 L3 Stop Gate；CF-03/06 继续 in_review、CF-08 blocked、CF-09 in_review、CF-10 planned。前述历史 SHA 的自动化收据不代表未来提交已验证。
+
+## 12. 新增产品能力：Saved Passages（重点片段，0.2）
+
+### 12.1 产品目标
+
+在 ChatFlow 本地档案阅读器中，允许用户从单条历史消息中选择一段文字，保存为可持久化的重点片段；重新打开档案后可恢复高亮，并能从片段跳回原始消息/分支。Context Builder 可以显式选择这些片段作为精细化上下文来源，同时保留完整消息模式。
+
+该功能是 Archive Engine 之上的标注层，不修改原始 snapshot，不修改 ChatGPT 源对话，不把标注混入原始消息正文。
+
+### 12.2 数据协议（chatflow.passage/1）
+
+每条重点片段至少保存：
+
+- `passageId`：稳定唯一 ID。
+- `captureId`：来源本地档案 ID。
+- `snapshotHash`：创建时规范化 snapshot 的 SHA-256。
+- `conversationId`、`messageId`、`nodeId`：对话、消息及分支身份。
+- `messageHash`：规范化消息身份/正文哈希，防止同文错配。
+- `text`、`prefix`、`suffix`、`startOffset`、`endOffset`、`occurrence`：片段原文和定位锚点。
+- `status`：`anchored`、`ambiguous`、`stale`；不能确认位置时禁止静默跳转。
+- `createdAt`、`updatedAt`、`color`。
+
+数据存放在扩展本地 IndexedDB 的独立 `passages` object store，数据库版本升级必须保留既有 captures/assets/files/chunks/handoffs；不得清空或重建用户现有档案。片段删除不得删除来源档案或附件。
+
+### 12.3 定位与恢复规则
+
+1. 片段必须归属一个明确的 capture、conversation、message、node。
+2. 首选 messageId + nodeId 精确定位；核对 messageHash 与快照身份。
+3. 在原消息未变化时优先使用 start/end offset，并再次验证选中文本完全一致。
+4. 偏移失效时，在同一条消息内用原文、prefix/suffix、occurrence 寻找候选。
+5. 唯一高置信候选可恢复；多个候选或无候选分别标记 ambiguous/stale，不自动选择其他消息或分支。
+6. 快照版本变化但目标消息身份与正文哈希一致时允许恢复；不得因整个 conversation snapshot hash 变化就误报所有片段 stale。
+7. 用户可手动重新定位或删除失效片段；重新定位必须明确展示新消息身份并保留审计时间。
+
+### 12.4 交互与信息架构
+
+- 在档案详情每条消息中提供轻量选择交互：用户选中文字后出现“保存为重点片段”。
+- 片段以独立样式高亮，不包裹/改写原始消息 DOM。
+- 每条消息可查看、删除和跳转其重点片段；档案详情增加“重点片段”筛选/列表。
+- 保存成功后显示片段原文和来源，不强制填写标签或说明。
+- 默认最多使用少量固定颜色；不增加复杂标签系统、侧栏或后台服务。
+- 片段 UI 的所有用户文本用 textContent/DOM API 构建，不能将历史正文作为 HTML 注入。
+
+### 12.5 Context Builder 集成
+
+- 新增显式选择模式：完整消息 / 已保存重点片段 / 混合。
+- 默认仍是完整消息模式，不隐式丢弃上下文。
+- 重点片段模式只纳入用户明确选中的片段；输出 passageId、captureId、snapshotHash、conversationId、messageId、nodeId、messageHash、原文与定位状态。
+- 同一消息多个片段保留独立边界；同文重复片段可标注重复，但不跨不同 message/node 自动合并。
+- 每个片段都生成可回溯来源索引；stale/ambiguous 片段默认禁止编译，除非用户重新定位成功。
+- 预算计算、分段和附件纳入规则继续由确定性编译器执行；不生成无来源摘要，不自动调用模型。
+
+### 12.6 开发阶段与状态
+
+| ID | 阶段 | 交付 | 状态 | 依赖 | 完成标准 |
+|---|---|---|---|---|---|
+| CF-11 | Passage 数据层 | chatflow.passage/1 schema、IndexedDB v2 migration、CRUD、索引、数据校验 | planned | CF-10 | 旧库无损升级；重复 ID、错误来源、无效偏移拒绝；删除仅影响 passage |
+| CF-12 | 锚点与恢复引擎 | 精确 offset、消息身份/hash、上下文回退、ambiguous/stale 判定 | planned | CF-11 | 重复文本、跨节点、编辑消息、分支同文、快照更新等反例测试通过 |
+| CF-13 | 档案阅读 UX | 选中文本保存、恢复高亮、来源跳转、片段管理与删除 | planned | CF-12 | 桌面/窄视口键盘交互自动化通过；原始 snapshot 字节/哈希不变 |
+| CF-14 | Context Builder 集成 | 完整消息/重点片段/混合模式，来源清单和片段回链 | planned | CF-13 | manifest 包含全部来源身份和哈希；预算分段无静默截断；stale/ambiguous 阻断 |
+| CF-15 | 0.2 集成与工程验收 | 更新格式/迁移/安全文档、CI、构建、版本候选、回归和包哈希 | planned | CF-14 | 最新准确 HEAD 全部 CI 通过；数据库 v1→v2 迁移、导入导出、Context Builder、UX 自动化通过 |
+| CF-16 | 后置真实环境与真人验收 | 真实 Edge/ChatGPT、真实档案/附件、独立用户、读屏及人工 Stop Gate | deferred | CF-15 | 仅在所有功能开发和自动化工程门禁完成后启动；不得以合成测试代替 |
+
+### 12.7 0.2 完成定义与执行顺序
+
+用户明确要求：先完成全部可由云端代码、合成 fixture、自动化浏览器和 CI 验证的开发工作；真实登录环境、独立用户可用性、真人读屏和人工验收统一放在之后。故 CF-16 在 CF-11 至 CF-15 完成前保持 deferred，不作为当前开发阻塞，也不得提前标记通过。
+
+当前开发顺序：CF-11 → CF-12 → CF-13 → CF-14 → CF-15。每个阶段必须有实现、负向测试、文档和准确 SHA CI 证据；发现新缺陷先修复，不得通过删除断言或放宽成功定义使 CI 变绿。
