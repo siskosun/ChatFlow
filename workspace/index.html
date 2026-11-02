@@ -48,6 +48,10 @@
         <summary>上下文包设置</summary>
         <label class="check"><input type="checkbox" id="context-all-branches">包含所有可访问分支</label>
         <label class="check"><input type="checkbox" id="context-include-assets">包含所选档案中的全部已保存附件</label>
+        <label for="context-query">关键词筛选（可选，空白表示全部所选消息）</label>
+        <input id="context-query" type="text" maxlength="500" placeholder="例如：预算 留存 风险">
+        <label for="context-token-budget">估算 token 预算</label>
+        <input id="context-token-budget" class="small" type="number" min="1000" max="1000000" value="100000">
         <label for="context-part-size">每个历史分段字符数</label>
         <input id="context-part-size" class="small" type="number" min="1000" max="500000" value="120000">
         <p class="hint">默认只编译当前分支文本，不带入附件字节；关键词是确定性文本筛选，不是语义检索。超出预算时完整分段并提示，不静默截断。不会自动发送。</p>
