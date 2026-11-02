@@ -361,6 +361,15 @@ async def main():
             passed('unrecognized_upload_status_returns_control_without_retry_or_send')
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('.archive-button').filter(has_text=cap['snapshot']['title']).first.click()
+            await workspace.locator('.message pre').first.wait_for(state='visible',timeout=5000)
+            await workspace.locator('.message pre').first.evaluate("""pre=>{const text=pre.textContent,needle='known fact at position 0: 0',start=text.indexOf(needle);if(start<0)throw Error('passage fixture text missing');const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));}""")
+            await workspace.get_by_role('button',name='保存选中片段').first.click()
+            await workspace.wait_for_function('async id=>(await TLStore.passages(id)).length===1',arg=cid)
+            passage=await workspace.evaluate('async id=>(await TLStore.passages(id))[0]',cid)
+            assert passage['text']=='known fact at position 0: 0' and passage['nodeId'] and passage['messageHash']
+            assert await workspace.locator('.passage-row').count()==1
+            assert await workspace.evaluate("CSS.highlights.has('chatflow-saved-yellow')")
+            passed('saved_passage_select_persist_restore_highlight_and_source_identity',{'passageId':passage['passageId'],'messageId':passage['messageId']})
             await workspace.get_by_role('button',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
