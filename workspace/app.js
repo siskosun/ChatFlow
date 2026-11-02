@@ -143,7 +143,7 @@
     if(!text.trim()||m.text.slice(startOffset,endOffset)!==text){pending=null;save.hidden=true;return;}
     pending={text,startOffset,endOffset};save.textContent=reanchorPassageId?'更新重点片段':'保存选中片段';save.hidden=false;
    };
-   pre.addEventListener('mouseup',updatePending);pre.addEventListener('keyup',updatePending);
+   pre.addEventListener('mouseup',updatePending);pre.addEventListener('pointerup',updatePending);pre.addEventListener('keyup',updatePending);
    d.append(block);messageElements.set(m.id+'\u0000'+m.nodeId,pre);
   }
   for(const passage of passageRows){
