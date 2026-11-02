@@ -15,7 +15,7 @@
   check(snapshot?.schema==='threadline.snapshot/1'&&snapshot.source?.conversationId,'INVALID_PASSAGE_SNAPSHOT');
   check(message&&snapshot.messages.some(m=>m.id===message.id&&m.nodeId===message.nodeId),'PASSAGE_MESSAGE_NOT_IN_SNAPSHOT');
   const body=String(message.text||''),selected=String(text||'');
-  check(selected.length>0&&selected.length<=100000&&Number.isSafeInteger(startOffset)&&Number.isSafeInteger(endOffset)&&startOffset>=0&&endOffset>startOffset&&endOffset<=body.length,'INVALID_PASSAGE_RANGE');
+  check(selected.length>0&&selected.length<=5000&&Number.isSafeInteger(startOffset)&&Number.isSafeInteger(endOffset)&&startOffset>=0&&endOffset>startOffset&&endOffset<=body.length,'INVALID_PASSAGE_RANGE');
   check(body.slice(startOffset,endOffset)===selected,'PASSAGE_TEXT_OFFSET_MISMATCH');
   const occurrence=occurrences(body,selected).findIndex(x=>x.start===startOffset);
   check(occurrence>=0,'PASSAGE_OCCURRENCE_NOT_FOUND');
