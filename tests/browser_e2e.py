@@ -197,10 +197,17 @@ async def main():
             assert {a['sha256'] for a in saved}==expected
             assert 'synthetic-do-not-persist-token' not in json.dumps(cap) and 'NOT_FOR_EXPORT_SECRET' not in json.dumps(cap)
             passed('capture_120_messages_all_accessible_branches_real_bytes_and_missing_states',{'saved':7,'unavailable':3})
-            await wait_async(workspace,'async()=>{const r=await chrome.runtime.sendMessage({type:"tl:sessions"});return r.ok&&!r.data.length&&!document.querySelector("#continue").hidden}',timeout=30000)
-            assert await workspace.locator('#capture').is_hidden()
+            await wait_async(workspace,'async()=>{const r=await chrome.runtime.sendMessage({type:"tl:sessions"});return r.ok&&!r.data.length&&!document.querySelector("#continue").hidden&&!document.querySelector("#capture").hidden&&document.querySelector("#capture").textContent==="重新采集对话"}',timeout=30000)
+            assert await workspace.get_by_role('button',name='重新采集对话').is_visible()
             assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
+            before_recapture=await workspace.evaluate('TLStore.all("captures").then(x=>x.length)')
+            await workspace.get_by_role('button',name='重新采集对话').click()
+            await wait_async(workspace,'async()=>{const r=await chrome.runtime.sendMessage({type:"tl:sessions"});return r.ok&&!r.data.length&&document.querySelector("#capture").textContent==="重新采集对话"}',timeout=90000)
+            after_recapture=await workspace.evaluate('TLStore.all("captures").then(x=>x.length)')
+            refreshed_capture=await workspace.evaluate('id=>TLStore.get("captures",id)',cid)
+            assert after_recapture==before_recapture and refreshed_capture['id']==cid and refreshed_capture['snapshot']['source']['conversationId']==CID
+            passed('recapture_updates_the_existing_archive_instead_of_creating_a_duplicate')
             await workspace.get_by_role('button',name='继续这段对话').click()
             await workspace.get_by_role('heading',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
