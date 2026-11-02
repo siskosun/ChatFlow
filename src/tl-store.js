@@ -46,11 +46,12 @@
  async function putPassage(record){
   C.check(record?.schema==='chatflow.passage/1'&&typeof record.passageId==='string'&&record.passageId.length>0,'INVALID_PASSAGE_RECORD');
   C.check(typeof record.captureId==='string'&&typeof record.conversationId==='string'&&typeof record.messageId==='string'&&typeof record.nodeId==='string','INVALID_PASSAGE_SOURCE');
-  C.check(typeof record.text==='string'&&record.text.length>0&&Number.isSafeInteger(record.startOffset)&&Number.isSafeInteger(record.endOffset)&&record.startOffset>=0&&record.endOffset>record.startOffset,'INVALID_PASSAGE_RANGE');
+  C.check(typeof record.text==='string'&&record.text.length>0&&record.text.length<=100000&&typeof record.prefix==='string'&&record.prefix.length<=160&&typeof record.suffix==='string'&&record.suffix.length<=160&&Number.isSafeInteger(record.startOffset)&&Number.isSafeInteger(record.endOffset)&&record.startOffset>=0&&record.endOffset>record.startOffset,'INVALID_PASSAGE_RANGE');
   C.check(/^[a-f0-9]{64}$/.test(record.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(record.messageHash||''),'INVALID_PASSAGE_HASH');
   return transaction(['captures','passages'],'readwrite',async s=>{
    const capture=await request(s.captures.get(record.captureId));C.check(capture?.snapshot,'PASSAGE_SOURCE_CAPTURE_MISSING');
    C.check(capture.snapshot.source?.conversationId===record.conversationId,'PASSAGE_SOURCE_CONVERSATION_MISMATCH');
+   C.check(globalThis.TLPassages.snapshotHash(capture.snapshot)===record.snapshotHash,'PASSAGE_SNAPSHOT_HASH_MISMATCH');
    const sourceMessage=capture.snapshot.messages.find(m=>m.id===record.messageId&&m.nodeId===record.nodeId);
    C.check(sourceMessage,'PASSAGE_SOURCE_MESSAGE_MISSING');
    const resolved=globalThis.TLPassages?.resolve?.(record,capture.snapshot);
