@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ChatFlow",
-  "version": "0.1",
-  "version_name": "0.1 candidate - real account acceptance pending",
+  "version": "0.2",
+  "version_name": "0.2 engineering candidate - external acceptance deferred",
   "minimum_chrome_version": "116",
   "description": "Save selected ChatGPT conversations and actual files locally, verify archives, and continue in a new chat without sending.",
   "homepage_url": "https://github.com/siskosun/ChatFlow",
