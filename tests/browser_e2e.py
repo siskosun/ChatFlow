@@ -375,7 +375,7 @@ async def main():
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-handoff-{width}.png'),full_page=True)
             passed('ux_archive_and_handoff_each_have_one_clear_next_action',{'widths':[320,360,1280],'primary_actions':1})
-            passed('workspace_320_360_1280_reflow_and_screenshots')
+            passed('workspace_320_360_480_768_1280_reflow_and_screenshots')
             await workspace.get_by_role('button',name='我的档案').click()
             source_checkbox=workspace.locator('.archive-select-row input[data-capture-id="'+cid+'"]')
             await source_checkbox.check()

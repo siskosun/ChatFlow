@@ -84,3 +84,19 @@ GitHub Actions verify run #41371140704，准确 HEAD `22999dec5f657e6ba4560f5e58
 
 上述仍是合成 ChatGPT 页面和合成数据。真人任务完成率、真实 ChatGPT 页面兼容性与真实附件可用性仍待独立验收。
 \n\n## ChatFlow 0.1 继承说明\n\n本文件中的历史自动化数据来自 ThreadLine 0.7.x 的合成浏览器验收，不代表 ChatFlow 新仓库已通过相同验收，也不代表真人 UX 通过。ChatFlow 必须在自己的准确提交上重跑测试；品牌及界面验收按 docs/PLAN.md 的 CF-05 执行。\n
+
+
+## ChatFlow 0.1 current synthetic UX acceptance
+
+准确提交：`bcd2211f4b9e2d388504011c7a8f5fa6a199c18b`  
+GitHub Actions：[run #41392111850](https://github.com/siskosun/ChatFlow/actions/runs/41392111850)
+
+- Node 回归 87/87；Chromium MV3 合成端到端 37 项通过；Ubuntu/Windows 构建与 IndexedDB 边界工作流通过。
+- 首页、档案页、接续页及并行实验页在 320、360、480、768、1280px 检查无横向溢出，并保留截图证据。
+- 首页检查唯一主操作、标签关联、状态播报和键盘焦点顺序；并行实验页检查导航、功能开关焦点与状态区域。
+- K=2、K=3、K=4 均验证相同冻结输入、用户手动发送、分支回复采集和去标签盲测对照。
+- 运行时包只包含当前实际使用的脚本，不再分发未加载的旧导出器界面和渲染器。
+
+证据 artifact：`chatflow-synthetic-evidence-bcd2211f4b9e2d388504011c7a8f5fa6a199c18b`（ID `13117198393`）。
+
+这些结果是合成页面和自动化浏览器验收，不代表真人任务完成率、真实 ChatGPT 页面兼容性或读屏验收。至少 5 名独立目标用户的任务测试及真人辅助技术测试仍未执行。
