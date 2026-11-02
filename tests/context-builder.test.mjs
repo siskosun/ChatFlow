@@ -143,4 +143,6 @@ test('Context Builder uses an explicitly selected accessible branch and records 
  assert.deepEqual(out.manifest.sources[0].branchNodeIds,path);
  assert.equal(out.parts.join('').includes('alternative branch'),true);
  assert.equal(out.parts.join('').includes('message 0'),true);
+ assert.throws(()=>T.compile([{captureId:'cap-invalid',snapshot:s,activeNodes:['n0','n5'],assetRows:[]}]),/INVALID_CONTEXT_BRANCH_PATH/);
+ assert.throws(()=>T.compile([{captureId:'cap-duplicate',snapshot:s,activeNodes:['n0','n1','n1'],assetRows:[]}]),/INVALID_CONTEXT_BRANCH_PATH/);
 });
