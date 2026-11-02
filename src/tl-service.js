@@ -55,6 +55,7 @@ async function externalDownload(run,msg){
 }
 async function prepareHandoff(msg){
  const c=await S.get('captures',msg.captureId);C.check(c?.snapshot,'CAPTURE_NOT_READY');C.check(!['capturing','error'].includes(c.state),'CAPTURE_NOT_READY');
+ C.check(msg.activeNodes==null||Array.isArray(msg.activeNodes),'INVALID_HANDOFF_BRANCH_PATH');
  const snapshot=C.persistedSnapshot(c.snapshot),branchNodeIds=Array.isArray(msg.activeNodes)?msg.activeNodes:snapshot.active;
  C.check(branchNodeIds.length>0&&branchNodeIds.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(branchNodeIds).size===branchNodeIds.length&&snapshot.nodes[branchNodeIds[0]].parent===null,'INVALID_HANDOFF_BRANCH_PATH');
  for(let i=1;i<branchNodeIds.length;i++)C.check(snapshot.nodes[branchNodeIds[i]].parent===branchNodeIds[i-1],'INVALID_HANDOFF_BRANCH_PATH');
@@ -78,6 +79,7 @@ let openQueue=Promise.resolve();
 function openHandoff(id){
  const operation=openQueue.then(async()=>{
   const h=await S.get('handoffs',id);C.check(h?.state==='prepared','HANDOFF_ALREADY_OPENED');
+  if(h.snapshotHash){const source=await S.get('captures',h.captureId);C.check(source?.snapshot,'HANDOFF_SOURCE_DELETED');C.check(new C.SHA256().update(JSON.stringify(C.persistedSnapshot(source.snapshot))).hex()===h.snapshotHash,'HANDOFF_SOURCE_CHANGED_REGENERATE');}
   const win=await api.windows.create({url:'about:blank',focused:true,type:'normal'}),target=win.tabs?.[0];C.check(Number.isInteger(target?.id),'NEW_WINDOW_FAILED');
   const updated={...h,state:'target_opened',targetTabId:target.id,targetWindowId:win.id,targetDocumentId:null};
   try{
