@@ -1,4 +1,4 @@
-/* ThreadLine workspace: all user content is rendered with textContent, never HTML. */
+/* ChatFlow workspace: all user content is rendered with textContent, never HTML. */
 (() => {
  'use strict';
  const C=TLCore,S=TLStore,A=TLArchive,$=id=>document.getElementById(id);
@@ -65,7 +65,7 @@
   if(!c.snapshot){el.append(node('p','尚未取得对话快照，请查看采集状态。','empty'));return;}
   const snapshot=c.snapshot,rows=await S.assets(c.id),source=node('a','打开源对话');source.href=C.chatUrl(snapshot.source.url).url;source.target='_blank';source.rel='noopener noreferrer';el.append(source);
   const savedCount=rows.filter(a=>a.state==='saved').length,excludedCount=rows.filter(a=>a.state==='excluded').length,missingCount=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length,scopeLabel=c.saveScope==='last_generated'?'当前分支最后生成文件':'全部文件';el.append(node('p','保存范围：'+scopeLabel,'hint'),node('p','可见消息 '+snapshot.messages.length+' 条 · 可访问分支叶节点 '+snapshot.integrity.branchCount+' 个 · 文件 '+savedCount+' 个已保存 · '+excludedCount+' 个按范围跳过 · '+missingCount+' 个未取得','hint'));
-  const actions=node('div',null,'actions');actions.append(button('下载归档 ZIP',async()=>{status('正在逐一校验文件并生成 ZIP。');const out=await A.exportCapture(c.id);await download(out.blob,C.safeName(title)+'.threadline.zip');status('归档已生成，完整性：'+out.manifest.state+'。下载完成状态见页底。');}),button('继续这段对话',()=>{switchView('handoff');},'primary'),fileInput('对照官方 ZIP',async file=>{status('正在本地读取官方导出，未识别格式不会被当作文件不存在。');const report=await A.compareOfficial(c.id,file);await download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),'official-comparison.json');status('对照已完成：字节一致 '+report.records.filter(x=>x.result==='bytes_match').length+' / '+report.records.length+'。请查看报告中的未匹配和歧义项。');}));
+  const actions=node('div',null,'actions');actions.append(button('下载归档 ZIP',async()=>{status('正在逐一校验文件并生成 ZIP。');const out=await A.exportCapture(c.id);await download(out.blob,C.safeName(title)+'.chatflow.zip');status('归档已生成，完整性：'+out.manifest.state+'。下载完成状态见页底。');}),button('继续这段对话',()=>{switchView('handoff');},'primary'),fileInput('对照官方 ZIP',async file=>{status('正在本地读取官方导出，未识别格式不会被当作文件不存在。');const report=await A.compareOfficial(c.id,file);await download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),'official-comparison.json');status('对照已完成：字节一致 '+report.records.filter(x=>x.result==='bytes_match').length+' / '+report.records.length+'。请查看报告中的未匹配和歧义项。');}));
   if(c.live)actions.append(button('停止实时缓存',async()=>{await call('tl:stop',{captureId:c.id});await renderDetail();}));
   el.append(actions);
   if(snapshot.integrity.issues.length){const d=node('details');d.append(node('summary','分支与内容完整性问题：'+snapshot.integrity.issues.length+' 项'),node('pre',JSON.stringify(snapshot.integrity.issues,null,2)));el.append(d);}

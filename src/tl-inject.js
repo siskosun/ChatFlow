@@ -1,4 +1,4 @@
-/* ThreadLine new-chat adapter. MIT.
+/* ChatFlow new-chat adapter. MIT.
  * Interaction pattern informed by MoveChat v1.2.1; no autoSend path is retained.
  * Upload events are not upload receipts. Unknown states explicitly return control.
  */

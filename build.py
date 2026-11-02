@@ -60,7 +60,12 @@ for browser in ("chrome", "edge"):
     ) as z:
         for p in sorted(out.rglob("*")):
             if p.is_file():
-                z.write(p, p.relative_to(out).as_posix())
+                info = zipfile.ZipInfo(
+                    p.relative_to(out).as_posix(), (1980, 1, 1, 0, 0, 0)
+                )
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                z.writestr(info, p.read_bytes())
 
     with zipfile.ZipFile(archive) as z:
         assert z.testzip() is None

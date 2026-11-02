@@ -1,4 +1,4 @@
-/* ThreadLine MV3 service worker. No model API, automatic Send, or source mutation. */
+/* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
 importScripts('tl-core.js','tl-store.js');
 const C=globalThis.TLCore,S=globalThis.TLStore,api=chrome,runs=new Map();
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
