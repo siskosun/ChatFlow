@@ -367,7 +367,7 @@ async def main():
             await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='known fact at position 0: 0')")
             passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='known fact at position 0: 0')")
             assert passage and passage['text']=='known fact at position 0: 0' and passage['nodeId'] and passage['messageHash'],passage
-            cid=passage['captureId']
+            passage_cid=passage['captureId']
             assert await workspace.locator('.passage-row').count()==1
             assert await workspace.evaluate("CSS.highlights.has('chatflow-saved-yellow')")
             passed('saved_passage_select_persist_restore_highlight_and_source_identity',{'passageId':passage['passageId'],'messageId':passage['messageId']})
@@ -409,6 +409,10 @@ async def main():
                 text=''.join(z.read(x).decode('utf-8') for x in names if x.startswith('context_part_'))
                 assert 'known fact at position 0: 0' in text and 'known fact at position 119: 2023' in text
             passed('context_builder_exports_traceable_multi_archive_bundle_without_implicit_file_bytes',{'parts':manifest['partCount'],'messages':len(manifest['sources'][0]['messageIds'])})
+            passage_source_checkbox=workspace.locator('.archive-select-row input[data-capture-id="'+passage_cid+'"]')
+            if passage_cid!=cid:
+                await source_checkbox.uncheck()
+                await passage_source_checkbox.check()
             await workspace.locator('.passage-row input[type=checkbox]').check()
             await workspace.locator('.context-toolbar details summary').click()
             await workspace.locator('#context-mode').select_option('passages')
@@ -422,6 +426,9 @@ async def main():
                 assert len(passage_manifest['passages'])==1 and passage_manifest['sources'][0]['messageIds']==[]
                 assert 'known fact at position 0: 0' in passage_text and passage['passageId'] in passage_text
             passed('context_builder_passage_only_mode_keeps_excerpt_and_complete_source_provenance')
+            if passage_cid!=cid:
+                await passage_source_checkbox.uncheck()
+                await source_checkbox.check()
             await workspace.locator('#context-mode').select_option('messages')
             await workspace.locator('.passage-row input[type=checkbox]').uncheck()
             await workspace.locator('#context-include-assets').check()
