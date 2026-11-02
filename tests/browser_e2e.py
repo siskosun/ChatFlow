@@ -448,7 +448,7 @@ async def main():
             for completed in [1,2]:
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-list button').first.click()
-                await experiment_page.get_by_role('button',name='采集回复（完成后自动核对完成条件）').first.click()
+                await experiment_page.get_by_role('button',name='采集回复（确认已手动发送）').first.click()
                 for _ in range(60):
                     await asyncio.sleep(1)
                     await experiment_page.locator('#ff-refresh').click()
