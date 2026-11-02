@@ -29,6 +29,8 @@ CASES=r'''async()=>{
  const passage=TLPassages.create({captureId:passageCapture.id,snapshot:passageSnapshot,message:passageMessage,text:'synthetic source',startOffset:0,endOffset:'synthetic source'.length});
  await S.putPassage(passage);
  check((await S.passages(passageCapture.id)).length===1,'Passage was not persisted');
+ await S.updatePassageColor(passage.passageId,'green');
+ check((await S.passages(passageCapture.id))[0].color==='green','Passage color did not persist');
  check(TLPassages.resolve(passage,passageSnapshot).status==='anchored','New passage did not resolve');
  const passageArchive=await TLArchive.exportCapture(passageCapture.id),restoredCaptureId=await TLArchive.restore(passageArchive.blob),restoredPassages=await S.passages(restoredCaptureId);
  check(restoredPassages.length===1&&restoredPassages[0].captureId===restoredCaptureId,'Passage metadata did not survive archive round trip');
