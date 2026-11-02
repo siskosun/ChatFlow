@@ -80,7 +80,8 @@
  }
  async function exportCapture(captureId){
   const capture=await S.get('captures',captureId);C.check(capture,'CAPTURE_NOT_FOUND');
-  const rows=await S.assets(captureId),passageRows=await S.passages(captureId),entries=[],paths=new Set(),files=[];
+  const rows=await S.assets(captureId),passageRows=(await S.passages(captureId)).map(p=>{const resolved=globalThis.TLPassages.resolve(p,capture.snapshot);return{...p,status:resolved.status,reason:resolved.reason};}),entries=[],paths=new Set(),files=[];
+  C.check(passageRows.length<=5000,'PASSAGE_COUNT_LIMIT');
   for(const a of rows){
    const item={key:a.key,messageId:a.messageId,nodeId:a.nodeId,name:a.name,mime:a.mime,kind:a.kind,origin:a.origin||'unknown',authorRole:a.authorRole||'unknown',ref:a.ref,expectedSize:a.expectedSize,state:a.state,reason:a.reason||null,size:a.size||0,sha256:a.sha256||null,inLatestSnapshot:a.inLatestSnapshot!==false};
    if(a.state==='saved'){
@@ -91,6 +92,7 @@
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
   const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.2'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
    state:capture.state==='ready'&&files.every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files,passages:passageRows};
+  C.check(new Blob([JSON.stringify(manifest,null,2)]).size<=32*1024**2,'ARCHIVE_METADATA_TOO_LARGE');
   entries.push({name:'conversation.json',blob:snapshotBlob},{name:'conversation.md',content:C.history(snapshot,{allBranches:true})},{name:'manifest.json',content:JSON.stringify(manifest,null,2)},{name:'diagnostics.json',content:JSON.stringify({schema:1,integrity:snapshot.integrity,files:files.map(a=>({state:a.state,reason:a.reason})),note:'No authentication or signed download URLs are retained.'},null,2)});
   return{blob:await buildZip(entries),manifest};
  }
@@ -105,7 +107,7 @@
    C.check(typeof manifest.source.origin==='string'&&['https://chatgpt.com','https://chat.openai.com'].includes(manifest.source.origin),'INVALID_ARCHIVE_ORIGIN');
    C.check(manifest.snapshotSchema==='threadline.snapshot/1'&&['ready','partial'].includes(manifest.state)&&C.record(manifest.integrity),'INVALID_ARCHIVE_STATE');
   }
-  const keys=new Set(),paths=new Set();
+  const keys=new Set(),paths=new Map();
   for(const file of manifest.files){
    C.check(C.record(file)&&typeof file.key==='string'&&file.key.length>0&&file.key.length<=500&&!keys.has(file.key),'INVALID_MANIFEST_ASSET');
    keys.add(file.key);
@@ -117,7 +119,7 @@
    }
    if(file.path!=null){
     safePath(file.path);const normalized=file.path.normalize('NFC');
-    C.check(!paths.has(normalized),'DUPLICATE_MANIFEST_PATH');paths.add(normalized);
+    C.check(!paths.has(normalized)||paths.get(normalized)===file.size,'CONFLICTING_MANIFEST_PATH');paths.set(normalized,file.size);
     C.check(file.state==='saved'&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'INVALID_SAVED_ASSET_MANIFEST');
     C.check(file.path==='assets/'+file.sha256+'.bin','ASSET_PATH_HASH_MISMATCH');
    }
@@ -131,18 +133,19 @@
  }
  function validatePassages(rows,snapshot,archiveId){
   C.check(Array.isArray(rows)&&rows.length<=5000,'INVALID_ARCHIVE_PASSAGES');
-  const ids=new Set(),messages=new Set(snapshot.messages.map(m=>m.id+'\\u0000'+m.nodeId));
+  const ids=new Set(),messages=new Set(snapshot.messages.map(m=>JSON.stringify([m.id,m.nodeId])));
   return rows.map(p=>{
    C.check(C.record(p)&&p.schema==='chatflow.passage/1'&&typeof p.passageId==='string'&&p.passageId.length>0&&p.passageId.length<=100&&!ids.has(p.passageId),'INVALID_ARCHIVE_PASSAGE');
    ids.add(p.passageId);
-   C.check(p.captureId===archiveId&&p.conversationId===snapshot.source.conversationId&&typeof p.messageId==='string'&&p.messageId.length>0&&p.messageId.length<=500&&typeof p.nodeId==='string'&&p.nodeId.length>0&&p.nodeId.length<=500&&messages.has(p.messageId+'\\u0000'+p.nodeId),'INVALID_ARCHIVE_PASSAGE_SOURCE');
+   C.check(p.captureId===archiveId&&p.conversationId===snapshot.source.conversationId&&typeof p.messageId==='string'&&p.messageId.length>0&&p.messageId.length<=500&&typeof p.nodeId==='string'&&p.nodeId.length>0&&p.nodeId.length<=500&&(messages.has(JSON.stringify([p.messageId,p.nodeId]))||(p.status==='stale'&&p.reason==='MESSAGE_NOT_FOUND')),'INVALID_ARCHIVE_PASSAGE_SOURCE');
    C.check(p.originPassageId==null||(typeof p.originPassageId==='string'&&p.originPassageId.length<=100),'INVALID_ARCHIVE_PASSAGE_ORIGIN_ID');
    C.check(/^[a-f0-9]{64}$/.test(p.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(p.messageHash||''),'INVALID_ARCHIVE_PASSAGE_HASH');
    C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=5000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset&&p.endOffset-p.startOffset===p.text.length&&Number.isSafeInteger(p.occurrence)&&p.occurrence>=0,'INVALID_ARCHIVE_PASSAGE_RANGE');
    C.check(['yellow','green','blue','pink'].includes(p.color)&&['anchored','ambiguous','stale'].includes(p.status),'INVALID_ARCHIVE_PASSAGE_STATE');
    C.check(typeof p.prefix==='string'&&p.prefix.length<=160&&typeof p.suffix==='string'&&p.suffix.length<=160,'INVALID_ARCHIVE_PASSAGE_CONTEXT');
    C.check(typeof p.role==='string'&&p.role.length<=30&&Number.isFinite(p.createdAt)&&Number.isFinite(p.updatedAt)&&(p.reanchoredAt==null||Number.isFinite(p.reanchoredAt))&&(p.previousMessageHash==null||/^[a-f0-9]{64}$/.test(p.previousMessageHash)),'INVALID_ARCHIVE_PASSAGE_METADATA');
-   const resolved=globalThis.TLPassages?.resolve?.(p,snapshot);
+   C.check(globalThis.TLPassages,'PASSAGE_ENGINE_REQUIRED');
+   const resolved=globalThis.TLPassages.resolve(p,snapshot);
    return{...p,captureId:undefined,status:resolved?.status||p.status,reason:resolved?.reason||p.reason||null};
   });
  }
@@ -170,7 +173,7 @@
   if((rawManifest.saveScope||'all')==='all'&&Array.isArray(rawManifest.files)&&rawManifest.files.some(f=>f?.state==='excluded'))throw new Error('INVALID_ALL_SCOPE_EXCLUSIONS');
   const manifest=validateManifest(rawManifest);
   const rawBlob=await entries.get('conversation.json')?.blob();C.check(rawBlob,'SNAPSHOT_MISSING');C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
-  const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),passages=validatePassages(manifest.passages||[],snapshot,manifest.archiveId),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
+  const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),passages=validatePassages(manifest.passages==null?[]:manifest.passages,snapshot,manifest.archiveId),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
   for(const m of manifest.files){
    C.check(C.record(m)&&typeof m.key==='string'&&!keys.has(m.key),'INVALID_MANIFEST_ASSET');keys.add(m.key);
    const meta=byKey.get(m.key);C.check(meta,'UNKNOWN_MANIFEST_ASSET');
