@@ -35,7 +35,14 @@
   return new Blob([...local,...central,...tail],{type:'application/zip'});
  }
  const exactNumber=x=>{C.check(x<=BigInt(Number.MAX_SAFE_INTEGER),'ZIP64_OFFSET_TOO_LARGE');return Number(x);};
- async function readZip(blob,{maxEntries=50000,maxExpanded=4*1024**3,maxCentral=32*1024**2}={}){
+ // No ZIP entry is allowed to allocate gigabytes before local quota or user review.
+ // Larger archives require a future streamed-to-IndexedDB reader, not a raised cap.
+ const MAX_ZIP_EXPANDED=256*1024**2,MAX_ZIP_ENTRY=64*1024**2,MAX_ZIP_RATIO=200;
+ async function readZip(blob,{maxEntries=50000,maxExpanded=MAX_ZIP_EXPANDED,maxEntry=MAX_ZIP_ENTRY,maxCentral=32*1024**2,maxRatio=MAX_ZIP_RATIO}={}){
+  C.check(Number.isSafeInteger(maxExpanded)&&maxExpanded>0&&Number.isSafeInteger(maxEntry)&&maxEntry>0&&Number.isSafeInteger(maxRatio)&&maxRatio>0,'INVALID_ZIP_LIMIT');
+  maxExpanded=Math.min(maxExpanded,MAX_ZIP_EXPANDED);
+  maxEntry=Math.min(maxEntry,MAX_ZIP_ENTRY);
+  maxRatio=Math.min(maxRatio,MAX_ZIP_RATIO);
   C.check(blob instanceof Blob&&blob.size>=22,'INVALID_ZIP');
   const tailStart=Math.max(0,blob.size-65557),tail=new Uint8Array(await blob.slice(tailStart).arrayBuffer()),v=new DataView(tail.buffer);let e=-1;
   for(let i=tail.length-22;i>=0;i--)if(v.getUint32(i,true)===0x06054b50&&i+22+v.getUint16(i+20,true)===tail.length){e=i;break;}
@@ -54,14 +61,17 @@
    let compressed=dv.getUint32(p+20,true),size=dv.getUint32(p+24,true),offset=dv.getUint32(p+42,true);
    const name=dec.decode(data.subarray(p+46,p+46+nl));safePath(name);C.check(!entries.has(name.normalize('NFC')),'DUPLICATE_ZIP_PATH');
    if(compressed===0xffffffff||size===0xffffffff||offset===0xffffffff){let q=p+46+nl,found=false;while(q+4<=p+46+nl+el){const type=dv.getUint16(q,true),len=dv.getUint16(q+2,true);q+=4;C.check(q+len<=p+46+nl+el,'TRUNCATED_ZIP_EXTRA');if(type===1){let r=q;if(size===0xffffffff){C.check(r+8<=q+len,'BAD_ZIP64_EXTRA');size=exactNumber(dv.getBigUint64(r,true));r+=8;}if(compressed===0xffffffff){C.check(r+8<=q+len,'BAD_ZIP64_EXTRA');compressed=exactNumber(dv.getBigUint64(r,true));r+=8;}if(offset===0xffffffff){C.check(r+8<=q+len,'BAD_ZIP64_EXTRA');offset=exactNumber(dv.getBigUint64(r,true));}found=true;break;}q+=len;}C.check(found,'MISSING_ZIP64_EXTRA');}
-   expanded+=size;C.check(expanded<=maxExpanded&&offset+compressed<=cdOffset,'ZIP_RESOURCE_LIMIT');
+   C.check(size<=maxEntry&&compressed<=maxEntry&&offset+compressed<=cdOffset,'ZIP_RESOURCE_LIMIT');
+   C.check(method!==0||size===compressed,'ZIP_STORED_SIZE_MISMATCH');
+   C.check(method!==8||((size===0&&compressed===0)||(compressed>0&&size<=compressed*maxRatio)),'ZIP_COMPRESSION_RATIO_LIMIT');
+   expanded+=size;C.check(expanded<=maxExpanded,'ZIP_RESOURCE_LIMIT');
    const entry={name,method,size,compressed,checksum,offset};
    entry.blob=async()=>{
     const h=new DataView(await blob.slice(offset,offset+30).arrayBuffer());C.check(h.byteLength===30&&h.getUint32(0,true)===0x04034b50,'INVALID_ZIP_LOCAL_HEADER');C.check(h.getUint16(8,true)===method&&!(h.getUint16(6,true)&1),'ZIP_HEADER_MISMATCH');
     const localNameLen=h.getUint16(26,true),extraLen=h.getUint16(28,true),start=offset+30+localNameLen+extraLen;
     C.check(start+compressed<=cdOffset,'ZIP_ENTRY_OUT_OF_BOUNDS');C.check(dec.decode(new Uint8Array(await blob.slice(offset+30,offset+30+localNameLen).arrayBuffer()))===name,'ZIP_NAME_MISMATCH');
     let out=blob.slice(start,start+compressed);
-    if(method===8){const reader=out.stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(),chunks=[];let bytes=0;try{while(true){const x=await reader.read();if(x.done)break;bytes+=x.value.length;C.check(bytes<=size&&bytes<=maxExpanded,'ZIP_EXPANSION_LIMIT');chunks.push(x.value);}}catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}out=new Blob(chunks);}
+    if(method===8){const reader=out.stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(),chunks=[];let bytes=0;try{while(true){const x=await reader.read();if(x.done)break;bytes+=x.value.length;C.check(bytes<=size&&bytes<=maxEntry&&bytes<=maxExpanded,'ZIP_EXPANSION_LIMIT');chunks.push(x.value);}}catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}out=new Blob(chunks);}
     C.check(out.size===size,'ZIP_SIZE_MISMATCH');C.check(await crc(out)===checksum,'ZIP_CRC_MISMATCH');return out;
    };
    entries.set(name.normalize('NFC'),entry);p+=46+nl+el+cl;
@@ -177,8 +187,8 @@
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}
  async function compareOfficial(captureId,zipBlob){
   const rows=await S.assets(captureId),candidates=[];let total=0;
-  async function collect(blob,prefix='',depth=0){const entries=await readZip(blob,{maxExpanded:4*1024**3});for(const e of entries.values()){
-   if(e.name.endsWith('/'))continue;total+=e.size;C.check(total<=4*1024**3,'OFFICIAL_EXPORT_RESOURCE_LIMIT');
+  async function collect(blob,prefix='',depth=0){const entries=await readZip(blob);for(const e of entries.values()){
+   if(e.name.endsWith('/'))continue;total+=e.size;C.check(total<=MAX_ZIP_EXPANDED,'OFFICIAL_EXPORT_RESOURCE_LIMIT');
    if(e.name.endsWith('.zip')&&depth<2){await collect(await e.blob(),prefix+e.name+'/',depth+1);continue;}
    const base=e.name.split('/').pop(),stem=base.replace(/\.[^.]+$/,'');candidates.push({path:prefix+e.name,name:base,fileId:/^file[-_]/.test(stem)?fileIdentity(stem):null,entry:e});
   }}
