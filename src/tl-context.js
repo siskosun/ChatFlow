@@ -20,9 +20,24 @@
    const selected=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
    check(selected.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
    const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set(selected.map(m=>m.nodeId));
-   const view={...snapshot,messages:selected,active:selected.map(m=>m.nodeId)};
-   const text=C.history(view,{allBranches:true});
+   const rendered=[],sourceDuplicates=[],sourceConflicts=[];
    const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(snapshot))).hex();
+   const sourceIndex=sourceRecords.length;
+   for(const message of selected){
+    const identity=snapshot.source.conversationId+'\u0000'+message.id+'\u0000'+message.nodeId;
+    const contentHash=new C.SHA256().update(JSON.stringify([message.role,message.text])).hex();
+    const previous=seenMessages.get(identity);
+    if(previous&&previous.contentHash===contentHash){
+     const duplicate={captureId:source.captureId,messageId:message.id,nodeId:message.nodeId,duplicateOf:previous.captureId};
+     duplicateMessages.push(duplicate);sourceDuplicates.push(duplicate);continue;
+    }
+    if(previous&&previous.contentHash!==contentHash){
+     const conflict={conversationId:snapshot.source.conversationId,messageId:message.id,nodeId:message.nodeId,firstCaptureId:previous.captureId,otherCaptureId:source.captureId};
+     conflictingVersions.push(conflict);sourceConflicts.push(conflict);
+    }
+    seenMessages.set(identity,{captureId:source.captureId,contentHash});
+    rendered.push(message);
+   }
    sourceRecords.push({
     captureId:source.captureId,
     provider:'chatgpt',
@@ -34,9 +49,16 @@
     branchMode:allBranches?'all_accessible':'captured_active_branch',
     query,
     messageIds:[...selectedIds],
-    nodeIds:[...selectedNodes]
+    nodeIds:[...selectedNodes],
+    duplicateMessageIds:sourceDuplicates.map(x=>x.messageId),
+    conflictingMessageIds:sourceConflicts.map(x=>x.messageId)
    });
-   sections.push('# 来源 '+(sourceRecords.length)+'：'+snapshot.title+'\n\n'+text);
+   let text='';
+   if(rendered.length){
+    const view={...snapshot,messages:rendered,active:rendered.map(m=>m.nodeId)};
+    text=C.history(view,{allBranches:true});
+   }else text='所选消息与之前来源完全重复，已去重；来源快照仍保留在 context manifest。';
+   sections.push('# 来源 '+(sourceIndex+1)+'：'+snapshot.title+'\n\n'+text);
    const rows=Array.isArray(snapshot.assets)?snapshot.assets:[];
    for(const asset of rows){
     const inScope=selectedNodes.has(asset.nodeId);
@@ -68,9 +90,9 @@
    options:{allBranches:!!allBranches,maxPartChars,includeSavedAssets:!!includeSavedAssets,query,tokenBudget},
    estimatedTokens,tokenBudget,budgetExceeded:estimatedTokens>tokenBudget,
    characterCount:fullText.length,partCount:parts.length,
-   sources:sourceRecords,assets:assetRecords,
+   sources:sourceRecords,assets:assetRecords,duplicateMessages,conflictingVersions,
    includedAssetCount:included.length,missingAssetCount:missing.length,excludedAssetCount:excluded.length,
-   warnings:[...sourceRecords.filter(s=>s.integrity?.state!=='valid').map(s=>'SOURCE_PARTIAL:'+s.captureId),...(missing.length?['SOME_ASSETS_NOT_INCLUDED']:[]),...(estimatedTokens>tokenBudget?['TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED']:[])]
+   warnings:[...sourceRecords.filter(s=>s.integrity?.state!=='valid').map(s=>'SOURCE_PARTIAL:'+s.captureId),...(conflictingVersions.length?['CONFLICTING_ARCHIVE_VERSIONS_PRESERVED']:[]),...(missing.length?['SOME_ASSETS_NOT_INCLUDED']:[]),...(estimatedTokens>tokenBudget?['TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED']:[])]
   };
   const index=[
    '# ChatFlow 上下文包','',
@@ -82,7 +104,7 @@
    '实际附件字节：'+included.length+'；未纳入/不可用：'+missing.length+'；按范围排除：'+excluded.length,
    '',
    '## 来源索引',
-   ...sourceRecords.map((s,i)=>'- '+(i+1)+'. '+s.title+'；对话 '+s.conversationId+'；消息 '+s.messageIds.length+'；完整性 '+s.integrity.state+'；快照 SHA-256 '+s.snapshotHash),
+   ...sourceRecords.map((s,i)=>'- '+(i+1)+'. '+s.title+'；对话 '+s.conversationId+'；原始消息 '+s.messageIds.length+'；本来源重复消息 '+s.duplicateMessageIds.length+'；冲突版本 '+s.conflictingMessageIds.length+'；完整性 '+s.integrity.state+'；快照 SHA-256 '+s.snapshotHash),\n   ...(conflictingVersions.length?['','## 同一消息的不同归档版本','以下版本内容不同，均保留，不自动选择：',...conflictingVersions.map(x=>'- '+x.messageId+'；来源 '+x.firstCaptureId+' 与 '+x.otherCaptureId)]:[]),
    '',
    '## 分段',
    ...parts.map((_,i)=>'- context_part_'+String(i+1).padStart(3,'0')+'.md'),

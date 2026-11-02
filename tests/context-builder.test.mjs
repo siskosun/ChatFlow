@@ -52,3 +52,22 @@ test('keyword filtering is explicit, source-linked and token budget never trunca
  assert.ok(over.parts.join('').includes('message 5'));
  assert.throws(()=>T.compile([{captureId:'cap-1',snapshot:s}],{query:'no-such-message'}),/NO_CONTEXT_MATCHES_FOR_SOURCE/);
 });
+
+test('exact duplicate messages across copies of the same conversation are deduplicated with source trace',()=>{
+ const s=source(6),first=T.compile([{captureId:'copy-a',snapshot:s,assetRows:[]}]);
+ const second=T.compile([{captureId:'copy-a',snapshot:s,assetRows:[]},{captureId:'copy-b',snapshot:s,assetRows:[]}]);
+ assert.equal(second.manifest.sources.length,2);
+ assert.equal(second.manifest.sources[1].duplicateMessageIds.length,6);
+ assert.equal(second.manifest.duplicateMessages.length,6);
+ assert.equal(second.parts.join('').split('message 0').length-1,1);
+ assert.ok(second.index.includes('copy-b'));
+});
+test('different archived versions of the same message are both preserved and flagged',()=>{
+ const s=source(6),changed=structuredClone(s);
+ changed.messages[0].text='revised message text';
+ const out=T.compile([{captureId:'copy-a',snapshot:s,assetRows:[]},{captureId:'copy-b',snapshot:changed,assetRows:[]}]);
+ assert.equal(out.manifest.conflictingVersions.length,1);
+ assert.ok(out.parts.join('').includes('message 0'));
+ assert.ok(out.parts.join('').includes('revised message text'));
+ assert.ok(out.manifest.warnings.includes('CONFLICTING_ARCHIVE_VERSIONS_PRESERVED'));
+});
