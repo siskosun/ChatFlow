@@ -211,12 +211,15 @@
  }
  async function renderHandoffState(){
   if(!handoffId)return;const h=await S.get('handoffs',handoffId);if(!h)return;
-  $('handoff-state').textContent=(labels[h.state]||h.state)+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；另有 '+(h.batches.length-1)+' 批必须手动补充。':'');
-  $('open-target').disabled=h.state!=='prepared'||planFingerprint!==fingerprint();$('focus-target').disabled=!h.targetTabId;
-  $('confirm-upload').disabled=!['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state);
+  const source=await S.get('captures',h.captureId),snapshotMatches=!!source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash,branchMatches=!!source?.snapshot&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]);
+  const fresh=snapshotMatches&&branchMatches;
+  $('handoff-state').textContent=(labels[h.state]||h.state)+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；另有 '+(h.batches.length-1)+' 批必须手动补充。':'')+(!fresh?'；来源档案或分支已变化，请重新准备接续包。':'');
+  if(!fresh){$('prepare').hidden=false;$('prepare').textContent='重新生成接续包';}
+  $('open-target').disabled=h.state!=='prepared'||planFingerprint!==fingerprint()||!fresh;$('focus-target').disabled=!h.targetTabId;
+  $('confirm-upload').disabled=!fresh||!['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state);
  }
  async function downloadHandoff(){
-  C.check(handoffId,'HANDOFF_NOT_PREPARED');const h=await S.get('handoffs',handoffId),entries=[];
+  C.check(handoffId,'HANDOFF_NOT_PREPARED');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');const entries=[];
   for(let b=0;b<h.batches.length;b++)for(const i of h.batches[b]){const f=h.files[i];entries.push({name:'batch-'+String(b+1).padStart(3,'0')+'/'+C.safeName(f.uploadName||f.name),blob:await S.verifiedBlob(f.sha256)});}
   entries.push({name:'handoff_prompt.md',content:h.prompt},{name:'handoff_manifest.json',content:JSON.stringify({schema:1,captureId:h.captureId,sourceConversationId:h.sourceConversationId,snapshotHash:h.snapshotHash,branchNodeIds:h.branchNodeIds||[],files:h.files,batches:h.batches,missing:h.missing,excluded:h.excluded||[],note:'A prepared pack is not proof of webpage upload or model reading.'},null,2)});
   await download(await A.buildZip(entries),'chatflow-handoff.zip');status('接续包已生成。请解压后上传实际文件，不要假设 ChatGPT 一定能读取 ZIP 内的全部内容。');
@@ -225,7 +228,7 @@
  $('refresh-source').onclick=()=>guard(sources);$('capture').onclick=()=>guard(start);$('source').onchange=()=>{selectedId=null;$('capture').hidden=false;$('continue').hidden=true;guard(renderRunning);};$('asset-scope').onchange=updateScopeUI;$('continue').onclick=()=>guard(async()=>{await choose(selectedId);switchView('handoff');});$('refresh').onclick=()=>guard(async()=>{await refreshArchives();if(selectedId)await renderDetail();});$('build-context').onclick=()=>guard(buildContextPackage);
  $('search').oninput=()=>guard(refreshArchives);$('prepare').onclick=()=>guard(prepare);$('instructions').oninput=invalidate;$('batch-limit').onchange=invalidate;
  $('restore').onchange=()=>guard(async()=>{const f=$('restore').files?.[0];if(!f)return;status('校验档案结构、CRC 和文件哈希。校验全部通过后才写入档案。');const id=await A.restore(f);$('restore').value='';await choose(id);switchView('archive');status('档案已恢复。保留原有缺失状态，不会因恢复而变成完整。');await quota();});
- $('open-target').onclick=()=>guard(async()=>{C.check(planFingerprint===fingerprint(),'REGENERATE_HANDOFF_AFTER_CHANGES');const h=await call('tl:openHandoff',{id:handoffId});await renderHandoffState();status('新聊天已打开。请核对文件，再由你手动发送。');});
+ $('open-target').onclick=()=>guard(async()=>{C.check(planFingerprint===fingerprint(),'REGENERATE_HANDOFF_AFTER_CHANGES');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');await call('tl:openHandoff',{id:handoffId});await renderHandoffState();status('新聊天已打开。请核对文件，再由你手动发送。');});
  $('focus-target').onclick=()=>guard(()=>call('tl:focusTarget',{id:handoffId}));$('download-handoff').onclick=()=>guard(downloadHandoff);
  $('confirm-upload').onclick=()=>guard(async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
  $('open-experiments').onclick=()=>guard(async()=>{await chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')});});$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
