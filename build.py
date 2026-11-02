@@ -35,7 +35,7 @@ for browser in ("chrome", "edge"):
         shutil.copyfile(ROOT / name, out / name)
 
     (out / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     hashes = {
@@ -50,7 +50,7 @@ for browser in ("chrome", "edge"):
             "version": "0.1",
             "status": "candidate_real_account_acceptance_pending",
             "files": hashes,
-        }, ensure_ascii=False, indent=2) + "\\n",
+        }, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -79,6 +79,6 @@ sums = [
     hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.name
     for p in sorted(DIST.glob("*.zip"))
 ]
-(DIST / "SHA256SUMS").write_text("\\n".join(sums) + "\\n", encoding="utf-8")
+(DIST / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
 assert len(sums) == 2
 print("PACKAGE_VERIFICATION_PASSED", len(sums))
