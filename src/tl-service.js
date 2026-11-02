@@ -1,5 +1,5 @@
 /* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
-importScripts('tl-core.js','tl-store.js');
+importScripts('tl-core.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js');
 const C=globalThis.TLCore,S=globalThis.TLStore,api=chrome,runs=new Map();
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
 const trusted=sender=>sender?.id===api.runtime.id;
@@ -94,6 +94,7 @@ async function claim(sender){
 }
 async function handle(msg,sender){
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');C.check(trusted(sender),'FOREIGN_EXTENSION');
+ const experimentResult=await ChatFlowExperimentService.handle(msg,sender,api,{startCapture});if(experimentResult!==undefined)return experimentResult;
  if(msg.type==='tl:claimHandoff')return claim(sender);
  if(msg.type==='tl:handoffChunk'){
   const h=await targetHandoff(msg,sender);C.check(h.state==='claimed'&&h.batches[0].includes(msg.index),'HANDOFF_NOT_READABLE');const f=h.files[msg.index],row=await S.get('files',f.sha256);C.check(row?.blob&&row.blob.size===f.size,'LOCAL_FILE_MISSING');C.check(Number.isSafeInteger(msg.offset)&&msg.offset>=0&&msg.offset<row.blob.size,'INVALID_FILE_OFFSET');
@@ -138,7 +139,8 @@ api.action.onClicked.addListener(tab=>{
  });
 });
 api.tabs.onUpdated.addListener((tabId,change,tab)=>{
+ ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(()=>{});
  if(change.status==='complete')announce(tabId).catch(()=>{});
  if(change.url)for(const r of runs.values())if(r.tabId===tabId){let same=false;try{const now=C.chatUrl(tab.url);same=now.conversationId===r.source.conversationId&&now.origin===r.source.origin;}catch{}if(!same)stopCapture(r.captureId).catch(()=>{});}
 });
-api.tabs.onRemoved.addListener(tabId=>{for(const r of runs.values())if(r.tabId===tabId)stopCapture(r.captureId).catch(()=>{});});
+api.tabs.onRemoved.addListener(tabId=>{for(const r of runs.values())if(r.tabId===tabId)stopCapture(r.captureId).catch(()=>{});ChatFlowExperimentService.onTabRemoved(tabId,api).catch(()=>{});});
