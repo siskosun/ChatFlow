@@ -37,11 +37,20 @@ def xlsx_fixture():
         z.writestr('xl/worksheets/sheet1.xml','<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>synthetic 42</t></is></c></row></sheetData></worksheet>')
     return b.getvalue()
 FILES={
- 'file_csv':('data.csv','text/csv',b'id,value\n1,42\n2,77\n'),
+ 'file_csv':('data.csv','text/csv',b'id,value
+1,42
+2,77
+'),
  'file_sheet':('research.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',xlsx_fixture()),
  'file_image':('diagram.png','image/png',base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1x8AAAAASUVORK5CYII=')),
- 'file_second':('data.csv','text/csv',b'id,value\n1,99\n')}
-PDF=b'%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n'
+ 'file_second':('data.csv','text/csv',b'id,value
+1,99
+')}
+PDF=b'%PDF-1.4
+1 0 obj<</Type/Catalog>>endobj
+trailer<</Root 1 0 R>>
+%%EOF
+'
 LIVE=b'live-cache-byte-proof-314159'
 FINAL=b'last-generated-file-proof-271828'
 BRANCH=b'alternative-branch-file-proof-161803'
@@ -371,7 +380,11 @@ async def main():
             passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
-            await experiment_page.wait_for_function('typeof ChatFlowExperimentCore!=="undefined"&&typeof ChatFlowExperimentDB!=="undefined"&&typeof ChatFlowProviders!=="undefined"')\n            provider_caps=await experiment_page.evaluate('ChatFlowProviders.capabilityMatrix()')\n            assert len(provider_caps)==1 and provider_caps[0]['id']=='chatgpt' and provider_caps[0]['capabilities']['manualSendOnly'] is True\n            assert await experiment_page.evaluate('ChatFlowProviders.forUrl("https://claude.ai/")===null')\n            passed('provider_adapter_reports_only_explicitly_supported_chatgpt_capabilities')
+            await experiment_page.wait_for_function('typeof ChatFlowExperimentCore!=="undefined"&&typeof ChatFlowExperimentDB!=="undefined"&&typeof ChatFlowProviders!=="undefined"')
+            provider_caps=await experiment_page.evaluate('ChatFlowProviders.capabilityMatrix()')
+            assert len(provider_caps)==1 and provider_caps[0]['id']=='chatgpt' and provider_caps[0]['capabilities']['manualSendOnly'] is True
+            assert await experiment_page.evaluate('ChatFlowProviders.forUrl("https://claude.ai/")===null')
+            passed('provider_adapter_reports_only_explicitly_supported_chatgpt_capabilities')
             disabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_STATUS"})')
             assert disabled['ok'] and disabled['data']['enabled'] is False
             enabled=await experiment_page.evaluate('chrome.runtime.sendMessage({type:"FF_SET_ENABLED",enabled:true,ack:"local-only-no-send"})')
