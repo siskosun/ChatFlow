@@ -66,15 +66,19 @@
  async function claimHandoff(api,sender){
   return serial(async()=>{
    if(sender?.id!==api.runtime.id||!Number.isInteger(sender.tab?.id)||!sender.documentId)throw new Error('EXPERIMENT_SOURCE_DOCUMENT_REQUIRED');
-   const tab=await api.tabs.get(sender.tab.id),target=P.identify(tab.url,{target:true}).identity;
+   // Content scripts run on every ChatGPT page. Check for a tab-bound handoff
+   // before applying the new-chat-only URL gate; ordinary conversation pages
+   // with no pending experiment must be a silent no-op.
+   const tabId=sender.tab.id,x=await api.storage.session.get(HANDOFF+tabId),h=x[HANDOFF+tabId];
+   if(!h)return null;
+   const tab=await api.tabs.get(tabId),target=P.identify(tab.url,{target:true}).identity;
    const senderTarget=P.identify(sender.url,{target:true}).identity;
    if(senderTarget.origin!==target.origin)throw new Error('EXPERIMENT_SOURCE_NAVIGATED');
-   const x=await api.storage.session.get(HANDOFF+tab.id),h=x[HANDOFF+tab.id];if(!h)return null;
-   const bind=await binding(api,tab.id);
+   const bind=await binding(api,tabId);
    if(!bind||bind.invalid||bind.experimentId!==h.experimentId||bind.branch!==h.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
    if(bind.claimDocumentId&&bind.claimDocumentId!==sender.documentId)throw new Error('EXPERIMENT_DOCUMENT_CHANGED');
-   await saveBinding(api,tab.id,{...bind,claimDocumentId:sender.documentId,claimOrigin:target.origin});
-   await api.storage.session.remove(HANDOFF+tab.id);
+   await saveBinding(api,tabId,{...bind,claimDocumentId:sender.documentId,claimOrigin:target.origin});
+   await api.storage.session.remove(HANDOFF+tabId);
    return {...h,attemptId:bind.attemptId,operationId:bind.operationId};
   });
  }
