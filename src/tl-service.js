@@ -125,7 +125,7 @@ async function handle(msg,sender){
  if(msg.type==='tl:assetEnd')return S.finishAsset(run.captureId,msg.key,msg.mime);
  if(msg.type==='tl:assetFail'){await S.failAsset(run.captureId,msg.key,/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:'DOWNLOAD_FAILED');return{ok:true};}
  if(msg.type==='tl:external')return externalDownload(run,msg);
- if(msg.type==='tl:finish'){const c=await S.finishCapture(run.captureId);if(run.live){run.phase='watching';await S.set('captures',{...c,live:true});}else runs.delete(run.nonce);await keepRuns();return c;}
+ if(msg.type==='tl:finish'){const c=await S.finishCapture(run.captureId);await ChatFlowExperimentService.onCaptureFinished(run,S,api);if(run.live){run.phase='watching';await S.set('captures',{...c,live:true});}else runs.delete(run.nonce);await keepRuns();return c;}
  if(msg.type==='tl:heartbeat')return{active:true};
  if(msg.type==='tl:captureFailed'){const c=await S.get('captures',run.captureId);if(c)await S.set('captures',{...c,state:c.snapshot?'partial':'error',live:false,lastError:/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:'CAPTURE_FAILED'});run.controller?.abort();runs.delete(run.nonce);await keepRuns();return{stopped:true};}
  throw new Error('UNKNOWN_OPERATION');
