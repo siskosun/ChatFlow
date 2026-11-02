@@ -56,7 +56,7 @@ async function externalDownload(run,msg){
 async function prepareHandoff(msg){
  const c=await S.get('captures',msg.captureId);C.check(c?.snapshot,'CAPTURE_NOT_READY');C.check(!['capturing','error'].includes(c.state),'CAPTURE_NOT_READY');
  const snapshot=C.persistedSnapshot(c.snapshot),branchNodeIds=Array.isArray(msg.activeNodes)?msg.activeNodes:snapshot.active;
- C.check(branchNodeIds.length>0&&branchNodeIds.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(branchNodeIds).size===branchNodeIds.length,'INVALID_HANDOFF_BRANCH_PATH');
+ C.check(branchNodeIds.length>0&&branchNodeIds.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(branchNodeIds).size===branchNodeIds.length&&snapshot.nodes[branchNodeIds[0]].parent===null,'INVALID_HANDOFF_BRANCH_PATH');
  for(let i=1;i<branchNodeIds.length;i++)C.check(snapshot.nodes[branchNodeIds[i]].parent===branchNodeIds[i-1],'INVALID_HANDOFF_BRANCH_PATH');
  snapshot.active=[...branchNodeIds];
  const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,Array.isArray(msg.keys)?msg.keys:[],msg.instructions||'',msg.batchLimit||10),files=[],names=new Set(['handoff_index.md']);
