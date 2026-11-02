@@ -38,6 +38,11 @@ CASES=r'''async()=>{
  const restoredAgain=await TLArchive.restore(passageArchive.blob),secondPassages=await S.passages(restoredAgain);
  check(secondPassages.length===1&&secondPassages[0].passageId!==restoredPassages[0].passageId&&secondPassages[0].originPassageId===passage.passageId,'Repeated ZIP restore overwrote an existing passage or lost origin identity');
  check((await S.passages(restoredCaptureId)).length===1,'Repeated ZIP restore changed the first imported passage');
+ const zipEntries=await TLArchive.readZip(passageArchive.blob),tamperedManifest=JSON.parse(await(await zipEntries.get('manifest.json').blob()).text());
+ tamperedManifest.passages[0].nodeId='foreign-node';
+ const tamperedZip=await TLArchive.buildZip(await Promise.all([...zipEntries.values()].map(async e=>({name:e.name,blob:e.name==='manifest.json'?new Blob([JSON.stringify(tamperedManifest)],{type:'application/json'}):await e.blob()}))));
+ await rejects(()=>TLArchive.restore(tamperedZip),'INVALID_ARCHIVE_PASSAGE_SOURCE');
+ check((await S.passages(restoredCaptureId)).length===1,'Tampered ZIP altered an existing passage');
  await rejects(()=>S.putPassage({...passage,captureId:'missing-capture'}),'PASSAGE_SOURCE_CAPTURE_MISSING');
  check((await S.get('captures',passageCapture.id)).snapshot.messages.length===1,'Passage operation changed original snapshot');
  await S.deletePassage(passage.passageId);
