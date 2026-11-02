@@ -76,12 +76,15 @@ async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targe
 // A fresh window must not load ChatGPT before its tab is durably bound to this handoff.
 // Serialize opens as well as claims: repeated UI clicks cannot create duplicate targets.
 let openQueue=Promise.resolve();
-function openHandoff(id){
+function openHandoff(id,sender){
  const operation=openQueue.then(async()=>{
   const h=await S.get('handoffs',id);C.check(h?.state==='prepared','HANDOFF_ALREADY_OPENED');
   if(h.snapshotHash){const source=await S.get('captures',h.captureId);C.check(source?.snapshot,'HANDOFF_SOURCE_DELETED');C.check(new C.SHA256().update(JSON.stringify(C.persistedSnapshot(source.snapshot))).hex()===h.snapshotHash,'HANDOFF_SOURCE_CHANGED_REGENERATE');}
-  const win=await api.windows.create({url:'about:blank',focused:true,type:'normal'}),target=win.tabs?.[0];C.check(Number.isInteger(target?.id),'NEW_WINDOW_FAILED');
-  const updated={...h,state:'target_opened',targetTabId:target.id,targetWindowId:win.id,targetDocumentId:null};
+  const windowId=sender?.tab?.windowId;C.check(Number.isInteger(windowId),'WORKSPACE_WINDOW_REQUIRED');
+  // Keep the continuation beside the source/workspace in the same Edge window.
+  // Bind ownership while the new tab is still blank, then navigate it to ChatGPT.
+  const target=await api.tabs.create({windowId,url:'about:blank',active:true});C.check(Number.isInteger(target?.id),'NEW_TAB_FAILED');
+  const updated={...h,state:'target_opened',targetTabId:target.id,targetWindowId:target.windowId??windowId,targetDocumentId:null};
   try{
    await S.set('handoffs',updated);
    const loaded=await api.tabs.update(target.id,{url:'https://chatgpt.com/'});
@@ -99,8 +102,9 @@ async function targetHandoff(msg,sender){
 let claimQueue=Promise.resolve();
 async function claim(sender){
  const operation=claimQueue.then(async()=>{
-  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');P.identify(sender.url||sender.tab.url,{target:true}).identity;
+  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');
   const h=(await S.all('handoffs')).find(x=>x.targetTabId===sender.tab.id&&x.state==='target_opened');if(!h)return null;
+  P.identify(sender.url||sender.tab.url,{target:true}).identity;
   P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId});
   return{id:h.id,prompt:h.prompt,files:h.batches[0].map(i=>({...h.files[i],index:i})),remainingBatches:h.batches.length-1};
  });claimQueue=operation.catch(()=>{});return operation;
@@ -124,7 +128,7 @@ async function handle(msg,sender){
   if(msg.type==='tl:stop'){await stopCapture(msg.captureId);return{stopped:true};}
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
   if(msg.type==='tl:prepareHandoff')return prepareHandoff(msg);
-  if(msg.type==='tl:openHandoff')return openHandoff(msg.id);
+  if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender);
   if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
   if(msg.type==='tl:confirmUpload'){const h=await S.get('handoffs',msg.id);C.check(h&&['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state),'HANDOFF_NOT_CONFIRMABLE');C.check(msg.confirmed===true,'USER_CONFIRMATION_REQUIRED');await S.set('handoffs',{...h,state:'user_verified_upload',userVerifiedAt:new Date().toISOString(),note:'User confirmed page attachments; this is not model-read or sent-message evidence.'});return{confirmed:true};}
  }
