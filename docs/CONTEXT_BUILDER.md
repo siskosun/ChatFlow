@@ -16,6 +16,7 @@ Context Builder 从用户明确勾选的本地档案生成可移植上下文包�
 - **仅重点片段** 只纳入用户明确勾选且锚点仍有效的重点片段；未选中重点片段的档案会跳过，不会让其他来源阻塞编译。
 - **完整消息 + 重点片段** 将完整消息和片段作为不同段落保留。
 - 重点片段必须属于所选分支；若要编译其他分支的片段，需显式选择全部可访问分支。
+- 从档案页继续对话时，接续包也使用相同的所选分支路径，并在 handoff manifest 记录 source conversation ID、snapshot SHA-256 与 branch node IDs。
 - passage manifest 记录 passageId、captureId、snapshot/message hash、conversation/message/node、原文与偏移；歧义/过期片段阻止编译。
 
 ## 输出
