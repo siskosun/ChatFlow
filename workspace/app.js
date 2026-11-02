@@ -76,7 +76,7 @@
  }
  function branchChoices(snapshot){
   const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m])),candidates=[snapshot.currentNode,...Object.values(snapshot.nodes).filter(n=>!n.children?.length).map(n=>n.id)],seen=new Set(),out=[];
-  for(const endNode of candidates){const path=pathToNode(snapshot,endNode),key=path.join('\\u0000');if(!path.length||snapshot.nodes[path[0]].parent!==null||seen.has(key)||!path.some(id=>byNode.has(id)))continue;seen.add(key);
+  for(const endNode of candidates){const path=pathToNode(snapshot,endNode),key=path.join('\u0000');if(!path.length||snapshot.nodes[path[0]].parent!==null||seen.has(key)||!path.some(id=>byNode.has(id)))continue;seen.add(key);
    const last=[...path].reverse().map(id=>byNode.get(id)).find(Boolean),label=endNode===snapshot.currentNode?'当前分支':'分支 '+(out.length+1)+' · '+String(last?.text||'').slice(0,36);
    out.push({endNode,path,label});
   }
