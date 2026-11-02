@@ -71,8 +71,9 @@ test('same-message manual reselection creates a new anchor while retaining the p
  const x=make(),changed=snapshot('The source message was edited and the previous excerpt removed.');
  assert.equal(P.resolve(x.record,changed).status,'stale');
  const message=changed.messages[0],text='source message',start=message.text.indexOf(text);
- const repairedAt=x.record.createdAt+1000,repaired=P.create({passageId:x.record.passageId,captureId:x.record.captureId,snapshot:changed,message,text,startOffset:start,endOffset:start+text.length,createdAt:x.record.createdAt,updatedAt:repairedAt,reanchoredAt:repairedAt,previousMessageHash:x.record.messageHash});
+ const repairedAt=x.record.createdAt+1000,repaired=P.create({passageId:x.record.passageId,captureId:x.record.captureId,snapshot:changed,message,text,startOffset:start,endOffset:start+text.length,createdAt:x.record.createdAt,updatedAt:repairedAt,reanchoredAt:repairedAt,previousMessageHash:x.record.messageHash,originPassageId:'origin-passage-id'});
  assert.equal(repaired.passageId,x.record.passageId);
+ assert.equal(repaired.originPassageId,'origin-passage-id');
  assert.equal(repaired.createdAt,x.record.createdAt);
  assert.equal(repaired.updatedAt,repairedAt);
  assert.equal(repaired.reanchoredAt,repairedAt);
