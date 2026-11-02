@@ -22,6 +22,14 @@ All notable changes to ChatFlow are recorded here. Versions 0.1 and 0.2 are engi
 - 真实账号、真人 UX 与辅助技术验收仍未完成；PR 保持 Draft。
 
 
+### 0.2 本机回归问题修复（首次 Edge 实测反馈）
+
+- 并行实验领取流程先检查当前标签页是否存在待领取任务；普通历史对话不再触发 `NOT_NEW_NORMAL_CHAT` 假错误。存在待领取任务时仍严格拒绝旧对话、项目或临时聊天。
+- 普通接续改为在工作区所在 Edge 窗口创建新标签页；先持久化标签页与接续任务绑定，再导航到 ChatGPT。
+- 新标签页身份核验失败时明确提示，不自动重试、不覆盖已有草稿。
+- 已保存的对话现在同时提供“重新采集对话”和“继续这段对话”；同一来源、同一保存范围重新采集会更新原档案，不额外创建重复档案。
+- 增加普通历史页无待领取任务、待领取任务仍受新聊天约束、同窗口新标签页、原档案原位更新等回归测试。
+
 ## 0.2 engineering candidate — Saved Passages
 
 - Add source-bound Saved Passages with message identity, snapshot/message hashes, offsets and contextual anchors.
