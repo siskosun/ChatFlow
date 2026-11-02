@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {webcrypto} from 'node:crypto';
+import {webcrypto,createHash} from 'node:crypto';
 const core=fs.readFileSync(new URL('../src/tl-core.js',import.meta.url),'utf8');
 const provider=fs.readFileSync(new URL('../src/tl-provider.js',import.meta.url),'utf8');
 const service=fs.readFileSync(new URL('../src/tl-service.js',import.meta.url),'utf8');
@@ -71,4 +71,24 @@ test('capture accepts stale same-origin sender document URL after same-document 
  await assert.rejects(h.sourceRun({nonce},{...sender,url:'https://attacker.invalid/'}),/SOURCE_ORIGIN_CHANGED/);
  h.tabs.get(42).url='https://chatgpt.com/c/another_conversation_123456';
  await assert.rejects(h.sourceRun({nonce},sender),/SOURCE_NAVIGATED/);
+});
+
+
+test('prepared handoff rejects changed or deleted source before opening any window',async()=>{
+ const h=await harness(),snapshot={assets:[],source:{conversationId:'conversation_test'},messages:[]};
+ h.records.set('capture',{id:'capture',snapshot});
+ h.records.get('handoff').snapshotHash=createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+ h.records.get('capture').snapshot.messages.push({id:'new'});
+ await assert.rejects(h.openHandoff('handoff'),/HANDOFF_SOURCE_CHANGED_REGENERATE/);
+ assert.equal(h.events.includes('create-blank'),false);
+ h.records.delete('capture');
+ await assert.rejects(h.openHandoff('handoff'),/HANDOFF_SOURCE_DELETED/);
+ assert.equal(h.events.includes('create-blank'),false);
+});
+test('unchanged prepared source remains eligible for a user-requested handoff',async()=>{
+ const h=await harness(),snapshot={assets:[],messages:[]};
+ h.records.set('capture',{id:'capture',snapshot});
+ h.records.get('handoff').snapshotHash=createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+ const result=await h.openHandoff('handoff');
+ assert.equal(result.targetTabId,17);
 });
