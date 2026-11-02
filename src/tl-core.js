@@ -1,4 +1,4 @@
-/* ThreadLine local archive core. MIT. Network-free and DOM-free.
+/* ChatFlow local archive core. MIT. Network-free and DOM-free.
  * Asset schemes follow the pinned ChatGPT Markdown Export adapter contract.
  * SHA-256 compression follows FIPS 180-4; tests compare with node:crypto.
  */
