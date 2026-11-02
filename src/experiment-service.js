@@ -115,7 +115,7 @@
    const bind=await binding(api,tab.id);if(!bind||bind.experimentId!==row.id||bind.branch!==msg.branch)throw new Error('EXPERIMENT_BINDING_MISMATCH');
    const result=await ctx.startCapture({tabId:tab.id,scope:'all',live:false});
    await api.storage.session.set({['chatflow_exp_capture_'+result.captureId]:{...bind,captureId:result.captureId}});
-   await advance(bind,{status:'pending',phase:'generating',operationId:bind.operationId+'_'+bind.branch+'_capture_start',
+   await advance(bind,{status:'pending',phase:'capturing',operationId:bind.operationId+'_'+bind.branch+'_capture_start',
     updates:{conversationId:source.conversationId,sessionId:source.conversationId,sentAt:Date.now(),captureId:result.captureId},
     reason:'user manually requested capture after sending'});
    return{runId:result.captureId};
