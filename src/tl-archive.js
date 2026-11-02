@@ -75,7 +75,7 @@
    const item={key:a.key,messageId:a.messageId,nodeId:a.nodeId,name:a.name,mime:a.mime,kind:a.kind,origin:a.origin||'unknown',authorRole:a.authorRole||'unknown',ref:a.ref,expectedSize:a.expectedSize,state:a.state,reason:a.reason||null,size:a.size||0,sha256:a.sha256||null,inLatestSnapshot:a.inLatestSnapshot!==false};
    if(a.state==='saved'){
     try{const blob=await S.verifiedBlob(a.sha256);const path='assets/'+a.sha256+'.bin';if(!paths.has(path)){entries.push({name:path,blob});paths.add(path);}files.push({...item,path,size:blob.size});}
-    catch{files.push({...item,state:'corrupt',reason:'LOCAL_FILE_INTEGRITY_FAILED',path:null});}
+    catch{files.push({...item,state:'corrupt',reason:'LOCAL_FILE_INTEGRITY_FAILED',path:null,size:0,sha256:null});}
    }else files.push({...item,path:null});
   }
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
