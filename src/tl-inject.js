@@ -58,6 +58,24 @@
   });if(found<0)return false;used.add(found);}
   return names.length>0;
  }
+ function observeManualExperimentSend(h,e){
+  let armed=true;
+  function matches(event){
+   if(!event.isTrusted||!armed||value(e).trim()!==h.text.trim())return false;
+   if(event.type==='keydown')return event.key==='Enter'&&!event.shiftKey&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&
+    (event.target===e||e.contains(event.target));
+   const button=event.target?.closest?.('button');
+   return !!button&&!button.disabled&&button.matches('[data-testid="send-button"],button[aria-label="Send prompt"],button[aria-label="Send message"],button[aria-label="发送"]');
+  }
+  async function onGesture(event){
+   if(!matches(event))return;
+   armed=false;document.removeEventListener('click',onGesture,true);document.removeEventListener('keydown',onGesture,true);
+   try{await send('tl:experimentSendIntent',{experimentId:h.experimentId,branch:h.branch,attemptId:h.attemptId});}
+   catch{notice('ChatFlow：无法确认手动发送操作的分支身份。请勿继续采集该分支；不会自动重发。');}
+  }
+  document.addEventListener('click',onGesture,true);
+  document.addEventListener('keydown',onGesture,true);
+ }
  async function prepareExperiment(){
   let h;try{h=await send('tl:claimExperimentHandoff');}catch(e){notice('ChatFlow：并行分支预填未确认（'+code(e)+'）。请检查目标页；不会自动重试。');return;}
   if(!h)return;
@@ -68,6 +86,7 @@
    prefill(e,h.text);P.identify(location.href,{target:true}).identity;
    C.check(value(e).replace(/\\r/g,'').trim()===h.text.replace(/\\r/g,'').trim(),'PREFILL_NOT_CONFIRMED');
    await send('tl:experimentPrefillAck',{experimentId:h.experimentId,branch:h.branch,attemptId:h.attemptId});
+   observeManualExperimentSend(h,e);
    notice('ChatFlow：分支 '+h.branch+' 的冻结任务已逐字预填。请核对后由你手动发送。');
   }catch(e){
    notice('ChatFlow：分支 '+h.branch+' 预填未确认（'+code(e)+'）。不会自动发送或重试；请回实验页手动重新预填。');
