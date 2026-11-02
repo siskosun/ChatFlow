@@ -15,7 +15,7 @@ function harness(){
   async create(row){if(records.has(row.id))throw Error('duplicate');records.set(row.id,structuredClone(row));},
   async createImported(row){if(records.has(row.id))throw Error('duplicate');records.set(row.id,structuredClone(row));},
   async read(id){return structuredClone(records.get(id)||null);},
-  async list(){return [...records.values()].map(structuredClone);},
+  async list(){return [...records.values()].map(x=>structuredClone(x));},
   async update(id,revision,reducer){const before=records.get(id);if(!before)throw Error('not found');assert.equal(before.revision,revision);const after=reducer(structuredClone(before));records.set(id,structuredClone(after));return structuredClone(after);}
  };
  const api={

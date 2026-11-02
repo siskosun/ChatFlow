@@ -13,7 +13,7 @@ async function harness({navigationFails=false}={}){
   windows:{create:async options=>{assert.equal(options.url,'about:blank');events.push('create-blank');tabs.set(17,{id:17,url:'about:blank',status:'complete'});return{id:9,tabs:[tabs.get(17)]};},update:async()=>{}},
   tabs:{onUpdated:event(),onRemoved:event(),get:async id=>tabs.get(id),query:async()=>[],sendMessage:async()=>{events.push('announce');},update:async(id,options)=>{const h=records.get('handoff');assert.equal(h.targetTabId,id);assert.equal(h.state,'target_opened');events.push('navigate');if(navigationFails)throw Error('network failure');tabs.set(id,{id,url:options.url,status:'loading'});return tabs.get(id);}}
  };
- const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,ChatFlowExperimentService:{handle:async()=>undefined},importScripts(){},structuredClone});
+ const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,ChatFlowExperimentService:{handle:async()=>undefined,recover:async()=>{},onTabUpdated:async()=>{},onTabRemoved:async()=>{},onCaptureFinished:async()=>{}},importScripts(){},structuredClone});
  vm.runInContext(core,context);
  vm.runInContext(service+'\n globalThis.TEST_BOUNDARY={openHandoff,claim,targetHandoff,handle,boot};',context);
  await context.TEST_BOUNDARY.boot;
