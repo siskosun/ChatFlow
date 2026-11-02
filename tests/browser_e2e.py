@@ -430,7 +430,7 @@ async def main():
             await workspace.get_by_role('button',name='准备新对话').click()
             await wait_async(workspace,'async()=>!document.querySelector("#handoff-result").hidden&&document.querySelector("#open-target")&&!document.querySelector("#open-target").disabled',timeout=30000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
-            assert await workspace.get_by_role('button',name='打开新聊天').is_visible()
+            assert await workspace.get_by_role('button',name='打开新聊天标签页').is_visible()
             assert not await workspace.locator('#staging-details').evaluate('(e)=>e.open')
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
