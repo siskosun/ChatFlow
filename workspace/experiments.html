@@ -6,8 +6,8 @@
   <title>ChatFlow · 并行对照实验</title>
   <style>
     :root{color-scheme:light;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;color:#243247;background:#f5f7fa}
-    *{box-sizing:border-box}body{max-width:960px;margin:32px auto;padding:0 18px 50px}
-    header{margin-bottom:20px}h1{font-size:25px;line-height:1.4;margin:0 0 6px}h2{font-size:17px;margin:0 0 12px}
+    *{box-sizing:border-box}body{max-width:760px;margin:0 auto;padding:20px 18px 50px}
+    header{margin-bottom:20px}.topbar{display:flex;align-items:center;justify-content:space-between;margin:0 0 24px;padding:10px 0;border-bottom:1px solid #e4e8eb}.brand{font-weight:750;font-size:20px;letter-spacing:.03em;color:#17212b;text-decoration:none}.back{background:transparent!important;color:#344250!important;border:1px solid #e4e8eb!important}.surface{border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 8px 28px #17212b0a}.surface h2{margin-bottom:10px}button{background:#147efb;border-radius:11px;min-height:44px;padding:10px 16px;font-weight:650}button.secondary{background:#f2f5f7;color:#344250;border:1px solid #e4e8eb}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #147efb;outline-offset:3px}input,select{min-height:44px;border:1px solid #cbd3da;border-radius:10px;padding:10px}textarea{border-radius:12px}#ff-notice{padding:10px 12px;border-radius:10px;background:#edf4fc;color:#304a62}#ff-notice[data-error=true]{background:#fff0ee;color:#b42318}h1{font-size:25px;line-height:1.4;margin:0 0 6px}h2{font-size:17px;margin:0 0 12px}
     p{line-height:1.65}.subtle{color:#5e6e83;font-size:13px}.surface{background:white;border:1px solid #dce3ed;border-radius:14px;padding:22px;margin:14px 0;box-shadow:0 3px 16px #182a4d06}
     .line{display:flex;gap:14px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
     textarea{font:14px/1.5 ui-monospace,Consolas,monospace;resize:vertical;width:100%;min-height:170px;background:#fff;border:1px solid #cbd6e4;border-radius:9px;padding:12px}
@@ -25,11 +25,11 @@
 </head>
 <body>
   <header><h1>并行对照实验（2–4 分支）</h1>
-    <p class="subtle">独立于原有课题：冻结材料 → 发起 K 个新标签并逐字预填 → 你手动发送 → 采集 → 去标签对照与裁决。</p>
+    <p class="subtle">高级功能。冻结同一份材料和任务，在 2–4 个独立聊天中比较结果。普通保存与接续不受影响。</p>
   </header>
-    <p style="background:#eef6ff;border:1px solid #bcd7f5;border-radius:9px;padding:10px 14px;font-size:13px;">⚠ ChatFlow<b>永不自动发送</b>、不点击发送按钮、不重放未确认操作；所有发送都由你亲手完成。</p>
+    <p class="subtle" style="background:#edf4fc;border:1px solid #d8e5f2;border-radius:10px;padding:12px 14px;">安全边界：ChatFlow 不自动发送、不点击发送按钮、不重放未确认操作。所有发送都由你手动完成。</p>
   <section class="surface" aria-label="功能开关">
-    <label class="line" for="ff-enable"><input type="checkbox" id="ff-enable"/>启用本地 并行实验存储</label>
+    <label class="line" for="ff-enable"><input type="checkbox" id="ff-enable"/>启用并行实验</label>
     <p class="subtle">功能默认关闭。启用后可保存/导入实验；只有你点击「发起」时才会打开 ChatGPT 标签。原有课题与备份不受影响。</p>
     <p id="ff-notice" role="status" aria-live="polite">正在检查本地状态…</p>
   </section>
