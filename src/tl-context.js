@@ -23,6 +23,7 @@
    const selectedPassages=[];
    for(const passage of source.passages||[]){
     check(passage.captureId===source.captureId&&passage.conversationId===snapshot.source.conversationId,'INVALID_CONTEXT_PASSAGE_SOURCE');
+    check(allBranches||active.has(passage.nodeId),'CONTEXT_PASSAGE_OUTSIDE_BRANCH_SCOPE');
     if(terms.length&&!terms.every(term=>String(passage.text||'').toLocaleLowerCase().includes(term)))continue;
     const resolved=globalThis.TLPassages?.resolve?.(passage,snapshot);
     check(resolved?.status==='anchored','CONTEXT_PASSAGE_NOT_ANCHORED');
