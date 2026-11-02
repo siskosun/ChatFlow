@@ -131,7 +131,7 @@
    const mid=typeof m.id==='string'?m.id:nodeId;if(messageIds.has(mid))issues.push({code:'DUPLICATE_MESSAGE_ID',nodeId});messageIds.add(mid);nodes[nodeId].messageId=mid;
    const visible=visibleTextParts(m.content);visible.issues.forEach(code=>issues.push({code,nodeId}));
    const refs=extractAssets(m,nodeId),time=Number(m.create_time);
-   messages.push({id:mid,nodeId,role:m.author.role,text:visible.text,timestamp:Number.isFinite(time)&&time>0?time:null,assetKeys:refs.map(a=>a.key)});assets.push(...refs);
+   messages.push({id:mid,nodeId,role:m.author.role,text:visible.text,timestamp:Number.isFinite(time)&&time>0?time:null,finished:m.status==='finished_successfully'||m.metadata?.finished===true,assetKeys:refs.map(a=>a.key)});assets.push(...refs);
   }
   check(messages.length>0,'NO_VISIBLE_MESSAGES');
   for(const n of Object.values(nodes)){
