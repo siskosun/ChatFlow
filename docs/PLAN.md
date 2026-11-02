@@ -139,7 +139,7 @@ ChatFlow 不建设第二套研究管理系统。正式研究课题、结论、�
 | CF-01 | 0.7.2 迁移与品牌重置 | 将准确候选代码迁入本仓库；品牌、manifest、构建产物、文档统一改为 ChatFlow；版本改为 0.1；保留许可 | done | CF-PLAN | 文件清单/来源可追溯；旧仓库不变 |
 | CF-02 | 新仓库工程基线 | ChatFlow 自有 CI、构建、Node/Chromium/IndexedDB 测试、候选 ZIP、BUILD_INFO 与 SHA256SUMS | done | CF-01 | ChatFlow 准确 HEAD 的 Ubuntu/Windows CI 全通过；包内版本、源码 SHA 和哈希一致 |
 | CF-03 | 归档引擎安全复核 | 采集、分支、文件范围、真实字节、实时缓存、ZIP 恢复、草稿保护、目标页白名单、上传状态 | in_progress | CF-02 | 所有安全不变量有正反向测试；未知/缺失/排除状态无误 |
-| CF-04 | 统一档案协议 | 冻结可移植 schema、manifest、消息/分支/资产引用、版本迁移和冲突规则 | planned | CF-03 | 独立解析/导入/导出测试；跨版本往返不丢状态；损坏/歧义 fail closed |
+| CF-04 | 统一档案协议 | 冻结可移植 schema、manifest、消息/分支/资产引用、版本迁移和冲突规则 | in_progress | CF-03 | 独立解析/导入/导出测试；跨版本往返不丢状态；损坏/歧义 fail closed |
 | CF-05 | Context Builder | 来源选择、消息/分支筛选、预算、分段、索引、可追溯 context manifest | planned | CF-04 | 同一输入可复算；无静默截断；每条摘要/证据可回到原消息 |
 | CF-06 | 受控并行会话引擎 | K=2–4 冻结输入、独立新聊天、人工发送、回执/超时/失败分类、盲测/揭盲/裁决 | planned | CF-05 | 无串线、无自动发送/重发；刷新恢复正确；盲测映射可复算 |
 | CF-07 | Provider Adapter 边界 | ChatGPT 适配器与通用档案/执行层解耦；补齐能力探测和合成契约 | planned | CF-03,CF-06 | ChatGPT 端到端回归不退化；无真实验收的平台保持 unsupported，不冒充兼容 |
