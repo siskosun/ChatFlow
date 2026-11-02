@@ -69,7 +69,7 @@ def conversation(live=False,unknown_after=False,conversation_id=CID):
 TARGET_HTML='''<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
 <textarea id="prompt-textarea" rows="8" style="width:500px;max-width:90vw">__DRAFT__</textarea>
 <input id="camera" type="file" accept="image/*" capture="environment"><input id="generic" type="file" multiple>
-<button id="user-send" onclick="window.sends++">Send (user only)</button><div id="uploads"></div>
+<button id="user-send" aria-label="Send prompt" onclick="window.sends++">Send (user only)</button><div id="uploads"></div>
 <script>
 window.sends=0;window.received=[];window.uploadEvents=0;window.mode=__MODE__;
 document.getElementById('generic').addEventListener('change',async e=>{
@@ -458,7 +458,7 @@ async def main():
                 assert await branch_page.evaluate('window.sends||0')==1
                 experiment_cid='expbranch'+('A' if index==0 else 'B')+'1234567890'
                 mode['experiment_prompts'][experiment_cid]=frozen
-                await branch_page.goto('https://chatgpt.com/c/'+experiment_cid)
+                await branch_page.evaluate('(url)=>history.pushState({}, "", url)','https://chatgpt.com/c/'+experiment_cid)
             for completed in [1,2]:
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-list button').first.click()
@@ -503,7 +503,7 @@ async def main():
                     label=chr(65+index)
                     experiment_cid='expbranchK'+str(branch_count)+label+'1234567890'
                     mode['experiment_prompts'][experiment_cid]=frozen_k
-                    await branch_page.goto('https://chatgpt.com/c/'+experiment_cid)
+                    await branch_page.evaluate('(url)=>history.pushState({}, "", url)','https://chatgpt.com/c/'+experiment_cid)
                 for completed in range(1,branch_count+1):
                     await experiment_page.locator('#ff-refresh').click()
                     await experiment_page.locator('#ff-list button').first.click()
