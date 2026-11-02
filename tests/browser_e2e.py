@@ -372,6 +372,16 @@ async def main():
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
             await experiment_page.locator('#ff-enable').wait_for(state='visible')
+            assert await experiment_page.locator('#ff-notice').get_attribute('role')=='status'
+            await experiment_page.locator('.topbar .brand').focus()
+            await experiment_page.keyboard.press('Tab')
+            assert await experiment_page.evaluate("document.activeElement.classList.contains('back')")
+            await experiment_page.keyboard.press('Tab')
+            assert await experiment_page.evaluate("document.activeElement.id==='ff-enable'")
+            for width in [320,360,480,768,1280]:
+                await experiment_page.set_viewport_size({'width':width,'height':900})
+                assert await experiment_page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
+                await experiment_page.screenshot(path=str(OUT/f'ux-experiments-{width}.png'),full_page=True)
             await experiment_page.locator('#ff-enable').check()
             await experiment_page.locator('#ff-create').wait_for(state='visible')
             await experiment_page.locator('#ff-w0').fill('frozen shared material')
