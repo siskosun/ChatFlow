@@ -49,3 +49,12 @@ No production security certification or real-account compatibility claim is made
 首轮修复 `f0d429d5` 的 Chromium 测试暴露同文档 SPA 路由与历史 MessageSender.url 不一致，导致采集中断。后续 `36012a252fba5ca694629f2b79184577d0e90283` 的 GitHub Actions [#41402106468](https://github.com/siskosun/ChatFlow/actions/runs/41402106468) **Ubuntu/Windows 全部通过**：99/99 Node、30/30 合成 Chromium、7/7 IndexedDB；该收据仅针对准确 SHA，不代表之后的改动已通过。
 
 独立最终审查、已登录账号与真实附件/发送行为、五名独立目标用户、真人读屏、L3 人工 Stop Gate **未执行**。该候选不构成生产安全认证或正式发布许可。
+
+## Saved Passages 0.2 security boundary
+
+- Passage text is stored as text metadata in extension-owned IndexedDB; it is not inserted into source ChatGPT messages or sent to a remote service.
+- Every passage is bound to capture, conversation, message, branch node, snapshot hash and message hash. Resolver searches only within the same source message.
+- Ambiguous/stale passages cannot be silently mapped to another message; Context Builder rejects them until explicit same-message reselection.
+- IndexedDB v2 adds one object store; migration preserves existing v1 stores and records. Archive deletion cascades only the deleted capture's passage records.
+- ZIP restore validates passage schema and source identity before import. Older archives without passage metadata remain supported.
+- UI uses textContent/DOM APIs and CSS Custom Highlight painting; passage text is not interpreted as HTML.
