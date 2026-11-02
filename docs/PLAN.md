@@ -280,9 +280,9 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 |---|---|---|---|---|---|
 | CF-11 | Passage 数据层 | chatflow.passage/1 schema、IndexedDB v2 migration、CRUD、索引、数据校验 | in_review | CF-10 | 旧库无损升级；重复 ID、错误来源、无效偏移拒绝；删除仅影响 passage |
 | CF-12 | 锚点与恢复引擎 | 精确 offset、消息身份/hash、上下文回退、ambiguous/stale 判定 | in_review | CF-11 | 重复文本、跨节点、编辑消息、分支同文、快照更新等反例测试通过 |
-| CF-13 | 档案阅读 UX | 选中文本保存、恢复高亮、来源跳转、片段管理与删除 | in_progress | CF-12 | 桌面/窄视口键盘交互自动化通过；原始 snapshot 字节/哈希不变 |
-| CF-14 | Context Builder 集成 | 完整消息/重点片段/混合模式，来源清单和片段回链 | in_progress | CF-13 | manifest 包含全部来源身份和哈希；预算分段无静默截断；stale/ambiguous 阻断 |
-| CF-15 | 0.2 集成与工程验收 | 更新格式/迁移/安全文档、CI、构建、版本候选、回归和包哈希 | planned | CF-14 | 最新准确 HEAD 全部 CI 通过；数据库 v1→v2 迁移、导入导出、Context Builder、UX 自动化通过 |
+| CF-13 | 档案阅读 UX | 选中文字保存、键盘/指针选择、高亮、颜色、跨分支来源跳转、手动重定位与审计 | in_review | CF-12 | 桌面/窄视口键盘交互自动化通过；原始 snapshot 字节/哈希不变 |
+| CF-14 | Context Builder 集成 | 完整消息/重点片段/混合模式、分支路径、来源清单和片段回链 | in_review | CF-13 | manifest 包含全部来源身份和哈希；预算分段无静默截断；stale/ambiguous 阻断 |
+| CF-15 | 0.2 集成与工程验收 | 更新格式/迁移/安全文档、CI、构建、版本候选、回归和包哈希 | in_progress | CF-14 | 最新准确 HEAD 全部 CI 通过；数据库 v1→v2 迁移、导入导出、Context Builder、UX 自动化通过 |
 | CF-16 | 后置真实环境与真人验收 | 真实 Edge/ChatGPT、真实档案/附件、独立用户、读屏及人工 Stop Gate | deferred | CF-15 | 仅在所有功能开发和自动化工程门禁完成后启动；不得以合成测试代替 |
 
 ### 12.7 0.2 完成定义与执行顺序
@@ -293,14 +293,15 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 
 ## 13. Saved Passages 实际开发进度（2026-11-02）
 
-- 功能分支：`feature/saved-passages-0.2`；叠加 PR #1 的 0.1 候选基线，PR #2 保持 Draft。
-- 0.2 manifest 与构建候选版本已更新为 `0.2`；构建清单已包含 `src/tl-passages.js`。
-- 已新增 `chatflow.passage/1` 确定性锚点模块：精确消息 hash/offset、同消息唯一文本恢复、前后文消歧；缺失/歧义不跨消息猜测。
-- IndexedDB 升级到 v2，新增独立 passages store、按 capture/source 索引、CRUD 和 capture 删除级联；v1 stores/records 保留。
-- 档案详情已实现选中文字保存、原文跳转、删除、同一消息显式重新选择；高亮使用 CSS Custom Highlight API，不包装原文 DOM。
-- ZIP manifest 增加可选 passages 元数据，导出/恢复校验并重建本地 captureId；旧档案没有 passages 字段时仍兼容。
-- Context Builder 已加入完整消息/仅重点片段/混合模式，重点片段记录来源身份、hash 和 offset；stale/ambiguous 不可编译；关键词过滤也作用于 passage 文本。
-- 已新增 Node passage resolver/context tests，以及 Chromium IndexedDB v1→v2、CRUD、ZIP round-trip 合成测试。首轮 CI 暴露一个歧义测试夹具问题（测试记录仍带有可区分的前后文），已修正为真正无上下文证据的反例。该轮 CI 因此仍判失败，修复后的准确 HEAD 尚待完整 CI 复验。
-- 当前阶段裁定：CF-11/12 in_review，CF-13/14 in_progress，CF-15 planned，CF-16 deferred。不得把首轮失败的 CI 写成通过。
-
-真实已登录 Edge/ChatGPT、独立用户、真人读屏及人工验收继续放在 CF-16；在 CF-11 至 CF-15 工程实现和自动化门禁全部完成之前，不启动、不要求用户提供凭据，也不将其作为当前代码开发的停止条件。
+- 功能分支：`feature/saved-passages-0.2`；PR #2 以 PR #1 的 0.1 工程候选为基线，目标分支 `main`，保持 Draft/Open，未合并、未发布。
+- 版本与构建：manifest/build 已升至 0.2；Chrome/Edge 构建清单包含 `src/tl-passages.js`；ZIP 包保留 SHA256SUMS、BUILD_INFO 和 MIT 许可。
+- 数据层：`chatflow.passage/1` 独立记录；IndexedDB v1→v2 增加 passages store，不清空旧 stores/records；支持创建、更新颜色/状态、删除、按 capture 查询；删除档案只级联其自身 passage。
+- 锚点：conversation/message/node + snapshot/message SHA-256 + UTF-16 offset + prefix/suffix/occurrence；只在原始消息内恢复。唯一文本可恢复；重复候选无足够上下文证据时标记 ambiguous；原文缺失标记 stale；禁止跨消息/跨分支猜测。
+- 重定位审计：同一原始消息显式重新选择；保留 passageId、originPassageId 和原始 createdAt，记录 updatedAt、reanchoredAt、previousMessageHash。
+- 档案 UX：键盘可聚焦的消息正文、指针/键盘事件选择、保存片段、CSS Custom Highlight 高亮、四种颜色、来源分支标签、跨分支跳转、失效后切换来源分支并重新定位、删除。
+- ZIP：manifest 可选 passages；旧版无 passages 仍兼容；恢复前校验来源、消息/节点、哈希、范围、状态、颜色、时间和大小；每次导入生成新的本地 passageId 并保留 originPassageId，重复恢复不会互相覆盖。
+- Context Builder：完整消息/仅重点片段/混合；多档案显式选择；当前选定分支或全部可访问分支；关键词过滤同时作用于消息与片段；passage-only 模式跳过没有选中片段的档案；stale/ambiguous 与分支范围不匹配均 fail closed。
+- Handoff：接续包使用档案页当前选定的分支路径；服务端校验路径必须唯一、连续、从根节点开始；manifest 记录 conversation ID、snapshot hash 和 branch node IDs。
+- 自动化：上一准确工程提交 `bb79d98b8cdcbeea6d4909686f0f0f3ca50f47ac` 的 GitHub Actions #41419452670：Node 117/117、Chromium MV3 合成 E2E 34 项、IndexedDB 边界 8 项、Windows/Ubuntu 构建通过。该收据早于后续键盘选择、导入 lineage 与错误提示微调，不能代替当前 HEAD 的 CI。
+- 当前最新验证：以 PR #2 最新 HEAD 的 Actions run 为准；只有 Ubuntu verify、Windows baseline 均 completed/success 后，才能更新 CF-11 至 CF-15 的最终工程状态。
+- 外部验收边界：真实登录 Edge/ChatGPT、真实文件、独立用户可用性、真人读屏及人工 Stop Gate 均未执行。按用户要求，这些统一留到 CF-15 工程开发和自动化门禁完成之后，CF-16 保持 deferred。
