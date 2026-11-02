@@ -6,13 +6,15 @@
  function open(){
   if(opening)return opening;
   opening=new Promise((resolve,reject)=>{
-   const r=indexedDB.open(NAME,1);
+   const r=indexedDB.open(NAME,2);
    r.onupgradeneeded=()=>{
-    const db=r.result;db.createObjectStore('captures',{keyPath:'id'});
-    const a=db.createObjectStore('assets',{keyPath:['captureId','key']});a.createIndex('capture','captureId');
-    db.createObjectStore('files',{keyPath:'sha256'});
-    const ch=db.createObjectStore('chunks',{keyPath:['captureId','key','seq']});ch.createIndex('owner',['captureId','key']);ch.createIndex('capture','captureId');
-    db.createObjectStore('handoffs',{keyPath:'id'});
+    const db=r.result;
+    if(!db.objectStoreNames.contains('captures'))db.createObjectStore('captures',{keyPath:'id'});
+    if(!db.objectStoreNames.contains('assets')){const a=db.createObjectStore('assets',{keyPath:['captureId','key']});a.createIndex('capture','captureId');}
+    if(!db.objectStoreNames.contains('files'))db.createObjectStore('files',{keyPath:'sha256'});
+    if(!db.objectStoreNames.contains('chunks')){const ch=db.createObjectStore('chunks',{keyPath:['captureId','key','seq']});ch.createIndex('owner',['captureId','key']);ch.createIndex('capture','captureId');}
+    if(!db.objectStoreNames.contains('handoffs'))db.createObjectStore('handoffs',{keyPath:'id'});
+    if(!db.objectStoreNames.contains('passages')){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');p.createIndex('createdAt','createdAt');p.createIndex('source',['captureId','conversationId','messageId','nodeId']);}
    };
    r.onerror=()=>{opening=null;reject(r.error||new Error('IDB_OPEN_FAILED'));};
    r.onblocked=()=>{opening=null;reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
@@ -39,6 +41,27 @@
   });
  }
  const assets=captureId=>transaction(['assets'],'readonly',s=>request(s.assets.index('capture').getAll(captureId)));
+ const passages=captureId=>transaction(['passages'],'readonly',s=>request(s.passages.index('capture').getAll(captureId)));
+ const allPassages=()=>transaction(['passages'],'readonly',s=>request(s.passages.getAll()));
+ async function putPassage(record){
+  C.check(record?.schema==='chatflow.passage/1'&&typeof record.passageId==='string'&&record.passageId.length>0,'INVALID_PASSAGE_RECORD');
+  C.check(typeof record.captureId==='string'&&typeof record.conversationId==='string'&&typeof record.messageId==='string'&&typeof record.nodeId==='string','INVALID_PASSAGE_SOURCE');
+  C.check(typeof record.text==='string'&&record.text.length>0&&Number.isSafeInteger(record.startOffset)&&Number.isSafeInteger(record.endOffset)&&record.startOffset>=0&&record.endOffset>record.startOffset,'INVALID_PASSAGE_RANGE');
+  C.check(/^[a-f0-9]{64}$/.test(record.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(record.messageHash||''),'INVALID_PASSAGE_HASH');
+  return transaction(['captures','passages'],'readwrite',async s=>{
+   const capture=await request(s.captures.get(record.captureId));C.check(capture?.snapshot,'PASSAGE_SOURCE_CAPTURE_MISSING');
+   C.check(capture.snapshot.source?.conversationId===record.conversationId,'PASSAGE_SOURCE_CONVERSATION_MISMATCH');
+   C.check(capture.snapshot.messages.some(m=>m.id===record.messageId&&m.nodeId===record.nodeId),'PASSAGE_SOURCE_MESSAGE_MISSING');
+   const prior=await request(s.passages.get(record.passageId));
+   if(prior)C.check(prior.captureId===record.captureId&&prior.messageId===record.messageId&&prior.nodeId===record.nodeId,'PASSAGE_IDENTITY_IMMUTABLE');
+   s.passages.put({...record,updatedAt:Date.now()});return record.passageId;
+  });
+ }
+ async function deletePassage(passageId){return transaction(['passages'],'readwrite',async s=>{const row=await request(s.passages.get(passageId));if(row)s.passages.delete(passageId);return row||null;});}
+ async function updatePassageStatus(passageId,status,reason){
+  C.check(['anchored','ambiguous','stale'].includes(status),'INVALID_PASSAGE_STATUS');
+  return transaction(['passages'],'readwrite',async s=>{const row=await request(s.passages.get(passageId));if(!row)return null;const updated={...row,status,reason:reason||null,updatedAt:Date.now()};s.passages.put(updated);return updated;});
+ }
  const chunks=(captureId,key)=>transaction(['chunks'],'readonly',s=>request(s.chunks.index('owner').getAll(IDBKeyRange.only([captureId,key]))));
  async function snapshot(captureId,model){
   C.check(model?.schema==='threadline.snapshot/1','INVALID_SNAPSHOT');const clean=C.persistedSnapshot(model),now=new Date().toISOString();
@@ -129,5 +152,5 @@
    s.captures.put({id:captureId,snapshot:snapshotCopy,state,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),imported:true,live:false,saveScope});for(const a of items)s.assets.put({...a,captureId});
   });return captureId;
  }
- globalThis.TLStore=Object.freeze({open,get,all,set,assets,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
+ globalThis.TLStore=Object.freeze({open,get,all,set,assets,passages,allPassages,putPassage,deletePassage,updatePassageStatus,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
 })();
