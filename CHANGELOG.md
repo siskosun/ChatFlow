@@ -30,4 +30,7 @@ All notable changes to ChatFlow are recorded here. Versions 0.1 and 0.2 are engi
 - Add Context Builder full-message, passage-only and mixed modes with passage provenance, explicit accessible-branch selection, and keyword filtering.
 - Add same-message explicit re-anchoring, four restrained highlight colors, keyboard-focusable message text, and source-branch navigation.
 - Give each ZIP restore a fresh local passage ID while preserving originPassageId, preventing repeated imports from overwriting earlier passages.
+- Add current/accessible-leaf branch navigation; Context Builder and handoff preparation use validated selected branch paths and reject disconnected paths.
+- Record source conversation ID, snapshot hash and branch node IDs in handoff manifests.
+- Preserve passage creation time and re-anchor audit fields, including prior message hash and imported passage lineage.
 - Real logged-in account, independent-user, screen-reader and human acceptance remain deferred until all feature development and automated engineering gates are complete.
