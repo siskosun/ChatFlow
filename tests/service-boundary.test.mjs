@@ -16,6 +16,7 @@ async function harness({navigationFails=false}={}){
  };
  const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,ChatFlowExperimentService:{handle:async()=>undefined,recover:async()=>{},onTabUpdated:async()=>{},onTabRemoved:async()=>{},onCaptureFinished:async()=>{}},importScripts(){},structuredClone});
  vm.runInContext(core,context);
+ vm.runInContext(provider,context);
  vm.runInContext(service+'\n globalThis.TEST_BOUNDARY={openHandoff,claim,targetHandoff,handle,boot};',context);
  await context.TEST_BOUNDARY.boot;
  return{...context.TEST_BOUNDARY,events,records,tabs,api};
