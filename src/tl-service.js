@@ -55,7 +55,11 @@ async function externalDownload(run,msg){
 }
 async function prepareHandoff(msg){
  const c=await S.get('captures',msg.captureId);C.check(c?.snapshot,'CAPTURE_NOT_READY');C.check(!['capturing','error'].includes(c.state),'CAPTURE_NOT_READY');
- const rows=await S.assets(c.id),plan=C.handoff(c.snapshot,rows,Array.isArray(msg.keys)?msg.keys:[],msg.instructions||'',msg.batchLimit||10),files=[],names=new Set(['handoff_index.md']);
+ const snapshot=C.persistedSnapshot(c.snapshot),branchNodeIds=Array.isArray(msg.activeNodes)?msg.activeNodes:snapshot.active;
+ C.check(branchNodeIds.length>0&&branchNodeIds.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(branchNodeIds).size===branchNodeIds.length,'INVALID_HANDOFF_BRANCH_PATH');
+ for(let i=1;i<branchNodeIds.length;i++)C.check(snapshot.nodes[branchNodeIds[i]].parent===branchNodeIds[i-1],'INVALID_HANDOFF_BRANCH_PATH');
+ snapshot.active=[...branchNodeIds];
+ const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,Array.isArray(msg.keys)?msg.keys:[],msg.instructions||'',msg.batchLimit||10),files=[],names=new Set(['handoff_index.md']);
  for(const f of plan.files){
   const base=C.safeName(f.name);let uploadName=base,sequence=2;while(names.has(uploadName.toLowerCase()))uploadName=sequence+++'_'+base;names.add(uploadName.toLowerCase());
   if(f.kind==='asset'){const b=await S.verifiedBlob(f.sha256);files.push({...f,uploadName,size:b.size});}
@@ -65,7 +69,7 @@ async function prepareHandoff(msg){
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
- const h={id:C.id(),captureId:c.id,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded};await S.set('handoffs',h);return h;
+ const h={id:C.id(),captureId:c.id,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
 // A fresh window must not load ChatGPT before its tab is durably bound to this handoff.
