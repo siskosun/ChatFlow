@@ -98,8 +98,8 @@ test('branch completion requires exact input, finished assistant evidence and pe
   const bindKey='chatflow_exp_capture_'+cap.runId,bind=h.session.get(bindKey);assert.ok(bind);
   const row=await h.DB.read(created.id),frozen=row.frozen.text;
   const snapshot={source:{conversationId,origin:'https://chatgpt.com'},integrity:{state:'valid'},messages:[
-   {id:'user-'+branch,role:'user',text:frozen,nodeId:'u'},
-   {id:'assistant-'+branch,role:'assistant',text:'final answer '+branch,finished:true,nodeId:'a'}
+   {id:'user-'+branch,role:'user',text:frozen,nodeId:'u',timestamp:Date.now()/1000},
+   {id:'assistant-'+branch,role:'assistant',text:'final answer '+branch,finished:true,nodeId:'a',timestamp:Date.now()/1000}
   ]};
   await h.service.onCaptureFinished({captureId:cap.runId,tabId,documentId:'doc-'+tabId}, {get:async()=>({state:'ready',snapshot})},h.api);
  }
@@ -205,4 +205,23 @@ test('first conversation navigation without observed manual send intent is rejec
  assert.equal((await h.DB.read(c.id)).branches.A.status,'unknown');
  await assert.rejects(h.msg('FF_CAPTURE',{experimentId:c.id,branch:'A'}),/NO_PENDING_BRANCH_TAB/);
  assert.equal(h.captureCalls.length,0);
+});
+
+test('matching frozen input from an old conversation cannot count as a newly sent response',async()=>{
+ const h=harness();await h.msg('FF_SET_ENABLED',{enabled:true,ack:'local-only-no-send'});
+ const c=await h.msg('FF_CREATE',{operationId:'create_old_chat1',w0:'W',p:'P'});
+ const launch=await h.msg('FF_LAUNCH',{experimentId:c.id,operationId:'launch_old_chat1'});
+ const tabId=await h.prefill(c,launch,'A');
+ await h.observeSend(c,launch,'A');
+ await h.navigate(tabId,'oldConversation12345');
+ const cap=await h.msg('FF_CAPTURE',{experimentId:c.id,branch:'A'});
+ const frozen=(await h.DB.read(c.id)).frozen.text;
+ const snapshot={source:{origin:'https://chatgpt.com',conversationId:'oldConversation12345'},integrity:{state:'valid'},messages:[
+  {id:'old-user',role:'user',text:frozen,timestamp:1700000000},
+  {id:'old-answer',role:'assistant',text:'an already-finished answer',finished:true,timestamp:1700000001}
+ ]};
+ await h.service.onCaptureFinished({captureId:cap.runId,tabId,documentId:'doc-'+tabId},{get:async()=>({state:'ready',snapshot})},h.api);
+ const row=await h.DB.read(c.id);
+ assert.equal(row.branches.A.status,'unknown');
+ assert.equal(row.branches.A.attempts[0].evidence.sendTimestampVerified,false);
 });
