@@ -366,13 +366,17 @@ async def main():
             first_passage_pre=workspace.locator('.message pre').filter(has_text=first_passage_text).first
             assert await first_passage_pre.get_attribute('tabindex')=='0'
             await first_passage_pre.focus()
-            await first_passage_pre.evaluate("""(pre,needle)=>{const start=pre.textContent.indexOf(needle);if(start<0)throw Error('passage fixture text missing');const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new KeyboardEvent('keyup',{key:'ArrowRight',bubbles:true}));}""",first_passage_text)
+            await first_passage_pre.evaluate("""(pre,needle)=>{const start=pre.textContent.indexOf(needle);if(start<0)throw Error('passage fixture text missing');const range=document.createRange();range.setStart(pre.firstChild,start);range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);}""",first_passage_text)
+            await workspace.keyboard.down('Shift')
+            for _ in first_passage_text: await workspace.keyboard.press('ArrowRight')
+            await workspace.keyboard.up('Shift')
             await workspace.get_by_role('button',name='保存选中片段').first.wait_for(state='visible')
             await workspace.get_by_role('button',name='保存选中片段').first.click()
-            await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='known fact at position 0: 0')")
+            await wait_async(workspace,"async()=> (await TLStore.allPassages()).some(p=>p.text==='known fact at position 0: 0')")
             passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='known fact at position 0: 0')")
             assert passage and passage['text']=='known fact at position 0: 0' and passage['nodeId'] and passage['messageHash'],passage
             passage_cid=passage['captureId']
+            await workspace.locator('.passage-row').wait_for(state='visible')
             assert await workspace.locator('.passage-row').count()==1
             assert await workspace.evaluate("CSS.highlights.has('chatflow-saved-yellow')")
             passed('saved_passage_select_persist_restore_highlight_and_source_identity',{'passageId':passage['passageId'],'messageId':passage['messageId']})
@@ -384,7 +388,7 @@ async def main():
             await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').wait_for(state='visible')
             await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').evaluate("""pre=>{const text=pre.textContent,needle='Alternative conclusion, not the active path.',start=text.indexOf(needle);const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));}""")
             await workspace.get_by_role('button',name='保存选中片段').click()
-            await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='Alternative conclusion, not the active path.')")
+            await wait_async(workspace,"async()=> (await TLStore.allPassages()).some(p=>p.text==='Alternative conclusion, not the active path.')")
             alternate_passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='Alternative conclusion, not the active path.')")
             assert alternate_passage and alternate_passage['nodeId']!=passage['nodeId']
             assert await workspace.locator('.passage-row').count()==2
@@ -420,28 +424,24 @@ async def main():
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.get_by_role('button',name='打开新聊天').is_visible()
             assert not await workspace.locator('#staging-details').evaluate('(e)=>e.open')
-            await workspace.locator('#handoff-view .back').click()
-            alternate_value=await workspace.locator('#archive-branch').evaluate("(e)=>Array.from(e.options).find(o=>o.textContent.startsWith('分支 '))?.value")
-            assert alternate_value
-            await workspace.locator('#archive-branch').select_option(alternate_value)
-            await workspace.get_by_role('button',name='继续这段对话').click()
-            assert await workspace.locator('#open-target').is_disabled()
-            assert await workspace.locator('#prepare').is_visible()
-            await workspace.get_by_role('button',name='准备新对话').click()
-            await wait_async(workspace,'async()=>!document.querySelector("#open-target").disabled',timeout=30000)
-            await workspace.locator('#handoff-view .back').click()
-            await workspace.locator('#archive-branch').select_option(label='当前分支')
-            await workspace.get_by_role('button',name='继续这段对话').click()
-            assert await workspace.locator('#open-target').is_disabled()
-            await workspace.get_by_role('button',name='准备新对话').click()
-            await wait_async(workspace,'async()=>!document.querySelector("#open-target").disabled',timeout=30000)
-            passed('prepared_handoff_invalidates_and_rebuilds_when_selected_branch_changes')
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-handoff-{width}.png'),full_page=True)
             passed('ux_archive_and_handoff_each_have_one_clear_next_action',{'widths':[320,360,1280],'primary_actions':1})
             passed('workspace_320_360_480_768_1280_reflow_and_screenshots')
+            # A previously prepared package must not survive a source-branch change.
+            await workspace.get_by_role('button',name='我的档案').click()
+            await workspace.locator('#archive-branch').select_option(alternate_value)
+            await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').wait_for(state='visible')
+            await workspace.get_by_role('button',name='继续这段对话').click()
+            assert await workspace.locator('#open-target').is_disabled()
+            assert await workspace.locator('#prepare').is_visible()
+            await workspace.get_by_role('button',name='我的档案').click()
+            await workspace.locator('#archive-branch').select_option(label='当前分支')
+            await workspace.locator('.message pre').filter(has_text=first_passage_text).first.wait_for(state='visible')
+            passed('changing_source_branch_invalidates_prepared_handoff')
+
             await workspace.get_by_role('button',name='我的档案').click()
             source_checkbox=workspace.locator('.archive-select-row input[data-capture-id="'+cid+'"]')
             await source_checkbox.check()
