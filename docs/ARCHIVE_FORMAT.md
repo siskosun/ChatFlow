@@ -82,3 +82,7 @@ ZIP/ZIP64 兼容不等于允许任意大小的档案恢复。为了防止用户�
 - 逐块解压时再次限制实际输出大小不得超过声明值与上述上限。
 
 不满足上述条件的 ZIP 必须在持久化恢复之前拒绝。正常 ZIP 导出未按这些数值限制，**因此超限的大档案可能可以导出、却无法由当前 0.1 导入**；验收时需如实记录，不得称无限大归档已可靠恢复。未来支持大档案需要分块解压并带配额检查地事务化写入 IndexedDB，不可简单提高内存数组阈值。
+
+## Optional Saved Passages metadata (0.2)
+
+ChatFlow archive/1 may include an optional top-level `passages` array in `manifest.json`. Archives created before 0.2 omit it and remain valid. Each passage is separately source-bound to the archive ID, conversation ID, message ID, branch node ID, canonical snapshot SHA-256 and message SHA-256. It also carries excerpt text, prefix/suffix, offsets, occurrence, color and anchored/ambiguous/stale state. Restore validates all references and limits before importing the records under the new local capture ID. Passage metadata never modifies `conversation.json` and never changes attachment bytes. See [SAVED_PASSAGES.md](SAVED_PASSAGES.md).
