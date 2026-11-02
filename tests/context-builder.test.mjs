@@ -133,3 +133,13 @@ test('passage-only context respects active-branch scope unless all branches are 
  const all=T.compile([{captureId:'cap-alt',snapshot:s,assetRows:[],passages:[passage]}],{passageMode:'passages',allBranches:true});
  assert.equal(all.manifest.passages.length,1);
 });
+
+test('Context Builder uses an explicitly selected accessible branch and records its node path',()=>{
+ const s=source(),alt=s.messages.find(m=>m.text==='alternative branch');
+ const path=['n0','n1','n2','n3','n4','n5','alt'];
+ const out=T.compile([{captureId:'cap-branch',snapshot:s,activeNodes:path,assetRows:[]}]);
+ assert.equal(out.manifest.sources[0].branchMode,'selected_branch');
+ assert.deepEqual(out.manifest.sources[0].branchNodeIds,path);
+ assert.equal(out.parts.join('').includes('alternative branch'),true);
+ assert.equal(out.parts.join('').includes('message 0'),true);
+});
