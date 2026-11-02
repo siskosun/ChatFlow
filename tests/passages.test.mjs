@@ -60,3 +60,9 @@ test('rejects invalid offsets, wrong selected text and message identity outside 
  assert.throws(()=>P.create({captureId:'capture-1',snapshot:x.snapshot,message:{...x.message,nodeId:'foreign-node'},text:'important',startOffset:6,endOffset:15}),/PASSAGE_MESSAGE_NOT_IN_SNAPSHOT/);
  assert.throws(()=>P.create({captureId:'capture-1',snapshot:x.snapshot,message:x.message,text:'important',startOffset:-1,endOffset:8}),/INVALID_PASSAGE_RANGE/);
 });
+
+test('records overlapping repeated occurrences without skipping the selected offset',()=>{
+ const s=snapshot('aaaa'),message=s.messages[0],record=P.create({captureId:'capture-1',snapshot:s,message,text:'aa',startOffset:1,endOffset:3});
+ assert.equal(record.occurrence,1);
+ assert.equal(P.resolve(record,snapshot('aaaa')).startOffset,1);
+});
