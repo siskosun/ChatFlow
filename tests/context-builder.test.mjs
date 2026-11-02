@@ -17,7 +17,8 @@ function source(count=6){
 }
 test('context compiler defaults to active branch and preserves source references',()=>{
  const s=source(),out=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[{key:'a1',state:'saved',sha256:'a'.repeat(64),size:12},{key:'a2',state:'unavailable',reason:'HTTP_404'}]}]);
- assert.equal(out.manifest.sources.length,1);assert.equal(out.manifest.sources[0].branchMode,'captured_active_branch');
+ assert.equal(out.manifest.sources.length,1);assert.equal(out.manifest.sources[0].branchMode,'selected_branch');
+ assert.deepEqual(out.manifest.sources[0].branchNodeIds,s.active);
  assert.equal(out.parts.join('').includes('alternative branch'),false);assert.equal(out.parts.join('').includes('message 4'),true);
  assert.equal(out.manifest.assets.length,2);assert.equal(out.manifest.assets[1].reason,'HTTP_404');
 });
