@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-for(const name of ['tl-core.js','tl-context.js'])vm.runInThisContext(fs.readFileSync(path.join(root,'src',name),'utf8'),{filename:name});
+for(const name of ['tl-core.js','tl-passages.js','tl-context.js'])vm.runInThisContext(fs.readFileSync(path.join(root,'src',name),'utf8'),{filename:name});
 const C=globalThis.TLCore,T=globalThis.TLContext;
 function source(count=6){
  const mapping=Object.create(null);
@@ -88,4 +88,32 @@ test('conflicting sizes for the same content hash fail closed',()=>{
   {captureId:'cap-a',snapshot:s1,assetRows:[{key:'a1',state:'saved',sha256:'a'.repeat(64),size:12}]},
   {captureId:'cap-b',snapshot:s2,assetRows:[{key:'a1',state:'saved',sha256:'a'.repeat(64),size:13}]}
  ],{includeSavedAssets:true}),/CONFLICTING_ASSET_HASH_SIZE/);
+});
+
+test('passage-only context includes only explicitly selected anchored excerpts and complete provenance',()=>{
+ const s=source(),message=s.messages.find(m=>m.id==='m2'),text='unique phrase 2',start=message.text.indexOf(text);
+ const passage=TLPassages.create({captureId:'cap-1',snapshot:s,message,text,startOffset:start,endOffset:start+text.length});
+ const out=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[],passages:[passage]}],{passageMode:'passages'});
+ assert.equal(out.manifest.options.passageMode,'passages');
+ assert.equal(out.manifest.passages.length,1);
+ assert.equal(out.manifest.passages[0].passageId,passage.passageId);
+ assert.ok(out.parts.join('').includes(text));
+ assert.ok(out.parts.join('').includes('snapshot_sha256='+passage.snapshotHash));
+ assert.equal(out.parts.join('').includes('message 0'),false);
+ assert.equal(out.manifest.sources[0].messageIds.length,0);
+});
+test('mixed context retains full messages and separately bounded passage excerpts',()=>{
+ const s=source(),message=s.messages.find(m=>m.id==='m2'),text='unique phrase 2',start=message.text.indexOf(text);
+ const passage=TLPassages.create({captureId:'cap-1',snapshot:s,message,text,startOffset:start,endOffset:start+text.length});
+ const out=T.compile([{captureId:'cap-1',snapshot:s,assetRows:[],passages:[passage]}],{passageMode:'mixed'});
+ assert.ok(out.parts.join('').includes('message 0'));
+ assert.ok(out.parts.join('').includes('### 重点片段 '+passage.passageId));
+ assert.equal(out.manifest.passages.length,1);
+});
+test('passage context refuses ambiguous or stale anchors instead of guessing',()=>{
+ const s=source(),message=s.messages.find(m=>m.id==='m2'),text='unique phrase 2',start=message.text.indexOf(text);
+ const passage=TLPassages.create({captureId:'cap-1',snapshot:s,message,text,startOffset:start,endOffset:start+text.length});
+ const changed=structuredClone(s);changed.messages.find(m=>m.id==='m2').text='replacement';
+ assert.throws(()=>T.compile([{captureId:'cap-1',snapshot:changed,assetRows:[],passages:[passage]}],{passageMode:'passages'}),/CONTEXT_PASSAGE_NOT_ANCHORED/);
+ assert.throws(()=>T.compile([{captureId:'cap-1',snapshot:s,assetRows:[],passages:[]}],{passageMode:'passages'}),/EMPTY_CONTEXT_SOURCE|NO_SELECTED_CONTEXT_PASSAGES/);
 });
