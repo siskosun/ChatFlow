@@ -371,6 +371,22 @@ async def main():
             assert await workspace.locator('.passage-row').count()==1
             assert await workspace.evaluate("CSS.highlights.has('chatflow-saved-yellow')")
             passed('saved_passage_select_persist_restore_highlight_and_source_identity',{'passageId':passage['passageId'],'messageId':passage['messageId']})
+            branch_select=workspace.locator('#archive-branch')
+            assert await branch_select.locator('option').count()>=2
+            alternate_value=await branch_select.evaluate("(e)=>Array.from(e.options).find(o=>o.textContent.startsWith('分支 '))?.value")
+            assert alternate_value, 'accessible alternate branch option missing'
+            await branch_select.select_option(alternate_value)
+            await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').wait_for(state='visible')
+            await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').evaluate("""pre=>{const text=pre.textContent,needle='ALTERNATE_BRANCH',start=text.indexOf(needle);const range=document.createRange();range.setStart(pre.firstChild,start);range.setEnd(pre.firstChild,start+needle.length);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);pre.dispatchEvent(new MouseEvent('mouseup',{bubbles:true}));}""")
+            await workspace.get_by_role('button',name='保存选中片段').click()
+            await workspace.wait_for_function("async()=> (await TLStore.allPassages()).some(p=>p.text==='ALTERNATE_BRANCH')")
+            alternate_passage=await workspace.evaluate("async()=>(await TLStore.allPassages()).find(p=>p.text==='ALTERNATE_BRANCH')")
+            assert alternate_passage and alternate_passage['nodeId']!=passage['nodeId']
+            assert await workspace.locator('.passage-row').count()==2
+            await workspace.locator('.passage-row').nth(1).get_by_role('button',name='跳转原文').click()
+            assert await workspace.locator('.message pre').filter(has_text='ALTERNATE_BRANCH').is_visible()
+            await workspace.locator('#archive-branch').select_option(label='当前分支')
+            passed('archive_branch_selector_saves_and_navigates_passages_across_accessible_branches')
             await workspace.get_by_role('button',name='继续这段对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
