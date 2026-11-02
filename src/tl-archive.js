@@ -133,13 +133,15 @@
   C.check(Array.isArray(rows)&&rows.length<=5000,'INVALID_ARCHIVE_PASSAGES');
   const ids=new Set(),messages=new Set(snapshot.messages.map(m=>m.id+'\\u0000'+m.nodeId));
   return rows.map(p=>{
-   C.check(C.record(p)&&p.schema==='chatflow.passage/1'&&typeof p.passageId==='string'&&p.passageId.length>0&&!ids.has(p.passageId),'INVALID_ARCHIVE_PASSAGE');
+   C.check(C.record(p)&&p.schema==='chatflow.passage/1'&&typeof p.passageId==='string'&&p.passageId.length>0&&p.passageId.length<=100&&!ids.has(p.passageId),'INVALID_ARCHIVE_PASSAGE');
    ids.add(p.passageId);
-   C.check(p.captureId===archiveId&&p.conversationId===snapshot.source.conversationId&&typeof p.messageId==='string'&&typeof p.nodeId==='string'&&messages.has(p.messageId+'\\u0000'+p.nodeId),'INVALID_ARCHIVE_PASSAGE_SOURCE');
+   C.check(p.captureId===archiveId&&p.conversationId===snapshot.source.conversationId&&typeof p.messageId==='string'&&p.messageId.length>0&&p.messageId.length<=500&&typeof p.nodeId==='string'&&p.nodeId.length>0&&p.nodeId.length<=500&&messages.has(p.messageId+'\\u0000'+p.nodeId),'INVALID_ARCHIVE_PASSAGE_SOURCE');
+   C.check(p.originPassageId==null||(typeof p.originPassageId==='string'&&p.originPassageId.length<=100),'INVALID_ARCHIVE_PASSAGE_ORIGIN_ID');
    C.check(/^[a-f0-9]{64}$/.test(p.snapshotHash||'')&&/^[a-f0-9]{64}$/.test(p.messageHash||''),'INVALID_ARCHIVE_PASSAGE_HASH');
-   C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=5000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset,'INVALID_ARCHIVE_PASSAGE_RANGE');
+   C.check(typeof p.text==='string'&&p.text.length>0&&p.text.length<=5000&&Number.isSafeInteger(p.startOffset)&&Number.isSafeInteger(p.endOffset)&&p.startOffset>=0&&p.endOffset>p.startOffset&&p.endOffset-p.startOffset===p.text.length&&Number.isSafeInteger(p.occurrence)&&p.occurrence>=0,'INVALID_ARCHIVE_PASSAGE_RANGE');
    C.check(['yellow','green','blue','pink'].includes(p.color)&&['anchored','ambiguous','stale'].includes(p.status),'INVALID_ARCHIVE_PASSAGE_STATE');
    C.check(typeof p.prefix==='string'&&p.prefix.length<=160&&typeof p.suffix==='string'&&p.suffix.length<=160,'INVALID_ARCHIVE_PASSAGE_CONTEXT');
+   C.check(typeof p.role==='string'&&p.role.length<=30&&Number.isFinite(p.createdAt)&&Number.isFinite(p.updatedAt),'INVALID_ARCHIVE_PASSAGE_METADATA');
    const resolved=globalThis.TLPassages?.resolve?.(p,snapshot);
    return{...p,captureId:undefined,status:resolved?.status||p.status,reason:resolved?.reason||p.reason||null};
   });
