@@ -97,6 +97,39 @@ CASES=r'''async()=>{
  await S.set('files',{sha256:d.asset.sha256,blob:new Blob([new Uint8Array(bytes.length)]),size:bytes.length});
  await rejects(()=>S.verifiedBlob(d.asset.sha256),'LOCAL_FILE_HASH_MISMATCH');
  report.push({name:'same_size_local_corruption_is_rejected_before_upload',result:'pass'});
+ // Store writes require exact saved source hashes, not just any text match.
+ const safeId=await save('validation',new TextEncoder().encode('valid-source'));
+ const safeSnapshot=(await S.get('captures',safeId.id)).snapshot,m=safeSnapshot.messages[0];
+ const safePassage=TLPassages.create({captureId:safeId.id,snapshot:safeSnapshot,message:m,text:'synthetic',startOffset:0,endOffset:9});
+ await rejects(()=>S.putPassage({...safePassage,messageHash:'0'.repeat(64)}),'PASSAGE_MESSAGE_HASH_MISMATCH');
+ check((await S.passages(safeId.id)).length===0,'Forged passage persisted');
+ report.push({name:'forged_passage_message_hash_rejected_without_write',result:'pass'});
+ // A rejected import must not leave verified first blobs behind.
+ const goodBlob=new Blob(['uncommitted-first-import-payload']),goodHash=await C.hashBlob(goodBlob);
+ const filesBefore=(await S.all('files')).length,capturesBefore=(await S.all('captures')).length;
+ await rejects(()=>S.importCapture(safeSnapshot,[],new Map([[goodHash,goodBlob],['f'.repeat(64),new Blob(['wrong'])]]),'ready'),'IMPORT_HASH_MISMATCH');
+ check((await S.all('files')).length===filesBefore&&(await S.all('captures')).length===capturesBefore&&!await S.get('files',goodHash),'Failed import left partial data');
+ report.push({name:'failed_import_leaves_no_partial_blobs_or_capture',result:'pass'});
+ // Multiple references to identical bytes are valid and restore once.
+ const dupId=await save('sharedrefs',new TextEncoder().encode('two-references-one-file'));
+ const dupCapture=await S.get('captures',dupId.id),first=(await S.assets(dupId.id))[0],second={...first,key:'second-reference',name:'second-copy.bin'};
+ dupCapture.snapshot.assets.push({...dupCapture.snapshot.assets[0],key:second.key,name:second.name});
+ dupCapture.snapshot.messages[0].assetKeys.push(second.key);
+ await S.set('captures',dupCapture);await S.set('assets',second);
+ const dupArchive=await TLArchive.exportCapture(dupId.id),dupRestored=await TLArchive.restore(dupArchive.blob);
+ check((await S.assets(dupRestored)).filter(x=>x.state==='saved').length===2,'Shared asset references failed to restore');
+ check((await TLArchive.readZip(dupArchive.blob)).has('assets/'+first.sha256+'.bin'),'Shared payload missing');
+ report.push({name:'duplicate_content_addressed_asset_references_roundtrip',result:'pass'});
+ // A removed source remains an explicitly stale quotation through backup.
+ await S.putPassage(safePassage);
+ const orphan=await S.get('captures',safeId.id);
+ orphan.snapshot.messages[0]={...orphan.snapshot.messages[0],id:'new-source-message'};
+ orphan.snapshot.nodes.n.messageId='new-source-message';orphan.snapshot.assets=[];orphan.snapshot.messages[0].assetKeys=[];
+ // Avoid orphan asset references in this synthetic source: use a text-only copy.
+ const textOnly=await S.importCapture(orphan.snapshot,[],new Map(),'ready','all',[{...safePassage,status:'stale',reason:'MESSAGE_NOT_FOUND'}]);
+ const orphanZip=await TLArchive.exportCapture(textOnly),orphanRestore=await TLArchive.restore(orphanZip.blob);
+ check((await S.passages(orphanRestore))[0].status==='stale','Backup falsely revived a removed source');
+ report.push({name:'missing_source_passage_remains_stale_across_backup',result:'pass'});
  return report;
 }'''
 
@@ -119,7 +152,7 @@ async def main():
             print('PASS indexeddb_v1_to_v2_migration_preserves_existing_records',flush=True)
             ready=await page.evaluate('chrome.runtime.sendMessage({type:"tl:sessions"})')
             assert ready['ok'],ready
-            result['cases']=await page.evaluate(CASES)
+            result['cases']=[{'name':'indexeddb_v1_to_v2_migration_preserves_existing_records','result':'pass'}]+await page.evaluate(CASES)
             result['status']='pass'
             for case in result['cases']:print('PASS',case['name'],flush=True)
         except Exception as e:
