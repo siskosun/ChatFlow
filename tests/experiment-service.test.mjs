@@ -64,6 +64,25 @@ function harness(){
  return{service,api,DB,records,session,tabs,created,updated,sent,captureCalls,pageSender,msg,sourceSender,prefill,observeSend,navigate};
 }
 
+test('ordinary conversation pages without a pending experiment handoff do not raise NOT_NEW_NORMAL_CHAT',async()=>{
+ const h=harness(),url='https://chatgpt.com/c/existing_conversation_12345';
+ h.tabs.set(88,{id:88,url,documentId:'doc-88'});
+ const sender={id:'chatflow-test',url,tab:{id:88,url,windowId:1},documentId:'doc-88'};
+ const result=await h.service.handle({type:'tl:claimExperimentHandoff'},sender,h.api,{});
+ assert.equal(result,null);
+});
+test('a pending experiment handoff remains restricted to a normal new-chat page',async()=>{
+ const h=harness();await h.msg('FF_SET_ENABLED',{enabled:true,ack:'local-only-no-send'});
+ const created=await h.msg('FF_CREATE',{operationId:'create_target_guard',w0:'W',p:'P'});
+ const launch=await h.msg('FF_LAUNCH',{experimentId:created.id,operationId:'launch_target_guard'});
+ const tabId=launch.tabIds.A,tab=h.tabs.get(tabId),url='https://chatgpt.com/c/existing_conversation_12345';
+ tab.url=url;
+ const sender={...h.sourceSender(tabId),url,tab:{...h.sourceSender(tabId).tab,url}};
+ await assert.rejects(h.service.handle({type:'tl:claimExperimentHandoff'},sender,h.api,{}),/NOT_NEW_NORMAL_CHAT/);
+ tab.url='https://chatgpt.com/';
+ const claimed=await h.service.handle({type:'tl:claimExperimentHandoff'},h.sourceSender(tabId),h.api,{});
+ assert.equal(claimed.branch,'A');
+});
 test('K=4 experiment freezes shared input, opens inactive tabs and only prefills',async()=>{
  const h=harness();
  await assert.rejects(h.msg('FF_CREATE',{operationId:'create_00001',w0:'W0',p:'P'}),/EXPERIMENTS_DISABLED/);
