@@ -211,3 +211,14 @@ PR 文档提交 `e1a2270df51fa79905f3b747f1bc1c347c15e819` 不改变运行时代
 **最新已通过工程自动化的运行时代码 HEAD：** `36012a252fba5ca694629f2b79184577d0e90283`。GitHub Actions [run #41402106468](https://github.com/siskosun/ChatFlow/actions/runs/41402106468) 的 `verify` 与 `windows-baseline` 均为 completed/success，Node **99/99**、Chromium MV3 合成端到端 **30/30**、IndexedDB 边界 **7/7**，K=2/3/4 完整人工发送模拟—采集—盲测对照均通过。候选包 artifact `chatflow-candidate-36012a252fba5ca694629f2b79184577d0e90283`，ID `13121289563`。上述均非真实账号验收。
 
 **后续仍未闭合**：新的独立终审、真实已登录 Edge/ChatGPT 账号保存与恢复、真实附件下载/上传、5 名独立目标用户任务测试、真人读屏和 L3 人工 Stop Gate。CF-03 与 CF-06 维持 in_review；CF-08 blocked，CF-09 in_review，CF-10 planned。继续保持 PR Draft，不合并、不发布。
+
+## 11. 第二轮 P1 反证强化与完整 CI（2026-11-02）
+
+再次审查发现，“观察到手动发送意图之后的第一个会话 URL”仍可能是用户立即跳转到的旧聊天。如果该旧聊天只有一条与冻结输入完全一致的用户消息，原本的完成条件仍可能误归属。修复新增**消息时间证据**：原始会话快照中唯一用户消息的服务端创建时间必须与本次人工发送意图时间相容（允许 2 分钟设备/服务端时钟偏差）；缺少可信时间、旧消息或时间冲突，一律为 unknown，不得判定 done。该校验仅减少误归属风险，仍不声称已经证明真实发送成功。
+
+在原有错误会话、文档切换、未知发送和压缩炸弹测试之外，补充“旧会话包含完全相同冻结输入但创建时间很早”的负向用例。浏览器合成夹具改为使用实际新建消息时间，不通过放宽状态门槛使测试变绿。
+
+准确运行时代码 HEAD：`0fa3e8447a3d00553b217f06d4c445347acba4c4`。
+对应 [GitHub Actions #41402826380](https://github.com/siskosun/ChatFlow/actions/runs/41402826380)：Ubuntu `verify`、Windows `windows-baseline` 均 completed/success；**Node 101/101、Chromium MV3 合成 E2E 30/30、IndexedDB 边界 7/7**。K=2、K=3、K=4 全部完成手动发送模拟、读取结果和盲测。候选 artifact ID `13122281915`，仅可用于独立配置下进一步验收，不得作为生产正式版。
+
+本轮未执行真实已登录 ChatGPT、五名独立用户、真人读屏、独立终审及 L3 Stop Gate；CF-03/06 继续 in_review、CF-08 blocked、CF-09 in_review、CF-10 planned。前述历史 SHA 的自动化收据不代表未来提交已验证。
