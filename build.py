@@ -1,4 +1,4 @@
-"""Build ChatFlow 0.1 review candidates, not a production release."""
+"""Build ChatFlow 0.2 engineering candidates, not a production release."""
 import hashlib
 import json
 import os
@@ -15,6 +15,7 @@ RUNTIME_FILES = [
     "src/tl-provider.js",
     "src/tl-capture.js",
     "src/tl-inject.js",
+    "src/tl-passages.js",
     "src/tl-store.js",
     "src/tl-archive.js",
     "src/tl-context.js",
@@ -24,7 +25,7 @@ RUNTIME_FILES = [
     "src/tl-service.js",
 ]
 manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
-assert manifest["version"] == "0.1"
+assert manifest["version"] == "0.2"
 assert manifest["manifest_version"] == 3
 assert "<all_urls>" not in json.dumps(manifest)
 assert manifest["background"]["service_worker"] == "src/tl-service.js"
@@ -66,14 +67,14 @@ for browser in ("chrome", "edge"):
             "schema": 1,
             "product": "ChatFlow",
             "source_commit": commit,
-            "version": "0.1",
+            "version": "0.2",
             "status": "candidate_real_account_acceptance_pending",
             "files": hashes,
         }, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
-    archive = DIST / f"chatflow-{browser}-0.1-candidate.zip"
+    archive = DIST / f"chatflow-{browser}-0.2-candidate.zip"
     with zipfile.ZipFile(
         archive, "w", zipfile.ZIP_DEFLATED, allowZip64=True, compresslevel=6
     ) as z:
@@ -89,7 +90,7 @@ for browser in ("chrome", "edge"):
     with zipfile.ZipFile(archive) as z:
         assert z.testzip() is None
         packaged_manifest = json.loads(z.read("manifest.json"))
-        assert packaged_manifest["version"] == "0.1"
+        assert packaged_manifest["version"] == "0.2"
         assert "workspace/index.html" in z.namelist()
         assert "LICENSE" in z.namelist()
         assert "THIRD_PARTY_NOTICES.md" in z.namelist()
