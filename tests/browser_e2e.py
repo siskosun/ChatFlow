@@ -168,7 +168,7 @@ async def main():
             assert await workspace.locator('#status').get_attribute('role')=='status'
             assert await workspace.get_by_label('选择要保存的对话').count()==1
             assert await workspace.get_by_label('文件保存范围').count()==1
-                        assert await workspace.locator('#asset-scope').input_value()=='all'
+            assert await workspace.locator('#asset-scope').input_value()=='all'
             assert await workspace.locator('#asset-scope').locator('option').count()==2
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
