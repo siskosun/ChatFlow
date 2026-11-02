@@ -170,11 +170,36 @@
   }
   await api.storage.session.remove(key);
  }
+ async function recover(api,store){
+  for(const row of await DB.list()){
+   for(const [branch,state] of Object.entries(row.branches||{})){
+    const attempt=state.attempts.at(-1);if(!attempt||attempt.status!=='pending')continue;
+    const tabId=attempt.evidence?.tabId,bind=Number.isInteger(tabId)?await binding(api,tabId):null;
+    if(!bind||bind.experimentId!==row.id||bind.branch!==branch||bind.attemptId!==attempt.id){
+     await advance({experimentId:row.id,branch,attemptId:attempt.id,operationId:attempt.operationId,tabId},
+      {status:'unknown',phase:attempt.phase,operationId:attempt.operationId+'_'+branch+'_binding_lost',reason:'experiment tab binding unavailable after browser restart; no replay'});
+     continue;
+    }
+    try{await api.tabs.get(tabId);}catch{
+     await advance(bind,{status:'unknown',phase:attempt.phase,operationId:bind.operationId+'_'+branch+'_tab_missing',reason:'experiment branch tab no longer exists; no replay'});continue;
+    }
+    const captureId=attempt.evidence?.captureId;
+    if(captureId){
+     const capture=await store.get('captures',captureId);
+     if(capture&&['ready','partial'].includes(capture.state)){
+      await onCaptureFinished({captureId,tabId},store,api);
+     }else if(!capture||['interrupted','error','cancelled'].includes(capture.state)){
+      await advance(bind,{status:'unknown',phase:attempt.phase,operationId:bind.operationId+'_'+branch+'_capture_interrupted',reason:'branch capture did not finish before worker/browser restart; no replay'});
+     }
+    }
+   }
+  }
+ }
  async function onTabRemoved(tabId,api){
   const bind=await binding(api,tabId);if(!bind)return;
   const row=await DB.read(bind.experimentId),attempt=row?.branches?.[bind.branch]?.attempts.find(a=>a.id===bind.attemptId);
   if(attempt?.status==='pending')await advance(bind,{status:'unknown',phase:attempt.phase,operationId:bind.operationId+'_'+bind.branch+'_tab_closed',reason:'branch tab closed before confirmed completion; no replay'});
   await clearBinding(api,tabId);
  }
- globalThis.ChatFlowExperimentService=Object.freeze({handle,onTabUpdated,onCaptureFinished,onTabRemoved});
+ globalThis.ChatFlowExperimentService=Object.freeze({handle,onTabUpdated,onCaptureFinished,onTabRemoved,recover});
 })();
