@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 import {webcrypto} from 'node:crypto';
 import Core from '../src/experiment-core.js';
 
@@ -32,7 +34,7 @@ function harness(){
  const TLCore={chatUrl(raw,{target=false}={}){const u=new URL(raw);if(target){assert.equal(u.pathname,'/');return{origin:u.origin,url:u.href,conversationId:null};}const m=u.pathname.match(/\/c\/([^/]+)/);if(!m)throw Error('NO_CONVERSATION_ID');return{origin:u.origin,url:u.origin+u.pathname,conversationId:m[1]};}};
  const context=vm.createContext({chrome:api,globalThis:null,ChatFlowExperimentCore:Core,ChatFlowExperimentDB:DB,TLCore,crypto:webcrypto,structuredClone,Date,Promise,URL,TextEncoder,Error,console});
  context.globalThis=context;
- vm.runInContext(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname),'../src/experiment-service.js'),'utf8'),context);
+ vm.runInContext(fs.readFileSync(path.join(root,'src/experiment-service.js'),'utf8'),context);
  const service=context.ChatFlowExperimentService;
  const pageSender={id:'chatflow-test',url:'chrome-extension://chatflow-test/workspace/experiments.html'};
  const startCapture=async({tabId})=>({captureId:'capture-'+tabId});
