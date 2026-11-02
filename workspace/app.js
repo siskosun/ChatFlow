@@ -122,6 +122,7 @@
    check.addEventListener('change',()=>{check.checked?contextSelectedPassageIds.add(passage.passageId):contextSelectedPassageIds.delete(passage.passageId);});
    const sourceChoice=choices.find(x=>x.path.includes(passage.nodeId));
    const info=node('div');info.append(node('strong',passage.text),node('small',(resolved.status==='anchored'?'定位正常':resolved.status==='ambiguous'?'定位有歧义':'来源已变化')+' · '+passage.role+' · '+passage.messageId+(sourceChoice?' · '+sourceChoice.label:'')));
+   info.append(node('small','创建：'+new Date(passage.createdAt).toLocaleString()+(passage.reanchoredAt?' · 最近重新定位：'+new Date(passage.reanchoredAt).toLocaleString():'')));
    const controls=node('div',null,'actions'),colorSelect=document.createElement('select');
    colorSelect.setAttribute('aria-label','重点片段颜色');
    for(const color of ['yellow','green','blue','pink']){const option=new Option(({yellow:'黄色',green:'绿色',blue:'蓝色',pink:'粉色'})[color],color);colorSelect.add(option);}
