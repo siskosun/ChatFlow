@@ -157,10 +157,10 @@
  }
  async function importCapture(snapshotData,items,blobs,state,saveScope='all',passageRows=[]){
   const captureId=C.id();for(const[sha,blob]of blobs){C.check(await C.hashBlob(blob)===sha,'IMPORT_HASH_MISMATCH');await putBlob(blob);}
-  const snapshotCopy=C.persistedSnapshot(snapshotData);
+  const snapshotCopy=C.persistedSnapshot(snapshotData),importedPassages=passageRows.map(p=>({...p,originPassageId:p.originPassageId||p.passageId,passageId:C.id(),captureId}));
   await transaction(['captures','assets','passages'],'readwrite',s=>{
    s.captures.put({id:captureId,snapshot:snapshotCopy,state,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),imported:true,live:false,saveScope});for(const a of items)s.assets.put({...a,captureId});
-   for(const p of passageRows)s.passages.put({...p,captureId});
+   for(const p of importedPassages)s.passages.put(p);
   });return captureId;
  }
  globalThis.TLStore=Object.freeze({open,get,all,set,assets,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
