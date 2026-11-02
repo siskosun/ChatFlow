@@ -66,3 +66,19 @@ test('records overlapping repeated occurrences without skipping the selected off
  assert.equal(record.occurrence,1);
  assert.equal(P.resolve(record,snapshot('aaaa')).startOffset,1);
 });
+
+test('same-message manual reselection creates a new anchor while retaining the passage identity',()=>{
+ const x=make(),changed=snapshot('The source message was edited and the previous excerpt removed.');
+ assert.equal(P.resolve(x.record,changed).status,'stale');
+ const message=changed.messages[0],text='source message',start=message.text.indexOf(text);
+ const repaired=P.create({passageId:x.record.passageId,captureId:x.record.captureId,snapshot:changed,message,text,startOffset:start,endOffset:start+text.length});
+ assert.equal(repaired.passageId,x.record.passageId);
+ assert.equal(P.resolve(repaired,changed).status,'anchored');
+});
+test('a matching phrase in a different branch node cannot satisfy a passage anchor',()=>{
+ const x=make(),other=structuredClone(x.snapshot);
+ other.messages.push({...other.messages[0],id:'other-message',nodeId:'other-node'});
+ other.nodes.otherNode={parent:null,children:[],message:null};
+ const record={...x.record,nodeId:'other-node'};
+ assert.equal(P.resolve(record,other).reason,'DUPLICATE_MESSAGE_IDENTITY');
+});
