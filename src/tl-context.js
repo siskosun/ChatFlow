@@ -3,11 +3,12 @@
  'use strict';
  const C=globalThis.TLCore;
  const check=C.check;
- function compile(sources,{allBranches=false,maxPartChars=120000,includeSavedAssets=false,query='',tokenBudget=100000}={}){
+ function compile(sources,{allBranches=false,maxPartChars=120000,includeSavedAssets=false,query='',tokenBudget=100000,passageMode='messages'}={}){
   check(Array.isArray(sources)&&sources.length>0&&sources.length<=100,'INVALID_CONTEXT_SOURCES');
   check(Number.isSafeInteger(maxPartChars)&&maxPartChars>=1000&&maxPartChars<=500000,'INVALID_CONTEXT_PART_SIZE');
   check(typeof query==='string'&&query.length<=500,'INVALID_CONTEXT_QUERY');
   check(Number.isSafeInteger(tokenBudget)&&tokenBudget>=1000&&tokenBudget<=1000000,'INVALID_CONTEXT_TOKEN_BUDGET');
+  check(['messages','passages','mixed'].includes(passageMode),'INVALID_CONTEXT_PASSAGE_MODE');
   const terms=query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const seen=new Set(),seenMessages=new Map(),sourceRecords=[],assetRecords=[],sections=[],duplicateMessages=[],conflictingVersions=[];
   for(const source of sources){
@@ -17,9 +18,18 @@
    check(snapshot?.schema==='threadline.snapshot/1'&&Array.isArray(snapshot.messages)&&Array.isArray(snapshot.active),'INVALID_CONTEXT_SNAPSHOT');
    const active=new Set(snapshot.active);
    const branchMessages=allBranches?snapshot.messages:snapshot.messages.filter(m=>active.has(m.nodeId));
-   const selected=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
-   check(selected.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
-   const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set(selected.map(m=>m.nodeId));
+   const messageSelection=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
+   const selected=passageMode==='passages'?[]:messageSelection;
+   const selectedPassages=[];
+   for(const passage of source.passages||[]){
+    check(passage.captureId===source.captureId&&passage.conversationId===snapshot.source.conversationId,'INVALID_CONTEXT_PASSAGE_SOURCE');
+    const resolved=globalThis.TLPassages?.resolve?.(passage,snapshot);
+    check(resolved?.status==='anchored','CONTEXT_PASSAGE_NOT_ANCHORED');
+    selectedPassages.push({passage,resolved});
+   }
+   check(selected.length>0||selectedPassages.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
+   if(passageMode==='passages')check(selectedPassages.length>0,'NO_SELECTED_CONTEXT_PASSAGES');
+   const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set([...selected.map(m=>m.nodeId),...selectedPassages.map(x=>x.passage.nodeId)]);
    const rendered=[],sourceDuplicates=[],sourceConflicts=[];
    const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(snapshot))).hex();
    const sourceIndex=sourceRecords.length;
@@ -50,6 +60,7 @@
     query,
     messageIds:[...selectedIds],
     nodeIds:[...selectedNodes],
+    passageIds:selectedPassages.map(x=>x.passage.passageId),
     duplicateMessageIds:sourceDuplicates.map(x=>x.messageId),
     conflictingMessageIds:sourceConflicts.map(x=>x.messageId)
    });
@@ -57,8 +68,10 @@
    if(rendered.length){
     const view={...snapshot,messages:rendered,active:rendered.map(m=>m.nodeId)};
     text=C.history(view,{allBranches:true});
-   }else text='所选消息与之前来源完全重复，已去重；来源快照仍保留在 context manifest。';
-   sections.push('# 来源 '+(sourceIndex+1)+'：'+snapshot.title+'\n\n'+text);
+   }else if(selected.length)text='所选消息与之前来源完全重复，已去重；来源快照仍保留在 context manifest。';
+   const passageText=selectedPassages.map(({passage})=>'### 重点片段 '+passage.passageId+'\n\n'+passage.text+'\n\n来源：conversation='+passage.conversationId+'；message='+passage.messageId+'；node='+passage.nodeId+'；capture='+passage.captureId+'；snapshot_sha256='+passage.snapshotHash+'；message_sha256='+passage.messageHash+'；offset='+passage.startOffset+'-'+passage.endOffset).join('\n\n');
+   const combined=[text,passageText].filter(Boolean).join('\n\n');
+   sections.push('# 来源 '+(sourceIndex+1)+'：'+snapshot.title+'\n\n'+combined);
    const rows=Array.isArray(snapshot.assets)?snapshot.assets:[];
    for(const asset of rows){
     const inScope=selectedNodes.has(asset.nodeId);
@@ -91,12 +104,13 @@
   const missing=assetRecords.filter(a=>a.selectedBranch&&!a.includeBytes&&a.state!=='excluded');
   const excluded=assetRecords.filter(a=>a.selectedBranch&&a.state==='excluded');
   const estimatedTokens=Math.ceil(fullText.length/4);
+  const passageRecords=sourceRecords.flatMap(s=>s.passageIds.map(id=>{const item=sources.find(x=>x.captureId===s.captureId).passages.find(p=>p.passageId===id);return{passageId:id,captureId:item.captureId,snapshotHash:item.snapshotHash,conversationId:item.conversationId,messageId:item.messageId,nodeId:item.nodeId,messageHash:item.messageHash,text:item.text,startOffset:item.startOffset,endOffset:item.endOffset,status:item.status};}));
   const manifest={
    schema:'chatflow.context/1',formatVersion:1,generatedAt:new Date().toISOString(),
-   options:{allBranches:!!allBranches,maxPartChars,includeSavedAssets:!!includeSavedAssets,query,tokenBudget},
+   options:{allBranches:!!allBranches,maxPartChars,includeSavedAssets:!!includeSavedAssets,query,tokenBudget,passageMode},
    estimatedTokens,tokenBudget,budgetExceeded:estimatedTokens>tokenBudget,
    characterCount:fullText.length,partCount:parts.length,
-   sources:sourceRecords,assets:assetRecords,duplicateMessages,conflictingVersions,
+   sources:sourceRecords,passages:passageRecords,assets:assetRecords,duplicateMessages,conflictingVersions,
    includedAssetCount:included.length,includedAssetReferenceCount:includedReferences.length,missingAssetCount:missing.length,excludedAssetCount:excluded.length,
    warnings:[...sourceRecords.filter(s=>s.integrity?.state!=='valid').map(s=>'SOURCE_PARTIAL:'+s.captureId),...(conflictingVersions.length?['CONFLICTING_ARCHIVE_VERSIONS_PRESERVED']:[]),...(missing.length?['SOME_ASSETS_NOT_INCLUDED']:[]),...(estimatedTokens>tokenBudget?['TOKEN_BUDGET_EXCEEDED_SPLIT_REQUIRED']:[])]
   };
@@ -106,6 +120,8 @@
    '来源数：'+sourceRecords.length+'；消息数：'+sourceRecords.reduce((n,s)=>n+s.messageIds.length,0),
    '分段数：'+parts.length+'；字符数：'+fullText.length+'；估算 token：'+estimatedTokens+'（粗略估算；预算 '+tokenBudget+'）',
    ...(query?['关键词筛选：'+query]:[]),
+   '内容模式：'+(passageMode==='messages'?'完整消息':passageMode==='passages'?'仅重点片段':'完整消息与重点片段'),
+   '重点片段：'+passageRecords.length+' 条',
    ...(estimatedTokens>tokenBudget?['警告：估算内容超过 token 预算，已完整分段而非静默截断；请缩小来源或分批上传。']:[]),
    '实际附件字节文件：'+included.length+'；来源引用：'+includedReferences.length+'；未纳入/不可用：'+missing.length+'；按范围排除：'+excluded.length,
    '',
