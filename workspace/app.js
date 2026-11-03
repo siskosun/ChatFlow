@@ -81,13 +81,26 @@
   if(epoch!==runningEpoch)return;
   const signature=JSON.stringify(['active',items.map(({r,c,saved,excluded,missing})=>[r.captureId,r.phase,r.live,c?.state,c?.snapshot?.messages.length,saved,excluded,missing])]);
   if(signature===runningSignature)return;
-  runningSignature=signature;box.replaceChildren();box.className='running list';
+  runningSignature=signature;
   $('capture').hidden=true;$('continue').hidden=true;$('asset-scope').disabled=true;
+  const activeIds=items.map(x=>x.r.captureId).join('|');
+  const displayedIds=[...box.querySelectorAll('.panel[data-capture-id]')].map(x=>x.dataset.captureId).join('|');
+  if(activeIds!==displayedIds||box.className!=='running list'){
+   box.replaceChildren();box.className='running list';
+   for(const {r} of items){
+    const el=node('div',null,'panel');el.dataset.captureId=r.captureId;
+    el.append(node('strong','当前对话'),node('p','','hint capture-summary'));
+    el.append(button('停止采集',async()=>{await call('tl:stop',{captureId:r.captureId});runningSignature=null;await renderRunning();status('采集已停止。');}));
+    box.append(el);
+   }
+  }
+  // Progress updates must not destroy and recreate buttons or their focused nodes.
   for(const {r,c,saved,excluded,missing} of items){
-   const el=node('div',null,'panel'),summary=(r.live?'实时缓存中':'采集中')+' · '+saved+' 个已保存'+(missing?' · '+missing+' 个未取得':'')+(excluded?' · '+excluded+' 个已排除':'');
-   el.append(node('strong',c?.snapshot?.title||c?.title||'当前对话'),node('p',summary,'hint'));
-   el.append(button('停止采集',async()=>{await call('tl:stop',{captureId:r.captureId});runningSignature=null;await renderRunning();status('采集已停止。');}));
-   box.append(el);
+   const el=[...box.querySelectorAll('.panel[data-capture-id]')].find(x=>x.dataset.captureId===r.captureId);
+   const title=c?.snapshot?.title||c?.title||'当前对话';
+   const summary=(r.live?'实时缓存中':'采集中')+' · '+saved+' 个已保存'+(missing?' · '+missing+' 个未取得':'')+(excluded?' · '+excluded+' 个已排除':'');
+   if(el.querySelector('strong').textContent!==title)el.querySelector('strong').textContent=title;
+   if(el.querySelector('.capture-summary').textContent!==summary)el.querySelector('.capture-summary').textContent=summary;
   }
  }
  async function refreshArchives(){
