@@ -127,8 +127,10 @@
    if(file.state==='excluded')C.check(!file.path&&!file.sha256&&file.size===0,'EXCLUDED_ASSET_HAS_BYTES');
    if(!['saved','excluded'].includes(file.state))C.check(!file.path&&!file.sha256&&file.size===0,'UNAVAILABLE_ASSET_HAS_BYTES');
   }
-  if(manifest.schema==='chatflow.archive/1'&&manifest.state==='ready')
-   C.check(manifest.integrity.state==='valid'&&manifest.files.every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
+  if(manifest.schema==='chatflow.archive/1'){
+   C.check(['valid','partial'].includes(manifest.integrity.state),'INVALID_ARCHIVE_INTEGRITY_STATE');
+   if(manifest.state==='ready')C.check(manifest.integrity.state==='valid'&&manifest.files.every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
+  }
   return manifest;
  }
  function validatePassages(rows,snapshot,archiveId){
@@ -166,17 +168,51 @@
    return{key:a.key,messageId:a.messageId,nodeId:a.nodeId,name:C.safeName(a.name),mime:typeof a.mime==='string'?a.mime:'application/octet-stream',kind,origin,authorRole,ref:safeRef,expectedSize:Number.isSafeInteger(a.expectedSize)&&a.expectedSize>=0?a.expectedSize:null,state:'unavailable',reason:'IMPORTED_METADATA_ONLY'};
   });
   for(const m of out.messages){m.assetKeys=out.assets.filter(a=>a.nodeId===m.nodeId).map(a=>a.key);}
+  // Reconstructing a snapshot from its visible text loses API/DOM projection
+  // warnings. Preserve those source-reported issues from the hash-checked
+  // conversation.json rather than laundering a partial archive into "valid".
+  const sourceIntegrity=raw.integrity;
+  if(sourceIntegrity!=null){
+   C.check(C.record(sourceIntegrity)&&['valid','partial'].includes(sourceIntegrity.state)&&Array.isArray(sourceIntegrity.issues),'INVALID_SNAPSHOT_INTEGRITY');
+   C.check(sourceIntegrity.issues.length<=100000&&sourceIntegrity.issues.every(i=>C.record(i)&&typeof i.code==='string'&&i.code.length<=100),'INVALID_SNAPSHOT_INTEGRITY_ISSUE');
+   const combined=new Map();
+   for(const issue of [...out.integrity.issues,...sourceIntegrity.issues])combined.set(JSON.stringify(issue),issue);
+   if(sourceIntegrity.state==='partial'&&!combined.size)combined.set('SOURCE_REPORTED_PARTIAL', {code:'SOURCE_REPORTED_PARTIAL'});
+   out.integrity.issues=[...combined.values()];
+   out.integrity.state=out.integrity.issues.length?'partial':'valid';
+  }
   return out;
+ }
+ function historicAssetMetadata(m){
+  const ref=C.record(m.ref)?m.ref:{scheme:'unsupported'};
+  let safeRef={scheme:'unsupported'};
+  if(['file-service','sediment'].includes(ref.scheme)&&/^file[-_][A-Za-z0-9_-]+$/.test(ref.fileId||''))safeRef={scheme:ref.scheme,fileId:ref.fileId};
+  if(ref.scheme==='sandbox')safeRef=C.pointer('sandbox:'+String(ref.path||''));
+  return{
+   key:m.key,messageId:m.messageId,nodeId:m.nodeId,name:C.safeName(m.name),mime:typeof m.mime==='string'?m.mime:'application/octet-stream',
+   kind:['upload','image','media','generated'].includes(m.kind)?m.kind:'upload',
+   origin:['assistant_generated','user_uploaded','unknown'].includes(m.origin)?m.origin:'unknown',
+   authorRole:['user','assistant','tool','unknown'].includes(m.authorRole)?m.authorRole:'unknown',
+   ref:safeRef,expectedSize:Number.isSafeInteger(m.expectedSize)&&m.expectedSize>=0?m.expectedSize:null,
+   state:'unavailable',reason:'HISTORICAL_ATTACHMENT_NOT_IN_LATEST_SNAPSHOT',inLatestSnapshot:false
+  };
  }
  async function restore(blob){
   const entries=await readZip(blob),rawManifest=await jsonEntry(entries,'manifest.json');
   if((rawManifest.saveScope||'all')==='all'&&Array.isArray(rawManifest.files)&&rawManifest.files.some(f=>f?.state==='excluded'))throw new Error('INVALID_ALL_SCOPE_EXCLUSIONS');
   const manifest=validateManifest(rawManifest);
   const rawBlob=await entries.get('conversation.json')?.blob();C.check(rawBlob,'SNAPSHOT_MISSING');C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
-  const snapshot=validatedSnapshot(JSON.parse(await rawBlob.text())),passages=validatePassages(manifest.passages==null?[]:manifest.passages,snapshot,manifest.archiveId),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
+  const rawSnapshot=JSON.parse(await rawBlob.text());
+  if(manifest.schema==='chatflow.archive/1')C.check(JSON.stringify(rawSnapshot.integrity)===JSON.stringify(manifest.integrity),'ARCHIVE_INTEGRITY_MISMATCH');
+  const snapshot=validatedSnapshot(rawSnapshot),passages=validatePassages(manifest.passages==null?[]:manifest.passages,snapshot,manifest.archiveId),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
+  if(manifest.state==='ready')C.check(snapshot.integrity.state==='valid','ARCHIVE_PARTIAL_SNAPSHOT_MARKED_READY');
   for(const m of manifest.files){
    C.check(C.record(m)&&typeof m.key==='string'&&!keys.has(m.key),'INVALID_MANIFEST_ASSET');keys.add(m.key);
-   const meta=byKey.get(m.key);C.check(meta,'UNKNOWN_MANIFEST_ASSET');
+   // Older live snapshots can retain a previously observed attachment even
+   // when the latest API/DOM projection no longer references it. Its explicit
+   // inLatestSnapshot:false marker permits a lossless historical row; unknown
+   // keys without that marker remain rejected.
+   const meta=byKey.get(m.key)||(m.inLatestSnapshot===false?historicAssetMetadata(m):null);C.check(meta,'UNKNOWN_MANIFEST_ASSET');
    if(m.state==='saved'){
     C.check(/^[a-f0-9]{64}$/.test(m.sha256||'')&&m.path==='assets/'+m.sha256+'.bin'&&m.size>0,'INVALID_SAVED_FILE');
     const e=entries.get(m.path);C.check(e&&e.size===m.size,'ARCHIVE_FILE_MISSING');const b=await e.blob();C.check(await C.hashBlob(b)===m.sha256,'ARCHIVE_FILE_HASH_MISMATCH');
@@ -189,7 +225,7 @@
   if((manifest.saveScope||'all')==='all')C.check(files.every(a=>a.state!=='excluded'),'INVALID_ALL_SCOPE_EXCLUSIONS');
   if(manifest.saveScope==='last_generated'){
    const selected=new Set(C.selectAssetKeys(snapshot,'last_generated')),active=new Set(snapshot.active||[]),ambiguous=C.lastGeneratedScopeAmbiguous(snapshot),fileByKey=new Map(files.map(a=>[a.key,a]));
-   const savedFiles=files.filter(a=>a.state==='saved');
+   const savedFiles=files.filter(a=>a.state==='saved'&&a.inLatestSnapshot!==false);
    C.check(savedFiles.length<=1,'INVALID_LAST_GENERATED_SCOPE');
    if(savedFiles.length)C.check(selected.size===1&&savedFiles[0].key===selected.values().next().value,'INVALID_LAST_GENERATED_FILE_SELECTION');
    for(const asset of snapshot.assets){
