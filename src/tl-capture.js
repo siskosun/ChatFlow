@@ -5,6 +5,8 @@
  'use strict';
  if(globalThis.TLCaptureInstalled)return;globalThis.TLCaptureInstalled=true;
  const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,api=chrome;let active=null;
+ const DOWNLOAD_TIMEOUT_MS=60000;
+ function remaining(run){const ms=run.assetDeadline==null?DOWNLOAD_TIMEOUT_MS:run.assetDeadline-Date.now();C.check(ms>0,'ASSET_DOWNLOAD_TIMEOUT');return Math.min(DOWNLOAD_TIMEOUT_MS,ms);}
  const code=e=>e?.name==='AbortError'?'CANCELLED_OR_TIMEOUT':/^[A-Z0-9_]{2,100}$/.test(e?.message||'')?e.message:'CAPTURE_REQUEST_FAILED';
  async function message(type,data={},nonce=active?.nonce){const r=await api.runtime.sendMessage({type,nonce,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
  function sameSource(run){const s=P.identify(location.href).identity;C.check(s.conversationId===run.source.conversationId&&s.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');C.check(active===run&&!run.stopped,'CANCELLED_BY_USER');}
@@ -14,20 +16,20 @@
  function stop(run){run.stopped=true;run.controller?.abort();run.observer?.disconnect();clearInterval(run.timer);if(active===run)active=null;status(null,'ChatFlow：本对话保存已停止；已写入的本地文件保留。');}
  async function fetchResponse(run,path,token,accountId){
   sameSource(run);const u=P.get('chatgpt').readEndpoint(path,run.source);const headers={Accept:'*/*'};if(token)headers.Authorization='Bearer '+token;if(accountId)headers['ChatGPT-Account-ID']=accountId;
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),60000);run.controller=controller;
+  const budget=remaining(run),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),budget);run.controller=controller;
   try{const response=await fetch(u.href,{method:'GET',credentials:'include',headers,redirect:'error',cache:'no-store',signal:controller.signal});C.check(response.ok,'HTTP_'+response.status);return{response,close:()=>{clearTimeout(timer);if(run.controller===controller)delete run.controller;}};}
-  catch(e){clearTimeout(timer);throw e;}
+  catch(e){clearTimeout(timer);if(run.controller===controller)delete run.controller;throw e;}
  }
  async function json(run,path,token,accountId){const{response,close}=await fetchResponse(run,path,token,accountId);try{return await response.json();}finally{close();}}
  async function sourceBytes(run,asset,response){
   const mime=(response.headers.get('content-type')||asset.mime).split(';')[0];if(mime==='text/html'&&!/\.html?$/i.test(asset.name))throw new Error('HTML_LOGIN_OR_ERROR_DOCUMENT');
   await message('tl:assetBegin',{key:asset.key},run.nonce);C.check(response.body,'EMPTY_DOWNLOAD_BODY');const reader=response.body.getReader();let seq=0,total=0;
-  try{while(true){sameSource(run);const r=await reader.read();if(r.done)break;for(let i=0;i<r.value.length;i+=262144){const bytes=r.value.subarray(i,i+262144);await message('tl:assetChunk',{key:asset.key,seq:seq++,data:C.bytesToBase64(bytes)},run.nonce);total+=bytes.length;}}}
+  try{while(true){sameSource(run);if(run.assetDeadline!=null)remaining(run);const r=await reader.read();if(r.done)break;for(let i=0;i<r.value.length;i+=262144){const bytes=r.value.subarray(i,i+262144);await message('tl:assetChunk',{key:asset.key,seq:seq++,data:C.bytesToBase64(bytes)},run.nonce);total+=bytes.length;}}}
   catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}
-  const declared=Number(response.headers.get('content-length')||0);if(declared&&!response.headers.get('content-encoding'))C.check(total===declared,'DOWNLOAD_SIZE_MISMATCH');return message('tl:assetEnd',{key:asset.key,mime},run.nonce);
+  if(run.assetDeadline!=null)remaining(run);const declared=Number(response.headers.get('content-length')||0);if(declared&&!response.headers.get('content-encoding'))C.check(total===declared,'DOWNLOAD_SIZE_MISMATCH');return message('tl:assetEnd',{key:asset.key,mime},run.nonce);
  }
  async function urlBytes(run,asset,url,token,accountId){
-  const u=new URL(url,run.source.origin);if(u.origin!==run.source.origin){P.get('chatgpt').mediaUrl(u.href);return message('tl:external',{key:asset.key,url:u.href},run.nonce);}
+  const u=new URL(url,run.source.origin);if(u.origin!==run.source.origin){P.get('chatgpt').mediaUrl(u.href);return message('tl:external',{key:asset.key,url:u.href,deadlineAt:run.assetDeadline??Date.now()+DOWNLOAD_TIMEOUT_MS},run.nonce);}
   const{response,close}=await fetchResponse(run,u.href,token,accountId);try{return await sourceBytes(run,asset,response);}finally{close();}
  }
  async function download(run,asset,token,accountId){
@@ -35,7 +37,7 @@
   if(ref.scheme==='https'){C.check(asset.ephemeralUrl,'SIGNED_URL_UNAVAILABLE');return urlBytes(run,asset,asset.ephemeralUrl,token,accountId);}
   if(['file-service','sediment'].includes(ref.scheme)){
    const file=encodeURIComponent(ref.fileId),qs='?conversation_id='+id,routes=['/backend-api/files/download/'+file+qs+'&inline=false','/backend-api/files/download/'+file+qs,'/backend-api/files/'+file+'/download'+qs];let last;
-   for(const route of routes){try{const data=await json(run,route,token,accountId),url=data.download_url||data.signed_url||data.url;C.check(typeof url==='string','DOWNLOAD_URL_MISSING');return await urlBytes(run,asset,url,token,accountId);}catch(e){last=e;if(['HTTP_401','HTTP_403','MEDIA_PERMISSION_REQUIRED','LOCAL_STORAGE_FULL','CANCELLED_BY_USER'].includes(code(e)))break;}}
+   for(const route of routes){try{const data=await json(run,route,token,accountId),url=data.download_url||data.signed_url||data.url;C.check(typeof url==='string','DOWNLOAD_URL_MISSING');return await urlBytes(run,asset,url,token,accountId);}catch(e){last=e;if(['HTTP_401','HTTP_403','MEDIA_PERMISSION_REQUIRED','LOCAL_STORAGE_FULL','CANCELLED_BY_USER','CANCELLED_OR_TIMEOUT','ASSET_DOWNLOAD_TIMEOUT'].includes(code(e)))break;}}
    throw last||new Error('DOWNLOAD_UNAVAILABLE');
   }
   if(ref.scheme==='sandbox'){
@@ -49,7 +51,7 @@
      throw new Error('SANDBOX_DOWNLOAD_ENVELOPE_UNRECOGNIZED');
     }
     return await sourceBytes(run,asset,r);
-   }catch(e){last=e;if(['HTTP_401','HTTP_403','MEDIA_PERMISSION_REQUIRED','LOCAL_STORAGE_FULL','CANCELLED_BY_USER'].includes(code(e)))break;}finally{close?.();}}
+   }catch(e){last=e;if(['HTTP_401','HTTP_403','MEDIA_PERMISSION_REQUIRED','LOCAL_STORAGE_FULL','CANCELLED_BY_USER','CANCELLED_OR_TIMEOUT','ASSET_DOWNLOAD_TIMEOUT'].includes(code(e)))break;}finally{close?.();}}
    throw last||new Error('SANDBOX_FILE_UNAVAILABLE');
   }
   throw new Error('UNSUPPORTED_ASSET_REFERENCE');
@@ -77,7 +79,8 @@
    for(const a of model.assets){
     if(a.state==='excluded')continue;sameSource(run);if(saved.has(a.key)){done++;continue;}status(run,'ChatFlow：保存文件 '+(done+missing+1)+' / '+selectedAssets.length+'。');
     if(a.reason==='SAVE_SCOPE_SOURCE_UNRESOLVED'){await message('tl:assetFail',{key:a.key,code:'SAVE_SCOPE_SOURCE_UNRESOLVED'},run.nonce);missing++;continue;}
-    try{await download(run,a,token,account);done++;}catch(e){const reason=code(e);await message('tl:assetFail',{key:a.key,code:reason},run.nonce);missing++;if(reason==='LOCAL_STORAGE_FULL')throw e;}
+    run.assetDeadline=Date.now()+DOWNLOAD_TIMEOUT_MS;
+    try{await download(run,a,token,account);done++;}catch(e){const reason=code(e);await message('tl:assetFail',{key:a.key,code:reason},run.nonce);missing++;if(reason==='LOCAL_STORAGE_FULL')throw e;}finally{delete run.assetDeadline;}
    }
    await message('tl:finish',{},run.nonce);const hasActiveGenerated=model.assets.some(a=>model.active.includes(a.nodeId)&&(a.origin==='assistant_generated'||(!a.origin&&a.kind==='generated'))),noGenerated=run.scope==='last_generated'&&!hasActiveGenerated&&!scopeAmbiguous,scopeNotice=scopeAmbiguous?'当前分支存在来源不明或无法映射的文件，不能安全确定最后生成文件；可能的候选文件均标记为未判定。':noGenerated?'当前分支未识别到助手生成文件，只保存了对话正文。':'';status(run.live?run:null,'ChatFlow：已保存 '+done+' 个文件；'+missing+' 个未取得；'+skipped+' 个按范围跳过。'+(scopeNotice?' '+scopeNotice:run.live?'实时缓存已开启。':'请在本地档案中核对完整性。'));
    if(!run.live){run.stopped=true;if(active===run)active=null;}

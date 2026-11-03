@@ -44,13 +44,14 @@ async function stopCapture(captureId){
 }
 async function externalDownload(run,msg){
  const asset=await S.get('assets',[run.captureId,msg.key]);C.check(asset&&asset.state!=='saved'&&asset.state!=='excluded','INVALID_DOWNLOAD_ASSET');const target=P.get('chatgpt').mediaUrl(msg.url);C.check(await api.permissions.contains({origins:[target.origin+'/*']}),'MEDIA_PERMISSION_REQUIRED');
- const controller=new AbortController();run.controller=controller;const timer=setTimeout(()=>controller.abort(),60000);
- try{
+ const deadlineAt=Math.min(Date.now()+60000,Number.isSafeInteger(msg.deadlineAt)?msg.deadlineAt:Date.now()+60000);
+ const controller=new AbortController();run.controller=controller;const timer=setTimeout(()=>controller.abort(),Math.max(1,deadlineAt-Date.now()));
+ try{C.check(deadlineAt>Date.now(),'ASSET_DOWNLOAD_TIMEOUT');
   const r=await fetch(target.href,{method:'GET',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',cache:'no-store',signal:controller.signal});C.check(r.ok,'HTTP_'+r.status);C.check(r.body,'NO_DOWNLOAD_BODY');
   const estimate=await navigator.storage.estimate(),declared=Number(r.headers.get('content-length')||0);if(estimate.quota&&declared)C.check(declared<Math.max(0,estimate.quota-(estimate.usage||0)),'LOCAL_STORAGE_FULL');
   await S.beginAsset(run.captureId,msg.key);const reader=r.body.getReader();let seq=0,total=0;
-  try{while(true){C.check(!run.cancelled&&runs.has(run.nonce),'CANCELLED_BY_USER');const x=await reader.read();if(x.done)break;for(let i=0;i<x.value.length;i+=262144){const part=x.value.subarray(i,i+262144);await S.chunk(run.captureId,msg.key,seq++,part);total+=part.length;}}}catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}
-  if(declared&&!r.headers.get('content-encoding'))C.check(total===declared,'DOWNLOAD_SIZE_MISMATCH');return await S.finishAsset(run.captureId,msg.key,r.headers.get('content-type'));
+  try{while(true){C.check(!run.cancelled&&runs.has(run.nonce),'CANCELLED_BY_USER');C.check(Date.now()<deadlineAt,'ASSET_DOWNLOAD_TIMEOUT');const x=await reader.read();if(x.done)break;for(let i=0;i<x.value.length;i+=262144){const part=x.value.subarray(i,i+262144);await S.chunk(run.captureId,msg.key,seq++,part);total+=part.length;}}}catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}
+  C.check(Date.now()<deadlineAt,'ASSET_DOWNLOAD_TIMEOUT');if(declared&&!r.headers.get('content-encoding'))C.check(total===declared,'DOWNLOAD_SIZE_MISMATCH');return await S.finishAsset(run.captureId,msg.key,r.headers.get('content-type'));
  }catch(e){await S.failAsset(run.captureId,msg.key,errorCode(e));throw e;}finally{clearTimeout(timer);delete run.controller;}
 }
 async function prepareHandoff(msg){
