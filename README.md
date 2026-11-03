@@ -1,6 +1,20 @@
 # ChatFlow
 
-ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.2 聚焦 ChatGPT 对话保存、附件真实字节保全、本地档案恢复，以及向新的普通 ChatGPT 对话安全接续。0.2 仅有 ChatGPT 生产适配器；其他平台不宣称支持。
+ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.3 聚焦 ChatGPT 对话保存、附件真实字节保全、本地档案恢复，以及向新的普通 ChatGPT 对话安全接续。0.3 仅有 ChatGPT 生产适配器；其他平台不宣称支持。
+
+## 0.3 development scope
+
+Two equal primary journeys: conversation continuation and lightweight Task
+Return. Tasks are local, carry a short marker through ordinary copy/paste,
+and return to their exact source without GitHub or an Agent API. ChatFlow
+opens the source and copies the result; it does not send or overwrite a draft.
+Advanced context/experiment/passage controls are opt-in. Current-conversation
+search, exact-ID question navigation, selected-turn export and LaTeX copy load
+only when requested. See [Task Loop](docs/TASK_LOOP.md) and [UI/reuse record](docs/UI_0.3.md).
+
+This is an engineering candidate, not a release or authenticated-user acceptance.
+The exact engineering state is [Checkpoint](chatflow-0.3.tsm.json). Existing 0.2
+receipts in PLAN are historical, not validation of the new implementation.
 
 ## 核心流程
 
@@ -22,7 +36,7 @@ ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.2 聚焦
 
 ## 开发状态
 
-**版本：0.2 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
+**版本：0.3 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
 
 ## 构建
 
@@ -32,7 +46,7 @@ ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.2 聚焦
 
 不得将真实对话、附件、Cookie、Token、签名 URL 或内部资料提交到公开仓库。真实账号验收只记录脱敏结果。
 
-## 0.2 ZIP 恢复限制
+## 0.3 ZIP 恢复限制
 
 当前版本会在导入 ZIP/ZIP64 之前核验压缩包资源上限：单条目压缩和展开均不得超过 64 MiB，累计展开不得超过 256 MiB，deflate 压缩比例不得超过 200 倍。超限档案将明确拒绝并保留原有本地记录；**能导出 ZIP 不代表该版本能恢复任意大的 ZIP**。后续如需支持超限归档，必须实现带配额检查的分块恢复，不应调高内存上限。
 

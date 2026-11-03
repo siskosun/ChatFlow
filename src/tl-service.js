@@ -1,5 +1,5 @@
 /* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
-importScripts('tl-core.js','tl-provider.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js');
+importScripts('tl-core.js','tl-provider.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js','tl-tasks.js','tl-task-store.js','tl-task-service.js');
 const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,api=chrome,runs=new Map();
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
 const trusted=sender=>sender?.id===api.runtime.id;
@@ -112,6 +112,7 @@ async function claim(sender){
 }
 async function handle(msg,sender){
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');C.check(trusted(sender),'FOREIGN_EXTENSION');
+ const taskResult=await globalThis.TLTaskService?.handle(msg,sender,api);if(taskResult!==undefined)return taskResult;
  const experimentResult=await ChatFlowExperimentService.handle(msg,sender,api,{startCapture});if(experimentResult!==undefined)return experimentResult;
  if(msg.type==='tl:claimHandoff')return claim(sender);
  if(msg.type==='tl:handoffChunk'){

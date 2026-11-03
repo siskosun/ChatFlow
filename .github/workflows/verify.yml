@@ -38,7 +38,7 @@ jobs:
       - name: Node regression and security checks
         run: python -c "import glob,subprocess; subprocess.run(['node','--test']+sorted(glob.glob('tests/*.test.mjs')),check=True)"
       - name: Python test syntax preflight
-        run: python -m py_compile build.py tests/browser_e2e.py tests/storage_edges.py
+        run: python -m py_compile build.py tests/browser_e2e.py tests/storage_edges.py tests/task_loop_e2e.py
       - name: Install pinned synthetic browser test tools
         run: |
           python -m pip install playwright==1.56.0
@@ -47,6 +47,8 @@ jobs:
         run: xvfb-run -a python tests/browser_e2e.py
       - name: Actual IndexedDB shared-file and handoff safety checks
         run: xvfb-run -a python tests/storage_edges.py
+      - name: Task Loop and navigation synthetic acceptance
+        run: xvfb-run -a python tests/task_loop_e2e.py
       - name: Candidate artifacts, not a production release
         if: success()
         uses: actions/upload-artifact@v4
@@ -114,7 +116,7 @@ jobs:
         shell: bash
         run: |
           set -eu
-          for file in chatflow-chrome-0.2-candidate.zip chatflow-edge-0.2-candidate.zip SHA256SUMS; do
+          for file in chatflow-chrome-0.3-candidate.zip chatflow-edge-0.3-candidate.zip SHA256SUMS; do
             cmp "ubuntu-build/$file" "windows-build/$file"
           done
           echo "CROSS_PLATFORM_BYTE_IDENTICAL"

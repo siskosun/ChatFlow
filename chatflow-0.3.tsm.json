@@ -1,0 +1,24 @@
+{
+  "Engineering": {
+    "Core task return": {
+      "status": "implemented",
+      "description": "Task identity, local receipts, strict source service and copy-only return implemented; awaiting installed-extension synthetic QA."
+    },
+    "Two-flow UI and advanced preferences": {
+      "status": "implemented",
+      "description": "Two equal journeys and opt-in advanced preferences implemented; five-width render-only checks are not MV3 acceptance."
+    },
+    "Navigation and licensed utilities": {
+      "status": "implemented",
+      "description": "Pinned MIT Toolkit components adapted; exact-ID source-bound panel implemented; browser behavior awaiting CI."
+    }
+  },
+  "Validation": {
+    "Regression and real Chromium synthetic QA": "todo",
+    "Cloud build reproducibility": "todo",
+    "Authenticated and independent human acceptance": {
+      "status": "blocked",
+      "description": "Requires authorized real browser and independent human participants; synthetic tests cannot substitute."
+    }
+  }
+}

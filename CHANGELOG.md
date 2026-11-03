@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3 - engineering candidate, 2026-11-03
+
+- Add source-bound, local Task Loop without a full archive, GitHub or Agent API.
+- Persist separate receipts, strict manual-assignment provenance and atomic
+  task backup import; upgrade IndexedDB v2 to v3 without deleting records.
+- Give continuation and task return equal home entries; make complex options
+  opt-in without weakening safety checks or hiding meaningful errors.
+- Add on-demand exact-ID navigation, search, selected-turn md/json/txt export
+  and manual LaTeX copy, with attributed MIT Toolkit component reuse.
+- Never send to a chat automatically or overwrite an existing draft.
+- Automated engineering checks and authenticated/human acceptance are distinct;
+  see Checkpoint and the exact GitHub Actions run before claiming a pass.
+
+
 All notable changes to ChatFlow are recorded here. Versions 0.1 and 0.2 are engineering candidates, not production releases.
 
 ## 0.1 candidate

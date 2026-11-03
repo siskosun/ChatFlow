@@ -2,6 +2,7 @@
 No ChatGPT connection, account, user files, or in-memory database substitute.
 """
 import asyncio
+import os
 import json
 import tempfile
 import traceback
@@ -180,7 +181,7 @@ async def main():
     result={'scope':'real_chromium_indexeddb_synthetic_data_only','cases':[],'status':'fail'}
     async with async_playwright() as pw:
       with tempfile.TemporaryDirectory(prefix='threadline-storage-') as profile:
-        context=await pw.chromium.launch_persistent_context(profile,channel='chromium',headless=False,args=['--disable-extensions-except='+str(ROOT/'dist/edge'),'--load-extension='+str(ROOT/'dist/edge'),'--no-sandbox'])
+        context=await pw.chromium.launch_persistent_context(profile,channel='chromium',executable_path=os.environ.get('CHATFLOW_CHROMIUM'),headless=False,args=['--disable-extensions-except='+str(ROOT/'dist/edge'),'--load-extension='+str(ROOT/'dist/edge'),'--no-sandbox'])
         try:
             await context.route('http://**',lambda route:route.abort())
             await context.route('https://**',lambda route:route.abort())
@@ -188,14 +189,17 @@ async def main():
             extension=worker.url.split('/')[2]
             page=await context.new_page();await page.goto('chrome-extension://'+extension+'/manifest.json')
             await page.evaluate("""async()=>{const req=indexedDB.open('chatflow-migration-test',1);const db=await new Promise((resolve,reject)=>{req.onupgradeneeded=()=>{const d=req.result;d.createObjectStore('captures',{keyPath:'id'});const a=d.createObjectStore('assets',{keyPath:['captureId','key']});a.createIndex('capture','captureId');d.createObjectStore('files',{keyPath:'sha256'});const ch=d.createObjectStore('chunks',{keyPath:['captureId','key','seq']});ch.createIndex('owner',['captureId','key']);ch.createIndex('capture','captureId');d.createObjectStore('handoffs',{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});const tx=db.transaction('captures','readwrite');tx.objectStore('captures').put({id:'legacy-v1-record',state:'ready',snapshot:null});await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}""")
+            await page.evaluate("""async()=>{const req=indexedDB.open('chatflow-v2-migration-test',2);const db=await new Promise((resolve,reject)=>{req.onupgradeneeded=()=>{req.result.createObjectStore('captures',{keyPath:'id'});const p=req.result.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');p.createIndex('message',['captureId','messageId','nodeId']);};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});const tx=db.transaction(['captures','passages'],'readwrite');tx.objectStore('captures').put({id:'v2-capture',state:'ready'});tx.objectStore('passages').put({passageId:'v2-passage',captureId:'v2-capture',text:'existing original excerpt'});await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}""")
             await page.goto('chrome-extension://'+extension+'/workspace/index.html')
             await page.wait_for_function('typeof TLStore!=="undefined"')
             migration=await page.evaluate("""async()=>{const db=await TLStore.open('chatflow-migration-test'),record=await new Promise((resolve,reject)=>{const tx=db.transaction('captures','readonly'),r=tx.objectStore('captures').get('legacy-v1-record');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});return{version:db.version,stores:Array.from(db.objectStoreNames),record};}""")
-            assert migration['version']==2 and 'passages' in migration['stores'] and migration['record']['id']=='legacy-v1-record',migration
-            print('PASS indexeddb_v1_to_v2_migration_preserves_existing_records',flush=True)
+            assert migration['version']==3 and {'passages','tasks','taskResults'}.issubset(migration['stores']) and migration['record']['id']=='legacy-v1-record',migration
+            print('PASS indexeddb_v1_to_v3_migration_preserves_existing_records',flush=True)
+            v2=await page.evaluate("""async()=>{const db=await TLStore.open('chatflow-v2-migration-test');const tx=db.transaction(['captures','passages'],'readonly'),read=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const capture=await read(tx.objectStore('captures').get('v2-capture')),passage=await read(tx.objectStore('passages').get('v2-passage'));return{version:db.version,capture,passage,stores:Array.from(db.objectStoreNames)};}""")
+            assert v2['version']==3 and v2['capture']['id']=='v2-capture' and v2['passage']['text']=='existing original excerpt' and {'tasks','taskResults'}.issubset(v2['stores']),v2
             ready=await page.evaluate('chrome.runtime.sendMessage({type:"tl:sessions"})')
             assert ready['ok'],ready
-            result['cases']=[{'name':'indexeddb_v1_to_v2_migration_preserves_existing_records','result':'pass'}]+await page.evaluate(CASES)
+            result['cases']=[{'name':'indexeddb_v1_to_v3_migration_preserves_existing_records','result':'pass'},{'name':'indexeddb_v2_to_v3_preserves_archives_and_passages','result':'pass'}]+await page.evaluate(CASES)
             result['status']='pass'
             for case in result['cases']:print('PASS',case['name'],flush=True)
         except Exception as e:

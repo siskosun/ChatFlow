@@ -7,10 +7,12 @@
   if(openings.has(name))return openings.get(name);
   const pending=new Promise((resolve,reject)=>{
    let abandoned=false;
-   const r=indexedDB.open(name,2);
+   const r=indexedDB.open(name,3);
    r.onupgradeneeded=()=>{
     if(abandoned){r.transaction.abort();r.result.close();return;}
     const db=r.result;
+    if(!db.objectStoreNames.contains('tasks')){const t=db.createObjectStore('tasks',{keyPath:'id'});t.createIndex('code','code',{unique:true});}
+    if(!db.objectStoreNames.contains('taskResults')){const r=db.createObjectStore('taskResults',{keyPath:'id'});r.createIndex('task','taskId');r.createIndex('content',['taskId','textHash'],{unique:true});}
     if(!db.objectStoreNames.contains('captures'))db.createObjectStore('captures',{keyPath:'id'});
     if(!db.objectStoreNames.contains('assets')){const a=db.createObjectStore('assets',{keyPath:['captureId','key']});a.createIndex('capture','captureId');}
     if(!db.objectStoreNames.contains('files'))db.createObjectStore('files',{keyPath:'sha256'});

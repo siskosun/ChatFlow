@@ -3,6 +3,7 @@ Run with xvfb-run -a python tests/browser_e2e.py.
 Does not certify the authenticated ChatGPT interface or model reading.
 """
 import asyncio
+import os
 import base64
 import hashlib
 import io
@@ -143,7 +144,7 @@ async def main():
         REPORT['cases'].append({'name':name,'result':'pass','detail':detail})
         print('PASS',name,flush=True)
     async def launch(pw,profile):
-        ctx=await pw.chromium.launch_persistent_context(str(profile),channel='chromium',headless=False,accept_downloads=True,args=['--disable-extensions-except='+str(ROOT/'dist/edge'),'--load-extension='+str(ROOT/'dist/edge'),'--no-sandbox'])
+        ctx=await pw.chromium.launch_persistent_context(str(profile),channel='chromium',executable_path=os.environ.get('CHATFLOW_CHROMIUM'),headless=False,accept_downloads=True,args=['--disable-extensions-except='+str(ROOT/'dist/edge'),'--load-extension='+str(ROOT/'dist/edge'),'--no-sandbox'])
         await ctx.route('https://chatgpt.com/**',route_handler)
         await ctx.route('https://chat.openai.com/**',route_handler)
         worker=ctx.service_workers[0] if ctx.service_workers else await ctx.wait_for_event('serviceworker')
@@ -158,6 +159,11 @@ async def main():
             await wait_async(workspace,'()=>document.querySelector("#source").value===""&&document.querySelector("#capture").disabled')
             assert await workspace.locator('#capture').is_disabled()
             passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
+            assert await workspace.locator('#home-view .flow-choice').count()==2
+            assert await workspace.locator('#home-view').is_visible()
+            assert not await workspace.locator('.context-toolbar').is_visible()
+            await workspace.locator('#home-view [data-view="capture"]').click()
+            passed('two_equal_primary_journeys_and_advanced_off_by_default')
             source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
             assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
             await workspace.bring_to_front()
@@ -191,6 +197,11 @@ async def main():
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
             passed('ux_home_one_primary_action_and_clear_save_task',{'widths':[320,360,1280],'primary_actions':1})
+            await workspace.locator('[data-view="settings"]').click()
+            for feature in ['context','experiments','live','diagnostics','passages']:
+                await workspace.locator('#pref-'+feature).check()
+            await workspace.locator('#settings-view [data-view="home"]').click()
+            await workspace.locator('#home-view [data-view="capture"]').click()
             # A conversation opened after the workspace must appear without manual refresh.
             late_source=await ctx.new_page();await late_source.goto(SOURCE_AMBIG);await workspace.bring_to_front()
             await wait_async(workspace,'()=>document.querySelectorAll("#source option").length>=2',timeout=15000)
@@ -309,7 +320,7 @@ async def main():
             before_requests=mode['request_count'];await source.evaluate('document.querySelector("main").append(document.createTextNode("after stop"))');await asyncio.sleep(13)
             assert mode['request_count']==before_requests;mode['live']=False
             passed('opt_in_live_generated_file_caching_and_explicit_stop')
-            scope_workspace=await ctx.new_page();await scope_workspace.goto('chrome-extension://'+extension+'/workspace/index.html');await scope_workspace.wait_for_function('typeof TLStore!=="undefined"')
+            scope_workspace=await ctx.new_page();await scope_workspace.goto('chrome-extension://'+extension+'/workspace/index.html');await scope_workspace.wait_for_function('typeof TLStore!=="undefined"');await scope_workspace.locator('#home-view [data-view="capture"]').click()
             await scope_workspace.wait_for_function("document.querySelector('#source').value !== ''")
             await scope_workspace.locator('#asset-scope').select_option('last_generated')
             assert await scope_workspace.locator('#live').is_disabled()
@@ -341,7 +352,7 @@ async def main():
             passed('last_generated_scope_saves_only_latest_active_branch_assistant_file_and_roundtrips_exclusions',{'saved':[a['name'] for a in scoped_saved],'excluded':len(scoped_excluded),'unresolved':scoped_missing[0]['name'],'download_paths':mode['sandbox_paths'][before_paths:]})
             await scope_workspace.close()
             ambiguous_source=await ctx.new_page();await ambiguous_source.goto(SOURCE_AMBIG)
-            ambiguous_workspace=await ctx.new_page();await ambiguous_workspace.goto('chrome-extension://'+extension+'/workspace/index.html');await ambiguous_workspace.wait_for_function('typeof TLStore!=="undefined"')
+            ambiguous_workspace=await ctx.new_page();await ambiguous_workspace.goto('chrome-extension://'+extension+'/workspace/index.html');await ambiguous_workspace.wait_for_function('typeof TLStore!=="undefined"');await ambiguous_workspace.locator('#home-view [data-view="capture"]').click()
             source_selector=ambiguous_workspace.locator('#source')
             await source_selector.wait_for(state='visible')
             for _ in range(300):
