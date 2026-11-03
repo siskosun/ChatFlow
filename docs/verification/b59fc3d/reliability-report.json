@@ -1,0 +1,229 @@
+{
+  "scope": "installed_chromium_mv3_synthetic_reliability",
+  "status": "pass",
+  "cases": [
+    {
+      "name": "ordinary_save_rejects_A_to_B_SPA_switch_during_permission_await",
+      "result": "pass",
+      "detail": {
+        "freezeConversation": "conversation_reliability_A_20261103",
+        "errorVisible": true,
+        "capturesWritten": 0,
+        "BRequests": 0
+      }
+    },
+    {
+      "name": "same_URL_reload_rejects_the_previously_frozen_document",
+      "result": "pass",
+      "detail": {
+        "code": "SOURCE_DOCUMENT_CHANGED"
+      }
+    },
+    {
+      "name": "unchanged_source_saves_and_continue_is_the_only_primary_action",
+      "result": "pass",
+      "detail": {
+        "captureId": "535998f1-e6f6-4cfe-bfb9-69da0698bb34",
+        "primaryButtons": [
+          "continue"
+        ]
+      }
+    },
+    {
+      "name": "trusted_clipboard_paste_preserves_over_limit_handoff_instructions",
+      "result": "pass",
+      "detail": {
+        "length": 4014,
+        "utf8Bytes": 4014,
+        "hash": "216d85e48b2bf6a5fa32d086d4440c9b3b2aba221656d458c448c24c89532b94",
+        "tail": "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-HANDOFF-TAIL",
+        "invalid": "true",
+        "paste": {
+          "target": "instructions",
+          "trusted": true,
+          "length": 4014,
+          "utf8Bytes": 4014,
+          "tail": "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-HANDOFF-TAIL"
+        }
+      }
+    },
+    {
+      "name": "trusted_clipboard_paste_preserves_over_limit_context_query",
+      "result": "pass",
+      "detail": {
+        "length": 512,
+        "utf8Bytes": 512,
+        "hash": "727b86082e29b87c04a49387b151676d9a2bb190fe2e23cc71922f43e9b09375",
+        "tail": "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-QUERY-TAIL",
+        "invalid": "true",
+        "paste": {
+          "target": "context-query",
+          "trusted": true,
+          "length": 512,
+          "utf8Bytes": 512,
+          "tail": "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ-QUERY-TAIL"
+        }
+      }
+    },
+    {
+      "name": "trusted_clipboard_paste_preserves_over_limit_task_text",
+      "result": "pass",
+      "detail": {
+        "length": 20011,
+        "utf8Bytes": 20011,
+        "hash": "f776baee050ad8648cbd38c46a504bf711eb3c794cd82f40805a074ce93290cd",
+        "tail": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-TASK-TAIL",
+        "invalid": "true",
+        "paste": {
+          "target": "task-text",
+          "trusted": true,
+          "length": 20011,
+          "utf8Bytes": 20011,
+          "tail": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT-TASK-TAIL"
+        }
+      }
+    },
+    {
+      "name": "trusted_clipboard_paste_preserves_over_limit_task_result",
+      "result": "pass",
+      "detail": {
+        "length": 262174,
+        "utf8Bytes": 262174,
+        "hash": "7f09102a8ffa9f257fa614511d01a06feeceaa87f0d1971367fb5a19d57fffb9",
+        "tail": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-RESULT-TAIL",
+        "invalid": "true",
+        "paste": {
+          "target": "task-result-text",
+          "trusted": true,
+          "length": 262174,
+          "utf8Bytes": 262174,
+          "tail": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR-RESULT-TAIL"
+        }
+      }
+    },
+    {
+      "name": "trusted_clipboard_paste_preserves_experiment_input_above_UTF8_budget",
+      "result": "pass",
+      "detail": {
+        "length": 8017,
+        "utf8Bytes": 24019,
+        "hash": "e110dd45af93c5d1ee5fed2b0ae35784162a7fc44be9c8680b06fed8b707f153",
+        "tail": "汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉-EXPERIMENT-TAIL",
+        "invalid": "true",
+        "paste": {
+          "target": "ff-p",
+          "trusted": true,
+          "length": 8017,
+          "utf8Bytes": 24019,
+          "tail": "汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉-EXPERIMENT-TAIL"
+        }
+      }
+    },
+    {
+      "name": "archive_summary_1000_full_bodies_pages_without_original_store_reads",
+      "result": "pass",
+      "detail": {
+        "captures": 1000,
+        "bodyBytesEach": 32768,
+        "logicalBodyBytes": 32768000,
+        "pageSize": 50,
+        "firstPageMs": 2.400000000023283,
+        "pageP95Ms": 15.200000000011642,
+        "timesMs": [
+          2.400000000023283,
+          2.099999999976717,
+          12.5,
+          15.200000000011642,
+          1.7999999999883585,
+          1.7000000000116415,
+          1.7000000000116415,
+          1.6999999999825377,
+          1.7000000000116415,
+          1.5
+        ],
+        "budget": {
+          "firstPageMs": 1500,
+          "pageP95Ms": 500
+        },
+        "matchingSearchRows": 8
+      }
+    },
+    {
+      "name": "archive_source_scope_and_preferred_id_lookup_preserve_identity",
+      "result": "pass"
+    },
+    {
+      "name": "archive_update_and_delete_keep_summary_atomic_with_body",
+      "result": "pass"
+    }
+  ],
+  "fixtureNavigations": [
+    {
+      "path": "/c/conversation_reliability_A_20261103",
+      "marker": "chatflow-reliability-v1",
+      "draftIntact": true,
+      "sendCount": 0,
+      "navigation": "initial_source_A",
+      "status": 200,
+      "responseMarker": "chatflow-reliability-v1"
+    },
+    {
+      "path": "/c/conversation_reliability_A_20261103",
+      "marker": "chatflow-reliability-v1",
+      "draftIntact": true,
+      "sendCount": 0,
+      "navigation": "return_to_source_A",
+      "status": 200,
+      "responseMarker": "chatflow-reliability-v1"
+    },
+    {
+      "path": "/c/conversation_reliability_A_20261103",
+      "marker": "chatflow-reliability-v1",
+      "draftIntact": true,
+      "sendCount": 0,
+      "navigation": "same_URL_new_document",
+      "status": 200,
+      "responseMarker": "chatflow-reliability-v1"
+    }
+  ],
+  "pageErrors": [],
+  "requestCounts": {
+    "total": 5,
+    "fixture": 5,
+    "blocked": 0,
+    "B": 0,
+    "writes": 0
+  },
+  "requestTrace": [
+    {
+      "method": "GET",
+      "path": "/c/conversation_reliability_A_20261103",
+      "resourceType": "document",
+      "outcome": "fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/c/conversation_reliability_A_20261103",
+      "resourceType": "document",
+      "outcome": "fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/c/conversation_reliability_A_20261103",
+      "resourceType": "document",
+      "outcome": "fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/session",
+      "resourceType": "fetch",
+      "outcome": "fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/backend-api/conversation/conversation_reliability_A_20261103",
+      "resourceType": "fetch",
+      "outcome": "fixture"
+    }
+  ]
+}

@@ -1,0 +1,385 @@
+{
+  "scope": "installed_mv3_synthetic_visual_and_computed_contrast_not_human_accessibility",
+  "status": "pass",
+  "cases": [
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 10,
+      "failures": [],
+      "view": "home",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 18,
+      "failures": [],
+      "view": "capture",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 305,
+      "checked": 38,
+      "failures": [],
+      "view": "archive",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 12,
+      "failures": [],
+      "view": "handoff",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 11,
+      "failures": [],
+      "view": "tasks",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 20,
+      "failures": [],
+      "view": "settings",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 10,
+      "failures": [],
+      "view": "home",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 21,
+      "failures": [],
+      "view": "capture",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 345,
+      "checked": 38,
+      "failures": [],
+      "view": "archive",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 12,
+      "failures": [],
+      "view": "handoff",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 11,
+      "failures": [],
+      "view": "tasks",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 20,
+      "failures": [],
+      "view": "settings",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 10,
+      "failures": [],
+      "view": "home",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 21,
+      "failures": [],
+      "view": "capture",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1425,
+      "checked": 38,
+      "failures": [],
+      "view": "archive",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 12,
+      "failures": [],
+      "view": "handoff",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 11,
+      "failures": [],
+      "view": "tasks",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 20,
+      "failures": [],
+      "view": "settings",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 10,
+      "failures": [],
+      "view": "home",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 18,
+      "failures": [],
+      "view": "capture",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 305,
+      "checked": 38,
+      "failures": [],
+      "view": "archive",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 12,
+      "failures": [],
+      "view": "handoff",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 11,
+      "failures": [],
+      "view": "tasks",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "checked": 20,
+      "failures": [],
+      "view": "settings",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 10,
+      "failures": [],
+      "view": "home",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 21,
+      "failures": [],
+      "view": "capture",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 345,
+      "checked": 38,
+      "failures": [],
+      "view": "archive",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 12,
+      "failures": [],
+      "view": "handoff",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 11,
+      "failures": [],
+      "view": "tasks",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 360,
+      "checked": 20,
+      "failures": [],
+      "view": "settings",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 10,
+      "failures": [],
+      "view": "home",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 21,
+      "failures": [],
+      "view": "capture",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1425,
+      "checked": 38,
+      "failures": [],
+      "view": "archive",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 12,
+      "failures": [],
+      "view": "handoff",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 11,
+      "failures": [],
+      "view": "tasks",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "checked": 20,
+      "failures": [],
+      "view": "settings",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 305,
+      "checked": 19,
+      "failures": [],
+      "view": "experiments",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 345,
+      "checked": 19,
+      "failures": [],
+      "view": "experiments",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1425,
+      "checked": 19,
+      "failures": [],
+      "view": "experiments",
+      "scheme": "light",
+      "result": "pass"
+    },
+    {
+      "width": 320,
+      "documentWidth": 305,
+      "checked": 19,
+      "failures": [],
+      "view": "experiments",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 360,
+      "documentWidth": 345,
+      "checked": 19,
+      "failures": [],
+      "view": "experiments",
+      "scheme": "dark",
+      "result": "pass"
+    },
+    {
+      "width": 1440,
+      "documentWidth": 1425,
+      "checked": 19,
+      "failures": [],
+      "view": "experiments",
+      "scheme": "dark",
+      "result": "pass"
+    }
+  ],
+  "errors": []
+}

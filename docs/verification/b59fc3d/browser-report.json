@@ -1,0 +1,423 @@
+{
+  "scope": "synthetic_chromium_mv3_not_real_chatgpt",
+  "cases": [
+    {
+      "name": "capture_button_disabled_when_no_chatgpt_conversations_are_open",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "two_equal_primary_journeys_and_advanced_off_by_default",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "standalone_entry_and_unified_visual_controls_without_startup_notice",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "ux_home_one_primary_action_and_clear_save_task",
+      "result": "pass",
+      "detail": {
+        "widths": [
+          320,
+          360,
+          1280
+        ],
+        "primary_actions": 1
+      }
+    },
+    {
+      "name": "new_chatgpt_tab_auto_appears_in_source_picker_without_clicking_refresh",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "async_database_waiter_awaits_resolved_predicate",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "capture_120_messages_all_accessible_branches_real_bytes_and_missing_states",
+      "result": "pass",
+      "detail": {
+        "saved": 7,
+        "unavailable": 3
+      }
+    },
+    {
+      "name": "capture_progress_has_no_chatgpt_page_overlay",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "idle_capture_state_is_not_destroyed_and_recreated_each_poll",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "recapture_updates_the_existing_archive_instead_of_creating_a_duplicate",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "recapture_source_lookup_revalidates_same_tab_conversation_navigation",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "ux_after_save_replaces_save_action_with_continue_action",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "zip_roundtrip_restore_and_tamper_rejection_before_capture_commit",
+      "result": "pass",
+      "detail": {
+        "files": [
+          {
+            "name": "branch.pdf",
+            "sha256": "78750ff617d82201f62fff27066a6ce136a7a9c75674c989b3af00fbeb3bba2a"
+          },
+          {
+            "name": "data.csv",
+            "sha256": "1c0faf9a8182a96f633336f1b630ce24be1366da8f49feb3ef781eceafe73b04"
+          },
+          {
+            "name": "data.csv",
+            "sha256": "901ca27653633ab95e145fd54cca89624babd8bafd64498bc618a5ef52e0dbb2"
+          },
+          {
+            "name": "research.xlsx",
+            "sha256": "876f740a72619e8f4a44aa139af0d143a3cb74b17658ca2939732f3829cee204"
+          },
+          {
+            "name": "diagram.png",
+            "sha256": "d6c67569a47acf53ab48421cb4bc3875cdf80eb7760ceb0567e14e98a4dd7a73"
+          },
+          {
+            "name": "report.pdf",
+            "sha256": "1acd90f8b45e861f4bf77fb756b8812af13eff0ee88b98556009dff1c5a3aa45"
+          },
+          {
+            "name": "final.txt",
+            "sha256": "6ef2de62bbd56997a5362a9e36cf9477b1619d9ae1bca9833c96b26d2be50b5d"
+          }
+        ],
+        "before": 1,
+        "after": 2,
+        "restored": "81273498-2520-4df1-b023-514e4b961858",
+        "restoredState": "partial",
+        "blocked": "ARCHIVE_FILE_MISSING"
+      }
+    },
+    {
+      "name": "bad_zip_shows_human_readable_error_and_same_file_can_be_reselected",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "legacy_threadline_archive_v1_imports_without_rewriting_source_snapshot",
+      "result": "pass",
+      "detail": {
+        "restored": "3b46f83c-2889-4a23-9709-36033a1ce442",
+        "state": "partial",
+        "saveScope": "all",
+        "saved": 7,
+        "unavailable": 3
+      }
+    },
+    {
+      "name": "all_files_archive_restore_rejects_forged_exclusions",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "nested_official_style_zip_fixture_byte_comparison",
+      "result": "pass",
+      "detail": {
+        "schema": 1,
+        "checkedAt": "2026-11-03T16:38:14.207Z",
+        "records": [
+          {
+            "name": "branch.pdf",
+            "result": "bytes_match",
+            "basis": "unique_filename_only",
+            "entry": "Files-001.zip/branch.pdf",
+            "localSha256": "78750ff617d82201f62fff27066a6ce136a7a9c75674c989b3af00fbeb3bba2a",
+            "officialSha256": "78750ff617d82201f62fff27066a6ce136a7a9c75674c989b3af00fbeb3bba2a"
+          },
+          {
+            "name": "data.csv",
+            "result": "bytes_match",
+            "basis": "file_id",
+            "entry": "Files-001.zip/file_csv.dat",
+            "localSha256": "1c0faf9a8182a96f633336f1b630ce24be1366da8f49feb3ef781eceafe73b04",
+            "officialSha256": "1c0faf9a8182a96f633336f1b630ce24be1366da8f49feb3ef781eceafe73b04"
+          },
+          {
+            "name": "data.csv",
+            "result": "bytes_match",
+            "basis": "file_id",
+            "entry": "Files-001.zip/file_second.dat",
+            "localSha256": "901ca27653633ab95e145fd54cca89624babd8bafd64498bc618a5ef52e0dbb2",
+            "officialSha256": "901ca27653633ab95e145fd54cca89624babd8bafd64498bc618a5ef52e0dbb2"
+          },
+          {
+            "name": "research.xlsx",
+            "result": "bytes_match",
+            "basis": "file_id",
+            "entry": "Files-001.zip/file_sheet.dat",
+            "localSha256": "876f740a72619e8f4a44aa139af0d143a3cb74b17658ca2939732f3829cee204",
+            "officialSha256": "876f740a72619e8f4a44aa139af0d143a3cb74b17658ca2939732f3829cee204"
+          },
+          {
+            "name": "diagram.png",
+            "result": "bytes_match",
+            "basis": "file_id",
+            "entry": "Files-001.zip/file_image.dat",
+            "localSha256": "d6c67569a47acf53ab48421cb4bc3875cdf80eb7760ceb0567e14e98a4dd7a73",
+            "officialSha256": "d6c67569a47acf53ab48421cb4bc3875cdf80eb7760ceb0567e14e98a4dd7a73"
+          },
+          {
+            "name": "report.pdf",
+            "result": "bytes_match",
+            "basis": "unique_filename_only",
+            "entry": "Files-001.zip/report.pdf",
+            "localSha256": "1acd90f8b45e861f4bf77fb756b8812af13eff0ee88b98556009dff1c5a3aa45",
+            "officialSha256": "1acd90f8b45e861f4bf77fb756b8812af13eff0ee88b98556009dff1c5a3aa45"
+          },
+          {
+            "name": "tool-output.txt",
+            "result": "not_saved_locally"
+          },
+          {
+            "name": "old.pdf",
+            "result": "not_saved_locally"
+          },
+          {
+            "name": "unresolved.pdf",
+            "result": "not_saved_locally"
+          },
+          {
+            "name": "final.txt",
+            "result": "bytes_match",
+            "basis": "unique_filename_only",
+            "entry": "Files-001.zip/final.txt",
+            "localSha256": "6ef2de62bbd56997a5362a9e36cf9477b1619d9ae1bca9833c96b26d2be50b5d",
+            "officialSha256": "6ef2de62bbd56997a5362a9e36cf9477b1619d9ae1bca9833c96b26d2be50b5d"
+          }
+        ],
+        "note": "Only exact file IDs and unambiguous original filenames are recognized. Unmatched files do not prove absence from the official export. Unknown mapping formats and historical-file availability require a real account sample."
+      }
+    },
+    {
+      "name": "indexeddb_sequence_and_interrupted_write_fail_closed",
+      "result": "pass",
+      "detail": {
+        "sequence": "CHUNK_SEQUENCE_MISMATCH",
+        "state": "unavailable",
+        "sha256": null,
+        "reason": "INTERRUPTED_RETRY_EXPLICITLY"
+      }
+    },
+    {
+      "name": "opt_in_live_generated_file_caching_and_explicit_stop",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "archive_restore_rederives_origin_and_rejects_duplicate_or_mismatched_asset_identity",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "last_generated_scope_saves_only_latest_active_branch_assistant_file_and_roundtrips_exclusions",
+      "result": "pass",
+      "detail": {
+        "saved": [
+          "final.txt"
+        ],
+        "excluded": 8,
+        "unresolved": "tool-output.txt",
+        "download_paths": [
+          "/mnt/data/final.txt"
+        ]
+      }
+    },
+    {
+      "name": "scoped_archive_restore_rejects_tampered_unresolved_states_and_unknown_assets",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "last_generated_scope_does_not_guess_when_later_active_source_is_unresolved",
+      "result": "pass",
+      "detail": {
+        "saved": 0,
+        "unresolved": [
+          "report.pdf",
+          "old.pdf",
+          "final.txt",
+          "tool-output.txt"
+        ],
+        "excluded": 6
+      }
+    },
+    {
+      "name": "browser_restart_preserves_snapshot_and_binary_blobs",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "new_tab_receives_verified_bytes_and_early_middle_late_history_without_send",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "handoff_reload_does_not_reinject_camera_untouched_unique_upload_names",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "existing_user_draft_is_not_overwritten",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "unrecognized_upload_status_returns_control_without_retry_or_send",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "missing_chatgpt_attachment_input_keeps_verified_draft_and_prompts_manual_upload",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "saved_passage_select_persist_restore_highlight_and_source_identity",
+      "result": "pass",
+      "detail": {
+        "passageId": "0ae578c5-848e-4100-b3a6-c8009135e215",
+        "messageId": "m0"
+      }
+    },
+    {
+      "name": "handoff_uses_validated_selected_branch_and_rejects_disconnected_paths",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "archive_branch_selector_saves_and_navigates_passages_across_accessible_branches",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "ux_archive_and_handoff_each_have_one_clear_next_action",
+      "result": "pass",
+      "detail": {
+        "widths": [
+          320,
+          360,
+          1280
+        ],
+        "primary_actions": 1
+      }
+    },
+    {
+      "name": "workspace_320_360_480_768_1280_reflow_and_screenshots",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "changing_source_branch_invalidates_prepared_handoff",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "context_builder_exports_traceable_multi_archive_bundle_without_implicit_file_bytes",
+      "result": "pass",
+      "detail": {
+        "parts": 1,
+        "messages": 120
+      }
+    },
+    {
+      "name": "download_receipts_replace_one_status_instead_of_accumulating_rows",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "context_builder_passage_only_mode_keeps_excerpt_and_complete_source_provenance",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "context_builder_includes_only_explicitly_requested_verified_asset_bytes",
+      "result": "pass",
+      "detail": {
+        "asset_files": 6
+      }
+    },
+    {
+      "name": "experiment_page_has_no_duplicate_toast_or_version_disclaimer",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "parallel_experiment_k2_freezes_identical_input_and_prefills_without_sending",
+      "result": "pass",
+      "detail": {
+        "branches": 2
+      }
+    },
+    {
+      "name": "parallel_experiment_k2_manual_send_capture_completion_and_blind_comparison",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "parallel_experiment_k3_opens_exact_branch_count_with_identical_prefill_and_no_send",
+      "result": "pass",
+      "detail": {
+        "branches": 3
+      }
+    },
+    {
+      "name": "parallel_experiment_k3_manual_send_capture_and_blind_comparison",
+      "result": "pass",
+      "detail": {
+        "branches": 3
+      }
+    },
+    {
+      "name": "parallel_experiment_k4_opens_exact_branch_count_with_identical_prefill_and_no_send",
+      "result": "pass",
+      "detail": {
+        "branches": 4
+      }
+    },
+    {
+      "name": "parallel_experiment_k4_manual_send_capture_and_blind_comparison",
+      "result": "pass",
+      "detail": {
+        "branches": 4
+      }
+    },
+    {
+      "name": "all_synthetic_source_requests_are_read_only",
+      "result": "pass",
+      "detail": {
+        "request_count": 15
+      }
+    }
+  ],
+  "errors": [],
+  "status": "pass"
+}

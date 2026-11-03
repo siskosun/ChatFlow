@@ -32,7 +32,7 @@ ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.3 聚焦
 
 ## 开发状态
 
-**版本：0.3 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
+**版本：0.3 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[0.3 工程验证](docs/VERIFICATION_0.3.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
 
 ## 构建
 
