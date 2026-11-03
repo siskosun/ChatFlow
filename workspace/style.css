@@ -13,7 +13,7 @@ button,.file-button{
  display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:42px;
  border:1px solid var(--control-line);border-radius:10px;padding:9px 14px;background:var(--paper);
  color:var(--ink);font-weight:560;cursor:pointer;text-decoration:none;
- transition:background-color .12s ease,border-color .12s ease;
+ transition:border-color .12s ease;
 }
 button:hover:not(:disabled),.file-button:hover{background:var(--hover);border-color:var(--hover-line)}
 button:disabled{opacity:.45;cursor:not-allowed}

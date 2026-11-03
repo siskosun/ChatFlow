@@ -1,38 +1,38 @@
 {
   "Engineering": {
     "Core task return": {
-      "status": "implemented",
-      "description": "Task identity, local receipts, strict source service and copy-only return implemented; awaiting installed-extension synthetic QA."
+      "status": "pass",
+      "description": "Validated at 04bd8e1967f7b6bf74ce8bf68f904597cb185d0b, GitHub Actions 41674731146. Node regressions and 14 installed-MV3 Task Loop/navigation cases passed, including exact routing, restart and copy-only return."
     },
     "Two-flow UI and advanced preferences": {
       "status": "implemented",
       "description": "Requested benjitaylor/skills stageshow prototype drawn first; production next actions, concise text, pagination and dark theme aligned. Render-only screenshots are separate from installed-extension CI and human acceptance."
     },
     "Navigation and licensed utilities": {
-      "status": "implemented",
-      "description": "Pinned MIT Toolkit components adapted; exact-ID source-bound panel implemented; browser behavior awaiting CI."
+      "status": "pass",
+      "description": "Validated at 04bd8e1967f7b6bf74ce8bf68f904597cb185d0b, GitHub Actions 41674731146. All 14 Task Loop/navigation cases and retained Node/security checks passed; exact-ID navigation and no automatic source writes confirmed."
     },
     "Source locked capture": {
-      "status": "implemented",
-      "description": "Selected conversation and document frozen before async work; exact-document sends and drained stop writes implemented. Node and installed-extension cases included; formal CI pending."
+      "status": "pass",
+      "description": "Validated at 04bd8e1967f7b6bf74ce8bf68f904597cb185d0b, GitHub Actions 41674731146. All 11 reliability cases passed with closed HTTP(S) synthetic fixtures, including A-to-B route change, same-URL document reload and unchanged-source positive control."
     },
     "Recoverable archives": {
-      "status": "implemented",
-      "description": "archive/2 chunks large attachments and validates exports with restore parser; busy exports blocked; actual IDB 65 MiB roundtrip awaits exact-commit CI."
+      "status": "pass",
+      "description": "Validated at 04bd8e1967f7b6bf74ce8bf68f904597cb185d0b, GitHub Actions 41674731146. All 5 actual IndexedDB archive cases passed: 65 MiB file roundtrip, version/no-write export checks, downloading/live rejection and stopped partial archive recovery."
     },
     "Task backup capacity and integrity": {
-      "status": "implemented",
-      "description": "Bounded JSONL backups, staged validation and atomic merge; v4 metadata pages; legacy import retained. Corrupt or conflicting duplicate receipts are rejected."
+      "status": "pass",
+      "description": "Validated at 04bd8e1967f7b6bf74ce8bf68f904597cb185d0b, GitHub Actions 41674731146. All 9 actual IndexedDB task-storage cases passed, including 16 maximum results, 1000 tasks/2000 receipts, migration, atomic failures and duplicate validation."
     },
     "Input integrity and performance": {
-      "status": "implemented",
-      "description": "Full pasted text retained with visible limits; lazy per-compile snapshot hash, linear graph checks and summary pages implemented; explicit Node/browser budgets included."
+      "status": "pass",
+      "description": "Validated at 04bd8e1967f7b6bf74ce8bf68f904597cb185d0b, GitHub Actions 41674731146. Five trusted clipboard paste cases, 1000 x 32 KiB archive summary cases, full task library budgets and all four Node algorithm budgets passed."
     }
   },
   "Validation": {
     "Regression and real Chromium synthetic QA": {
       "status": "implemented",
-      "description": "Corrected the confirmed Playwright HTTPS glob routing gap with anchored HTTP(S) interception and fixture navigation assertions; normal-save control and trusted-paste assertions retained and strengthened. Adjusted light muted text to #5b6b78 (selected-row computed ratio 4.96); visual gate now collects all 42 cases while preserving all thresholds. Full exact-head CI rerun required."
+      "description": "Removed background-color transition, preserving border transition. No contrast threshold or wait was relaxed; immediate bidirectional theme samples passed in a focused render probe. Full installed-extension and cross-platform delivery gates still require a new exact-head run."
     },
     "Cloud build reproducibility": {
       "status": "implemented",
