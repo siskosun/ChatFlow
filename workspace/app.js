@@ -39,7 +39,7 @@
   if(key===sourceLookupKey)return sourceLookupCaptureId?S.get('captures',sourceLookupCaptureId):null;
   const identity=C.chatUrl(source.url),matches=(await S.all('captures')).filter(row=>{
    const saved=row.snapshot?.source||row.source;
-   return !!row.snapshot&&saved?.origin===identity.origin&&saved?.conversationId===identity.conversationId&&(row.saveScope||'all')===scope;
+   return (row.snapshot||['error','interrupted','cancelled'].includes(row.state))&&saved?.origin===identity.origin&&saved?.conversationId===identity.conversationId&&(row.saveScope||'all')===scope;
   }).sort((a,b)=>String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt)));
   const chosen=matches.find(row=>row.id===selectedId)||matches[0]||null;
   sourceLookupKey=key;sourceLookupCaptureId=chosen?.id||null;return chosen;
@@ -63,17 +63,17 @@
    const rows=capture?.snapshot?await S.assets(capture.id):[];
    if(epoch!==runningEpoch)return;
    const saved=rows.filter(a=>a.state==='saved').length,excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;
-   const signature=JSON.stringify(['idle',$('source').value,$('asset-scope').value,capture?.id,capture?.state,capture?.snapshot?.messages.length,saved,excluded,missing]);
+   const signature=JSON.stringify(['idle',$('source').value,$('asset-scope').value,capture?.id,capture?.state,capture?.lastError,capture?.snapshot?.messages.length,saved,excluded,missing]);
    $('capture').disabled=!(Number($('source').value)>0);
    if(signature===runningSignature)return;
    runningSignature=signature;box.className='running '+(capture?.snapshot?'':'empty');box.replaceChildren();
    if(capture?.snapshot){
     selectedId=capture.id;$('capture').hidden=false;$('capture').textContent='重新采集对话';$('continue').hidden=false;$('asset-scope').disabled=false;
     const outcome=missing?'，'+missing+' 个未取得':'';
-    box.textContent='已保存 '+capture.snapshot.messages.length+' 条消息 · '+saved+' 个文件'+outcome+(excluded?' · '+excluded+' 个已排除':'');
+    box.textContent=(capture.state==='ready'?'已保存':capture.state==='partial'?'部分保存':capture.state==='interrupted'?'保存中断':capture.state==='cancelled'?'采集已取消':'待复查')+' · '+capture.snapshot.messages.length+' 条消息 · '+saved+' 个文件'+outcome+(excluded?' · '+excluded+' 个已排除':'')+(capture.lastError?' · '+explain(capture.lastError):'');
    }else{
-    selectedId=null;$('capture').hidden=false;$('capture').textContent='保存对话';$('continue').hidden=true;$('asset-scope').disabled=false;
-    box.textContent=$('source').value?'':'请先打开一段 ChatGPT 对话';
+    selectedId=capture?.id||null;$('capture').hidden=false;$('capture').textContent=capture?.state==='error'?'重试保存':'保存对话';$('continue').hidden=true;$('asset-scope').disabled=false;
+    box.textContent=capture?.lastError?'保存未完成 · '+explain(capture.lastError):$('source').value?'':'请先打开一段 ChatGPT 对话';
    }
    return;
   }
@@ -101,7 +101,7 @@
   for(const {r,c,saved,excluded,missing} of items){
    const el=[...box.querySelectorAll('.panel[data-capture-id]')].find(x=>x.dataset.captureId===r.captureId);
    const title=c?.snapshot?.title||c?.title||'当前对话';
-   const summary=(r.live?'实时缓存中':'采集中')+' · '+saved+' 个已保存'+(missing?' · '+missing+' 个未取得':'')+(excluded?' · '+excluded+' 个已排除':'');
+   const summary=(r.live?'实时缓存中':'采集中')+' · '+saved+' 个已保存'+(missing?' · '+missing+' 个待处理或未取得':'')+(excluded?' · '+excluded+' 个已排除':'')+(c?.lastError?' · '+explain(c.lastError):'');
    if(el.querySelector('strong').textContent!==title)el.querySelector('strong').textContent=title;
    if(el.querySelector('.capture-summary').textContent!==summary)el.querySelector('.capture-summary').textContent=summary;
   }
