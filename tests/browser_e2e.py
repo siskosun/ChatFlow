@@ -549,6 +549,10 @@ async def main():
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
             await experiment_page.locator('#ff-enable').wait_for(state='visible')
             assert await experiment_page.locator('#ff-notice').get_attribute('role')=='status'
+            await wait_async(experiment_page,'()=>document.querySelector("#ff-notice").textContent===""')
+            assert await experiment_page.locator('#ff-action-status').count()==0
+            assert await experiment_page.locator('#ff-version-note').is_hidden()
+            passed('experiment_page_has_no_duplicate_toast_or_version_disclaimer')
             await experiment_page.locator('.topbar .brand').focus()
             await experiment_page.keyboard.press('Tab')
             assert await experiment_page.evaluate("document.activeElement.classList.contains('back')")
