@@ -153,11 +153,15 @@ async def main():
         profile=Path(tmp)/'profile';ctx,extension=await launch(pw,profile)
         workspace=None
         try:
-            source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
-            assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
             workspace=await ctx.new_page();await workspace.goto('chrome-extension://'+extension+'/workspace/index.html')
             await workspace.wait_for_function('typeof TLStore!=="undefined"&&typeof TLArchive!=="undefined"')
-            await wait_async(workspace,'()=>document.querySelector("#source").value!==""')
+            await wait_async(workspace,'()=>document.querySelector("#source").value===""&&document.querySelector("#capture").disabled')
+            assert await workspace.locator('#capture').is_disabled()
+            passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
+            source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
+            assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
+            await workspace.bring_to_front()
+            await wait_async(workspace,'()=>document.querySelector("#source").value!==""&&!document.querySelector("#capture").disabled',timeout=15000)
             manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
             assert 'side_panel' not in manifest and 'sidePanel' not in manifest['permissions'],manifest
             assert await workspace.locator('.journey-step svg').count()==3
@@ -478,6 +482,22 @@ async def main():
                 await workspace.screenshot(path=str(OUT/f'ux-handoff-{width}.png'),full_page=True)
             passed('ux_archive_and_handoff_each_have_one_clear_next_action',{'widths':[320,360,1280],'primary_actions':1})
             passed('workspace_320_360_480_768_1280_reflow_and_screenshots')
+            # Failed/unknown target must offer a user-initiated new preparation.
+            # The old target stays untouched; no automatic retry is performed.
+            prepared_id=await workspace.evaluate("""async()=>{
+              const all=await TLStore.all('handoffs');
+              return all.filter(h=>h.state==='prepared').sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0]?.id;
+            }""")
+            assert prepared_id, 'UI prepared handoff not found'
+            await workspace.evaluate("""async id=>{
+              const h=await TLStore.get('handoffs',id);
+              await TLStore.set('handoffs',{...h,state:'injection_blocked',lastError:'USER_DRAFT_PRESENT'});
+            }""",prepared_id)
+            await wait_async(workspace,'()=>!document.querySelector("#prepare").hidden&&document.querySelector("#open-target").hidden',timeout=12000)
+            assert await workspace.get_by_role('button',name='重新准备接续包').is_visible()
+            await workspace.get_by_role('button',name='重新准备接续包').click()
+            await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
+            passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
             # A previously prepared package must not survive a source-branch change.
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('#archive-branch').select_option(alternate_value)
