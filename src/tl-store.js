@@ -79,12 +79,22 @@
  const chunks=(captureId,key)=>transaction(['chunks'],'readonly',s=>request(s.chunks.index('owner').getAll(IDBKeyRange.only([captureId,key]))));
  async function snapshot(captureId,model){
   C.check(model?.schema==='threadline.snapshot/1','INVALID_SNAPSHOT');const clean=C.persistedSnapshot(model),now=new Date().toISOString();
-  await transaction(['captures','assets'],'readwrite',async s=>{
+  await transaction(['captures','assets','chunks'],'readwrite',async s=>{
    const prev=await request(s.captures.get(captureId)),prevSource=prev?.snapshot?.source||prev?.source;
    if(prevSource)C.check(prevSource.conversationId===clean.source.conversationId&&prevSource.origin===clean.source.origin,'CAPTURE_SOURCE_CHANGED');
    const prior=await request(s.assets.index('capture').getAll(captureId)),old=new Map(prior.map(a=>[a.key,a])),current=new Set(clean.assets.map(a=>a.key));
+   const replacementIdentity=new Set(clean.assets.filter(a=>a.ref?.scheme&&a.ref.scheme!=='unsupported').map(a=>JSON.stringify([a.messageId,a.nodeId,a.name])));
    for(const a of clean.assets){const p=old.get(a.key);if(p?.state==='saved'&&(a.expectedSize==null||a.expectedSize===p.size))s.assets.put({...p,name:a.name,mime:a.mime==='application/octet-stream'?p.mime:a.mime,inLatestSnapshot:true});else s.assets.put({...a,captureId,inLatestSnapshot:true,sha256:null,size:0,chunks:0,state:['unavailable','excluded'].includes(a.state)?a.state:'discovered',reason:a.reason||null});}
-   for(const a of prior)if(!current.has(a.key))s.assets.put({...a,inLatestSnapshot:false});
+   for(const a of prior)if(!current.has(a.key)){
+    // Drop only an unresolved, unsaved DOM placeholder when the SAME source
+    // message, node and filename now have an explicit attachment reference.
+    // Never guess that different names or saved bytes represent one file.
+    const replaced=a.ref?.scheme==='unsupported'&&a.state!=='saved'&&replacementIdentity.has(JSON.stringify([a.messageId,a.nodeId,a.name]));
+    if(replaced){
+     s.assets.delete([captureId,a.key]);
+     for(const key of await request(s.chunks.index('owner').getAllKeys(IDBKeyRange.only([captureId,a.key]))))s.chunks.delete(key);
+    }else s.assets.put({...a,inLatestSnapshot:false});
+   }
    s.captures.put({id:captureId,snapshot:clean,createdAt:prev?.createdAt||now,updatedAt:now,state:'capturing',live:!!prev?.live,saveScope:prev?.saveScope||'all'});
   });return get('captures',captureId);
  }
@@ -123,7 +133,7 @@
   });
  }
  async function finishCapture(captureId,requested='ready'){
-  const rows=await assets(captureId),c=await get('captures',captureId);C.check(c?.snapshot,'CAPTURE_NOT_FOUND');
+  const rows=(await assets(captureId)).filter(a=>a.inLatestSnapshot!==false),c=await get('captures',captureId);C.check(c?.snapshot,'CAPTURE_NOT_FOUND');
   const excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length,saved=rows.filter(a=>a.state==='saved').length,state=requested==='ready'?(missing||c.snapshot.integrity.state!=='valid'?'partial':'ready'):requested;
   await set('captures',{...c,state,updatedAt:new Date().toISOString(),savedFiles:saved,missingFiles:missing,excludedFiles:excluded});return get('captures',captureId);
  }
