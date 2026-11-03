@@ -32,7 +32,7 @@
   "Validation": {
     "Regression and real Chromium synthetic QA": {
       "status": "implemented",
-      "description": "Corrected the confirmed 5e41d8b browser locator collision by scoping exact labels to the capture view; aligned preparation/open button labels. Independent browser suites now all run after browser-tool installation even if one suite fails. Full exact-head CI rerun required."
+      "description": "Corrected the confirmed Playwright HTTPS glob routing gap with anchored HTTP(S) interception and fixture navigation assertions; normal-save control and trusted-paste assertions retained and strengthened. Adjusted light muted text to #5b6b78 (selected-row computed ratio 4.96); visual gate now collects all 42 cases while preserving all thresholds. Full exact-head CI rerun required."
     },
     "Cloud build reproducibility": {
       "status": "implemented",

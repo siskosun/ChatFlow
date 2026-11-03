@@ -4,6 +4,7 @@ Computed contrast and screenshots do not certify screen-reader or human usabilit
 import asyncio
 import json
 import os
+import re
 import tempfile
 import traceback
 from pathlib import Path
@@ -32,7 +33,7 @@ async def main():
   with tempfile.TemporaryDirectory(prefix='chatflow-visual-') as profile:
    context=await pw.chromium.launch_persistent_context(profile,channel='chromium',executable_path=os.environ.get('CHATFLOW_CHROMIUM'),headless=False,args=['--disable-extensions-except='+str(ROOT/'dist/edge'),'--load-extension='+str(ROOT/'dist/edge'),'--no-sandbox'])
    try:
-    await context.route('http://**',lambda r:r.abort());await context.route('https://**',lambda r:r.abort())
+    await context.route(re.compile(r'^https?://'),lambda r:r.abort())
     worker=context.service_workers[0] if context.service_workers else await context.wait_for_event('serviceworker')
     base='chrome-extension://'+worker.url.split('/')[2]+'/workspace/'
     page=await context.new_page();page.on('pageerror',lambda e:report['errors'].append(str(e)));await page.goto(base+'index.html');await page.wait_for_function('!!globalThis.ChatFlowWorkspace&&!!globalThis.ChatFlowTaskUI')
@@ -46,16 +47,16 @@ async def main():
        await page.evaluate('v=>ChatFlowWorkspace.show(v)',view);await page.wait_for_timeout(160)
        if view=='archive':await page.locator('.archive-button').first.click();await page.locator('#detail h2').wait_for()
        if view=='tasks':await page.locator('#task-mode-return').click()
-       value=await page.evaluate(CHECK);value.update({'view':view,'scheme':scheme,'result':'pass'})
+       value=await page.evaluate(CHECK);value.update({'view':view,'scheme':scheme,'result':'fail' if value['documentWidth']>width+2 or value['failures'] else 'pass'})
        if (width==360 and scheme=='dark') or (width==1440 and scheme=='light'):await page.screenshot(path=str(OUT/f'ui-{view}-{scheme}-{width}.png'),full_page=True)
-       report['cases'].append(value);assert value['documentWidth']<=width+2,value;assert not value['failures'],value
+       report['cases'].append(value)
     experiment=await context.new_page();experiment.on('pageerror',lambda e:report['errors'].append(str(e)));await experiment.goto(base+'experiments.html');await experiment.wait_for_function("()=>!document.querySelector('#ff-notice').textContent.includes('正在检查')&&!document.querySelector('#ff-enable').disabled");await experiment.locator('#ff-enable').check();await experiment.wait_for_function("()=>document.querySelector('#ff-enable').checked&&!document.querySelector('#ff-enable').disabled&&!document.querySelector('#ff-local').hidden");await experiment.locator('#ff-p').fill('合成比较任务')
     for scheme in ['light','dark']:
      await experiment.emulate_media(color_scheme=scheme)
      for width in [320,360,1440]:
-      await experiment.set_viewport_size({'width':width,'height':950});value=await experiment.evaluate(CHECK);value.update({'view':'experiments','scheme':scheme,'result':'pass'});report['cases'].append(value)
+      await experiment.set_viewport_size({'width':width,'height':950});value=await experiment.evaluate(CHECK);value.update({'view':'experiments','scheme':scheme,'result':'fail' if value['documentWidth']>width+2 or value['failures'] else 'pass'});report['cases'].append(value)
       if width in [360,1440]:await experiment.screenshot(path=str(OUT/f'ui-experiments-{scheme}-{width}.png'),full_page=True)
-      assert value['documentWidth']<=width+2,value;assert not value['failures'],value
+    failed=[case for case in report['cases'] if case['result']!='pass'];assert not failed,failed
     assert not report['errors'],report['errors'];report['status']='pass';print('PASS visual_and_contrast',len(report['cases']),flush=True)
    except Exception as e:report['error']={'message':str(e),'traceback':traceback.format_exc()};raise
    finally:

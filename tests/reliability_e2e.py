@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import tempfile
 import traceback
 from pathlib import Path
@@ -19,7 +20,8 @@ B='conversation_reliability_B_20261103'
 URL_A='https://chatgpt.com/c/'+A
 URL_B='https://chatgpt.com/c/'+B
 REPORT={'scope':'installed_chromium_mv3_synthetic_reliability','status':'fail','cases':[]}
-HTML='''<!doctype html><html><head><title>Synthetic source A</title></head><body>
+FIXTURE_MARKER='chatflow-reliability-v1'
+HTML='''<!doctype html><html data-chatflow-fixture="chatflow-reliability-v1"><head><title>Synthetic source A</title></head><body>
 <main><article data-message-id="user-1" data-message-author-role="user">Synthetic source.</article></main>
 <textarea id="prompt-textarea">SYNTHETIC_EXISTING_DRAFT</textarea>
 <button id="send" onclick="window.sends++">Send</button><script>window.sends=0;</script>
@@ -41,6 +43,62 @@ async def poll(page,expression,arg=None,seconds=30):
 def passed(name,detail=None):
     REPORT['cases'].append({'name':name,'result':'pass','detail':detail})
     print('PASS',name,flush=True)
+
+async def assert_source_fixture(page,response,label):
+    """Fail at navigation if routing failed, before any capture action runs."""
+    proof=await page.evaluate(r'''()=>({path:/^\/c\/conversation_reliability_[AB]_20261103$/.test(location.pathname)?location.pathname:'[non-fixture route]',marker:document.documentElement.dataset.chatflowFixture||null,draftIntact:document.querySelector('#prompt-textarea')?.value==='SYNTHETIC_EXISTING_DRAFT',sendCount:window.sends})''')
+    proof.update({'navigation':label,'status':response.status if response else None,'responseMarker':response.headers.get('x-chatflow-fixture') if response else None})
+    REPORT.setdefault('fixtureNavigations',[]).append(proof)
+    assert response and response.status==200 and proof['responseMarker']==FIXTURE_MARKER,proof
+    assert page.url==URL_A and proof['marker']==FIXTURE_MARKER and proof['draftIntact'] and proof['sendCount']==0,proof
+
+RPC_TRACE=r'''()=>{
+ if(window.__reliabilityRPC)return;
+ const nativeSend=chrome.runtime.sendMessage.bind(chrome.runtime),entries=[];
+ const watched=new Set(['tl:freezeSource','tl:start','tl:stop','tl:sources','tl:sessions']);
+ const identity=url=>{try{const u=new URL(url);return /^\/c\/conversation_reliability_[AB]_20261103$/.test(u.pathname)?u.pathname:'[non-fixture route]';}catch{return null;}};
+ const response=(type,r)=>{
+  const out={ok:r?.ok===true,code:r?.code||null};
+  if(type==='tl:freezeSource')out.data={tabId:r?.data?.tabId,conversationId:r?.data?.expectedConversationId,documentLocked:!!r?.data?.expectedDocumentId};
+  if(type==='tl:start')out.data={captureId:r?.data?.captureId};
+  if(type==='tl:sources')out.data=r?.data?.map(x=>({id:x.id,path:identity(x.url)}));
+  if(type==='tl:sessions')out.data=r?.data?.map(x=>({captureId:x.captureId,tabId:x.tabId,phase:x.phase,live:x.live}));
+  return out;
+ };
+ chrome.runtime.sendMessage=function(...args){
+  const msg=args[0];
+  // The workspace uses the Promise overload. Preserve callback overloads as-is.
+  if(!watched.has(msg?.type)||typeof args.at(-1)==='function')return nativeSend(...args);
+  const entry={type:msg.type,request:{tabId:msg.tabId,path:identity(msg.expectedUrl),documentLocked:!!msg.expectedDocumentId,scope:msg.scope,live:msg.live}};
+  entries.push(entry);if(entries.length>100)entries.shift();
+  let pending;try{pending=nativeSend(...args);}catch(e){entry.thrown=e?.name||'Error';throw e;}
+  pending.then(r=>{entry.response=response(msg.type,r);},e=>{entry.thrown=e?.name||'Error';});
+  return pending;
+ };
+ window.__reliabilityRPC={entries};
+}'''
+
+WORKSPACE_DIAGNOSTICS=r'''async()=>{
+ const $=id=>document.getElementById(id),out={};
+ const identity=url=>{try{const path=new URL(url).pathname;return /^\/c\/conversation_reliability_[AB]_20261103$/.test(path)?path:'[non-fixture route]';}catch{return null;}};
+ out.ui={visibleViews:[...document.querySelectorAll('.view:not([hidden])')].map(e=>e.id),status:$('status')?.textContent.slice(0,400),statusError:$('status')?.classList.contains('error'),running:$('running')?.textContent.slice(0,400),sourceValue:$('source')?.value,sourceOptions:[...($('source')?.options||[])].map(x=>({value:x.value,path:identity(x.dataset.sourceUrl)})),captureDisabled:$('capture')?.disabled,continueHidden:$('continue')?.hidden,allowMedia:$('allow-media')?.checked,live:$('live')?.checked,scope:$('asset-scope')?.value};
+ out.rpc=window.__reliabilityRPC?.entries||[];
+ if(window.__sourceRace)out.race={freezeDone:window.__sourceRace.freezeDone,permissionPending:window.__sourceRace.permissionPending,released:window.__sourceRace.released,restored:window.__sourceRace.restored};
+ try{const page=await TLStore.listCaptures({limit:100});out.captures=page.items.map(c=>({id:c.id,conversationId:c.source?.conversationId,state:c.state,live:c.live,hasSnapshot:c.hasSnapshot,messageCount:c.messageCount,integrityState:c.integrityState,lastError:c.lastError,savedFiles:c.savedFiles,missingFiles:c.missingFiles,excludedFiles:c.excludedFiles}));out.moreCaptures=!!page.nextCursor;}catch(e){out.captureReadError=e?.name||'Error';}
+ try{const r=await chrome.runtime.sendMessage({type:'tl:sessions'});out.sessions=r?.ok?r.data.map(x=>({captureId:x.captureId,tabId:x.tabId,phase:x.phase,live:x.live})):{code:r?.code};}catch(e){out.sessionReadError=e?.name||'Error';}
+ return out;
+}'''
+
+async def failure_diagnostics(workspace,source_page,experiment_page,rpc_history):
+    detail={'earlierRPC':rpc_history}
+    for name,page,expression in [
+        ('workspace',workspace,WORKSPACE_DIAGNOSTICS),
+        ('source',source_page,r"""()=>({path:/^\/c\/conversation_reliability_[AB]_20261103$/.test(location.pathname)?location.pathname:'[non-fixture route]',fixtureMarker:document.documentElement.dataset.chatflowFixture||null,readyState:document.readyState,draftIntact:document.querySelector('#prompt-textarea')?.value==='SYNTHETIC_EXISTING_DRAFT',sendCount:window.sends})"""),
+        ('experiment',experiment_page,"""()=>({enabled:document.querySelector('#ff-enable')?.checked,enableDisabled:document.querySelector('#ff-enable')?.disabled,localHidden:document.querySelector('#ff-local')?.hidden,notice:document.querySelector('#ff-notice')?.textContent.slice(0,400)})""")]:
+        if not page or page.is_closed():continue
+        try:detail[name]=await asyncio.wait_for(page.evaluate(expression),timeout=5)
+        except Exception as e:detail[name]={'diagnosticError':type(e).__name__}
+    return detail
 
 async def trusted_paste(page,selector,text,button,notice):
     """Real Clipboard API + platform Control+V; no fill/dispatchEvent shortcut."""
@@ -108,31 +166,36 @@ ARCHIVE_CASES=r'''async()=>{
 }'''
 
 async def main():
-    requests=[];page_errors=[];workspace=None;source_page=None;experiment_page=None
+    requests=[];page_errors=[];rpc_history=[];workspace=None;source_page=None;experiment_page=None
     async def route(r):
         u=urlparse(r.request.url)
-        if u.hostname!='chatgpt.com':return await r.abort()
-        requests.append({'method':r.request.method,'path':u.path})
-        if r.request.method not in ('GET','HEAD'):return await r.fulfill(status=405,body='READ_ONLY_SYNTHETIC_FIXTURE')
-        if u.path=='/api/auth/session':return await r.fulfill(json={'accessToken':'synthetic-reliability-fixture','account':{'id':'synthetic-account'}})
+        known_paths={'/api/auth/session','/c/'+A,'/c/'+B,'/backend-api/conversation/'+A,'/backend-api/conversation/'+B}
+        record={'method':r.request.method,'path':u.path if u.hostname=='chatgpt.com' and u.path in known_paths else '[non-fixture target]','resourceType':r.request.resource_type,'outcome':'blocked'}
+        requests.append(record)
+        # One anchored regex route owns every HTTP(S) request. Never fall through
+        # to a real website, even for an unexpected redirect or fixture typo.
+        if u.scheme!='https' or u.hostname!='chatgpt.com' or u.path not in known_paths or r.request.method not in ('GET','HEAD'):return await r.abort('blockedbyclient')
+        record['outcome']='fixture';headers={'x-chatflow-fixture':FIXTURE_MARKER}
+        if u.path=='/api/auth/session':return await r.fulfill(headers=headers,json={'accessToken':'synthetic-reliability-fixture','account':{'id':'synthetic-account'}})
         if u.path.startswith('/backend-api/conversation/'):
             cid=u.path.rsplit('/',1)[-1]
-            if cid in (A,B):return await r.fulfill(json=model(cid))
-        if u.path in ('/c/'+A,'/c/'+B):return await r.fulfill(content_type='text/html',body=HTML)
-        return await r.fulfill(status=404,body='UNKNOWN_SYNTHETIC_FIXTURE')
+            return await r.fulfill(headers=headers,json=model(cid))
+        return await r.fulfill(headers=headers,content_type='text/html',body=HTML)
     async with async_playwright() as pw:
       with tempfile.TemporaryDirectory(prefix='chatflow-reliability-') as profile:
         context=await pw.chromium.launch_persistent_context(profile,channel='chromium',executable_path=os.environ.get('CHATFLOW_CHROMIUM'),headless=False,accept_downloads=True,args=['--disable-extensions-except='+str(ROOT/'dist/edge'),'--load-extension='+str(ROOT/'dist/edge'),'--no-sandbox'])
         try:
-            await context.route('https://**',route);await context.route('http://**',lambda r:r.abort())
+            # A hostname-only glob such as https://** is normalized with a final
+            # slash by Playwright 1.56, missing /c/ID. Regex avoids that ambiguity.
+            await context.route(re.compile(r'^https?://',re.IGNORECASE),route)
             # Test-only Chromium permission grant. The product manifest remains
             # unchanged; each paste still uses the real system clipboard and keys.
             await context.grant_permissions(['clipboard-read','clipboard-write'])
             worker=context.service_workers[0] if context.service_workers else await context.wait_for_event('serviceworker',timeout=30000)
             extension=worker.url.split('/')[2];base='chrome-extension://'+extension
-            source_page=await context.new_page();await source_page.goto(URL_A)
+            source_page=await context.new_page();response=await source_page.goto(URL_A);await assert_source_fixture(source_page,response,'initial_source_A')
             workspace=await context.new_page();workspace.on('pageerror',lambda e:page_errors.append(str(e)));await workspace.goto(base+'/workspace/index.html')
-            await workspace.locator('#home-view').wait_for(state='visible');await poll(workspace,'()=>document.querySelector("#quota").textContent.includes("本地已用")');await workspace.locator('#home-view [data-view="capture"]').click()
+            await workspace.locator('#home-view').wait_for(state='visible');await poll(workspace,'()=>document.querySelector("#quota").textContent.includes("本地已用")');await workspace.evaluate(RPC_TRACE);await workspace.locator('#home-view [data-view="capture"]').click()
             await poll(workspace,'()=>!document.querySelector("#capture").disabled&&document.querySelector("#source").value')
             source_rows=await workspace.evaluate('async()=>(await chrome.runtime.sendMessage({type:"tl:sources"})).data')
             tab_id=next(x['id'] for x in source_rows if x['url']==URL_A);await workspace.locator('#source').select_option(str(tab_id))
@@ -141,10 +204,10 @@ async def main():
             # promise is delayed, giving a deterministic genuine SPA route race.
             await workspace.evaluate('''()=>{
               const nativeSend=chrome.runtime.sendMessage.bind(chrome.runtime),nativePermission=chrome.permissions.request.bind(chrome.permissions);
-              window.__sourceRace={freezeDone:false,permissionPending:false,freezeResponse:null};
+              window.__sourceRace={freezeDone:false,permissionPending:false,freezeResponse:null,released:false,restored:false};
               chrome.runtime.sendMessage=async(...args)=>{const response=await nativeSend(...args);if(args[0]?.type==='tl:freezeSource'){window.__sourceRace.freezeDone=true;window.__sourceRace.freezeResponse=response;}return response;};
-              chrome.permissions.request=()=>{window.__sourceRace.permissionPending=true;return new Promise(resolve=>window.__sourceRace.release=resolve);};
-              window.__sourceRace.restore=()=>{chrome.runtime.sendMessage=nativeSend;chrome.permissions.request=nativePermission;};
+              chrome.permissions.request=()=>{window.__sourceRace.permissionPending=true;return new Promise(resolve=>window.__sourceRace.release=value=>{window.__sourceRace.released=true;resolve(value);});};
+              window.__sourceRace.restore=()=>{chrome.runtime.sendMessage=nativeSend;chrome.permissions.request=nativePermission;window.__sourceRace.restored=true;};
             }''')
             await workspace.locator('#capture').click();race=await poll(workspace,'()=>window.__sourceRace.freezeDone&&window.__sourceRace.permissionPending&&window.__sourceRace.freezeResponse')
             assert race['ok'] and race['data']['expectedConversationId']==A and race['data']['expectedDocumentId'],race
@@ -160,18 +223,31 @@ async def main():
             await workspace.evaluate('window.__sourceRace.restore()')
             # A same-URL reload changes the document even when conversation ID
             # remains the same. Reusing the frozen document must fail closed.
-            await source_page.goto(URL_A)
+            response=await source_page.goto(URL_A);await assert_source_fixture(source_page,response,'return_to_source_A')
             frozen=await workspace.evaluate('async x=>chrome.runtime.sendMessage({type:"tl:freezeSource",tabId:x.id,expectedUrl:x.url})',{'id':tab_id,'url':URL_A})
             assert frozen['ok'],frozen
-            await source_page.reload(wait_until='domcontentloaded')
+            response=await source_page.reload(wait_until='domcontentloaded');await assert_source_fixture(source_page,response,'same_URL_new_document')
             stale=await workspace.evaluate('async frozen=>chrome.runtime.sendMessage({type:"tl:start",...frozen,scope:"all",live:false})',frozen['data'])
             assert stale.get('ok') is False and stale.get('code')=='SOURCE_DOCUMENT_CHANGED',stale
             assert await workspace.evaluate('()=>TLStore.all("captures").then(xs=>xs.length)')==0
             passed('same_URL_reload_rejects_the_previously_frozen_document',{'code':stale['code']})
             # Positive control through the actual normal save UI.
-            await workspace.locator('#refresh-source').click();await workspace.locator('#source').select_option(str(tab_id));await workspace.locator('#allow-media').uncheck()
+            assert await workspace.evaluate('()=>window.__sourceRace.restored&&window.__sourceRace.released')
+            assert await workspace.evaluate('async()=>(await chrome.runtime.sendMessage({type:"tl:sessions"})).data.length')==0
+            rpc_history.extend(await workspace.evaluate('window.__reliabilityRPC.entries'))
+            # Start this independent control with native permission functions and
+            # a fresh source-picker cache, after proving both rejected runs ended.
+            await workspace.reload();await poll(workspace,'()=>document.querySelector("#quota").textContent.includes("本地已用")');await workspace.evaluate(RPC_TRACE)
+            assert await workspace.evaluate('()=>window.__sourceRace===undefined')
+            await workspace.locator('#home-view [data-view="capture"]').click()
+            await poll(workspace,'x=>{const s=document.querySelector("#source");return [...s.options].some(o=>o.value===String(x.id)&&o.dataset.sourceUrl===x.url)&&!document.querySelector("#capture").disabled;}',{'id':tab_id,'url':URL_A})
+            await workspace.locator('#source').select_option(str(tab_id));await workspace.locator('#capture-view > details.advanced > summary').click();await workspace.locator('#allow-media').uncheck()
             await poll(workspace,'()=>!document.querySelector("#capture").disabled');await workspace.locator('#capture').click()
+            started=await poll(workspace,'()=>window.__reliabilityRPC.entries.find(x=>x.type==="tl:start"&&x.response||x.type==="tl:freezeSource"&&x.response?.ok===false)')
+            assert started['type']=='tl:start' and started['response']['ok'],started
             saved=await poll(workspace,'async id=>(await TLStore.all("captures")).find(c=>c.snapshot?.source?.conversationId===id&&c.state==="ready")',A)
+            assert [m['text'] for m in saved['snapshot']['messages']]==['SOURCE_MARKER_'+A,'Synthetic answer for '+A]
+            for path in ['/api/auth/session','/backend-api/conversation/'+A]:assert any(r['path']==path and r['outcome']=='fixture' for r in requests),{'missingFixtureRequest':path,'requests':requests}
             await workspace.locator('#continue').wait_for(state='visible',timeout=30000)
             assert await workspace.locator('#continue').inner_text()=='继续到新对话'
             primaries=await workspace.locator('#capture-view button.primary').evaluate_all('xs=>xs.filter(e=>e.getClientRects().length&&!e.hidden).map(e=>e.id)')
@@ -208,16 +284,19 @@ async def main():
             for case in await workspace.evaluate(ARCHIVE_CASES):
                 REPORT['cases'].append(case);print('PASS',case['name'],flush=True)
             assert all(r['method'] in ('GET','HEAD') for r in requests),requests
+            assert not any(B in r['path'] for r in requests),requests
             assert not page_errors,page_errors
             REPORT['status']='pass'
         except Exception as e:
             REPORT['error']={'message':str(e),'traceback':traceback.format_exc()}
+            REPORT['diagnostics']=await failure_diagnostics(workspace,source_page,experiment_page,rpc_history)
             if workspace:
                 try:await workspace.screenshot(path=str(OUT/'reliability-failure.png'),full_page=True)
                 except Exception:pass
             raise
         finally:
-            REPORT['pageErrors']=page_errors;REPORT['requestCounts']={'total':len(requests),'B':sum(B in r['path'] for r in requests),'writes':sum(r['method'] not in ('GET','HEAD') for r in requests)}
+            REPORT['pageErrors']=page_errors;REPORT['requestCounts']={'total':len(requests),'fixture':sum(r['outcome']=='fixture' for r in requests),'blocked':sum(r['outcome']=='blocked' for r in requests),'B':sum(B in r['path'] for r in requests),'writes':sum(r['method'] not in ('GET','HEAD') for r in requests)}
+            REPORT['requestTrace']=requests[-100:]
             (OUT/'reliability-report.json').write_text(json.dumps(REPORT,ensure_ascii=False,indent=2),encoding='utf-8')
             print(json.dumps(REPORT,ensure_ascii=False),flush=True);await context.close()
 if __name__=='__main__':asyncio.run(main())

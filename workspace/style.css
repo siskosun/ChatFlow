@@ -1,5 +1,5 @@
 :root{
- color-scheme:light;--bg:#f5f7f9;--paper:#fff;--ink:#162633;--muted:#677682;
+ color-scheme:light;--bg:#f5f7f9;--paper:#fff;--ink:#162633;--muted:#5b6b78;
  --line:#dce3e9;--accent:#2563a6;--accent-dark:#1b4c80;--tint:#eef4f8;
  --control-line:#c9d4dd;--hover:#edf4f9;--hover-line:#aebdca;--quiet-ink:#304b60;--button-bg:#2563a6;--button-hover:#1b4c80;--button-ink:#fff;--code-bg:#f4f7f9;--state-bg:#f0f6fa;--state-ink:#36546c;--error-bg:#fff3f1;--error-line:#f2cdc7;--note-bg:#fffaf0;--note-line:#ead8b4;
  --ok:#19744e;--warn:#835b17;--bad:#b42318;--radius:16px;
