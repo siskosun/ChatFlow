@@ -70,7 +70,7 @@
     box.textContent='已保存 '+capture.snapshot.messages.length+' 条消息 · '+saved+' 个文件'+outcome+(excluded?' · '+excluded+' 个已排除':'');
    }else{
     selectedId=null;$('capture').hidden=false;$('capture').textContent='保存对话';$('continue').hidden=true;$('asset-scope').disabled=false;
-    box.textContent=$('source').value?'准备就绪':'请先打开一段 ChatGPT 对话';
+    box.textContent=$('source').value?'':'请先打开一段 ChatGPT 对话';
    }
    return;
   }
