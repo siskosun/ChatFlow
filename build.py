@@ -10,6 +10,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
 INCLUDE_DIRS = ["workspace", "icons"]
+TEXT_SUFFIXES = {".js", ".css", ".html", ".json", ".md", ".txt", ".svg", ".xml"}
+TEXT_BASENAMES = {"LICENSE"}
+
+
+def canonical_bytes(path: Path) -> bytes:
+    data = path.read_bytes()
+    if path.suffix.lower() in TEXT_SUFFIXES or path.name in TEXT_BASENAMES:
+        # A Windows CRLF checkout must produce the same installed bytes as LF on Linux.
+        data = data.replace(b"\r\n", b"\n")
+    return data
+
+
+def canonical_paths(root: Path):
+    return sorted((p for p in root.rglob("*") if p.is_file()),
+                  key=lambda p: p.relative_to(root).as_posix())
+
+
+def put_file(source: Path, target: Path):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(canonical_bytes(source))
 RUNTIME_FILES = [
     "src/tl-core.js",
     "src/tl-provider.js",
@@ -44,22 +64,21 @@ for browser in ("chrome", "edge"):
     out = DIST / browser
     out.mkdir()
     for folder in INCLUDE_DIRS:
-        shutil.copytree(ROOT / folder, out / folder)
+        for source in canonical_paths(ROOT / folder):
+            put_file(source, out / source.relative_to(ROOT))
     for relative in RUNTIME_FILES:
         source = ROOT / relative
         assert source.is_file(), f"Missing runtime file: {relative}"
-        target = out / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
+        put_file(source, out / relative)
     for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
-        shutil.copyfile(ROOT / name, out / name)
+        put_file(ROOT / name, out / name)
 
     (out / "manifest.json").write_bytes(
         (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     )
     hashes = {
         p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(out.rglob("*")) if p.is_file()
+        for p in canonical_paths(out)
     }
     (out / "BUILD_INFO.json").write_bytes(
         (json.dumps({
@@ -74,16 +93,17 @@ for browser in ("chrome", "edge"):
 
     archive = DIST / f"chatflow-{browser}-0.2-candidate.zip"
     with zipfile.ZipFile(
-        archive, "w", zipfile.ZIP_DEFLATED, allowZip64=True, compresslevel=6
+        archive, "w", zipfile.ZIP_STORED, allowZip64=True
     ) as z:
-        for p in sorted(out.rglob("*")):
-            if p.is_file():
-                info = zipfile.ZipInfo(
-                    p.relative_to(out).as_posix(), (1980, 1, 1, 0, 0, 0)
-                )
-                info.compress_type = zipfile.ZIP_DEFLATED
-                info.external_attr = 0o100644 << 16
-                z.writestr(info, p.read_bytes())
+        for p in canonical_paths(out):
+            info = zipfile.ZipInfo(
+                p.relative_to(out).as_posix(), (1980, 1, 1, 0, 0, 0)
+            )
+            # Platform-independent ZIP metadata; stored entries avoid zlib drift.
+            info.create_system = 3
+            info.compress_type = zipfile.ZIP_STORED
+            info.external_attr = 0o100644 << 16
+            z.writestr(info, p.read_bytes())
 
     with zipfile.ZipFile(archive) as z:
         assert z.testzip() is None
