@@ -91,7 +91,7 @@ async def main():
     await w.locator('#task-open-only').click();assert await a.locator('#prompt-textarea').input_value()=='existing user draft';assert await a.evaluate('window.sent')==0 and await b.evaluate('window.sent')==0
     passed('clipboard_denial_keeps_selectable_result_and_return_never_sends_or_overwrites')
     await w.bring_to_front();await w.locator('#task-result-text').fill('untagged result');await w.locator('#task-manual').wait_for(state='visible');assert await w.locator('#task-save-result').is_disabled()
-    await w.locator('#task-manual-source').select_option(bt['id']);await w.locator('#task-manual-confirm').check();await w.locator('#task-save-result').click();await w.locator('#task-return-origin').wait_for(state='visible')
+    await w.locator('#task-manual-source').select_option(bt['id']);await poll(w,"url=>document.querySelector('#task-match a')?.href===url",URL_B);assert await w.locator('#task-status').inner_text()=='';await w.locator('#task-manual-confirm').check();await w.locator('#task-save-result').click();await w.locator('#task-return-origin').wait_for(state='visible')
     assert any(r['assignment']=='manual_assigned' for r in await w.evaluate('()=>TLTaskStore.results()'))
     await w.locator('#task-result-text').fill('['+at['code']+']\n['+bt['code']+']\nconflict');await w.locator('#task-manual').wait_for(state='visible');assert await w.locator('#task-save-result').is_disabled()
     passed('missing_and_conflicting_markers_require_explicit_manual_assignment')
@@ -111,6 +111,8 @@ async def main():
     search=tools.locator('input[type=search]');await search.fill('Question number 0');await tools.locator('#list .row button').first.click();await a.locator('[data-message-id="m0"]').wait_for(state='attached')
     assert await a.locator('[data-message-id="m0"]').evaluate("e=>{const r=e.getBoundingClientRect(),b=document.querySelector('#scroll').getBoundingClientRect();return r.bottom>b.top&&r.top<b.bottom;}")
     await search.fill('duplicate identical paragraph');assert await tools.locator('#list .row button').count()==2
+    await tools.get_by_role('button',name='\u4e0a\u4e00\u6761',exact=True).click();await a.locator('[data-message-id="m64"]').wait_for(state='attached')
+    await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await a.locator('[data-message-id="m4"]').wait_for(state='attached')
     await tools.locator('#list .row button').last.click();await a.locator('[data-message-id="m64"]').wait_for(state='attached')
     passed('virtualized_navigation_finds_exact_ids_and_distinguishes_duplicate_text')
     await tools.locator('#list .row input').first.check();await tools.locator('details summary').click();await tools.locator('select').first.select_option('json')

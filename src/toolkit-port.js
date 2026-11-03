@@ -43,6 +43,7 @@
    addCandidate(node.getAttribute(attr));addCandidate(node.querySelector('['+attr+']')?.getAttribute(attr));
   }return candidates;
  }
+ function nextMatchIndex(cursor,step,count){if(!Number.isInteger(count)||count<1)return-1;if(!Number.isInteger(cursor)||cursor<0||cursor>=count)return step<0?count-1:0;return(cursor+(step<0?-1:1)+count)%count;}
  function exportSelected(messages,selectedIds,source,title,format){
   const wanted=new Set(selectedIds),turns=groupExportMessagesIntoTurns(messages);
   if(!wanted.size||[...wanted].some(id=>!turns.some(t=>t.id===id)))throw new Error('NO_EXPORT_TURNS');
@@ -54,5 +55,5 @@
   if(format==='md')return header+'\n'+formatConversationExportMarkdown(payload);
   throw new Error('UNSUPPORTED_EXPORT_FORMAT');
  }
- globalThis.CFToolkit=Object.freeze({getSearchMatchRanges,groupExportMessagesIntoTurns,getDomMessageIdCandidates,exportSelected,formatConversationExportJson,formatConversationExportMarkdown,formatConversationExportText});
+ globalThis.CFToolkit=Object.freeze({nextMatchIndex,getSearchMatchRanges,groupExportMessagesIntoTurns,getDomMessageIdCandidates,exportSelected,formatConversationExportJson,formatConversationExportMarkdown,formatConversationExportText});
 })();
