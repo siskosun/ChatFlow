@@ -8,12 +8,9 @@
  const code=e=>e?.name==='AbortError'?'CANCELLED_OR_TIMEOUT':/^[A-Z0-9_]{2,100}$/.test(e?.message||'')?e.message:'CAPTURE_REQUEST_FAILED';
  async function message(type,data={},nonce=active?.nonce){const r=await api.runtime.sendMessage({type,nonce,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
  function sameSource(run){const s=P.identify(location.href).identity;C.check(s.conversationId===run.source.conversationId&&s.origin===run.source.origin,'SOURCE_CONVERSATION_CHANGED');C.check(active===run&&!run.stopped,'CANCELLED_BY_USER');}
- function status(run,text){
-  let host=document.getElementById('chatflow-cache-notice');
-  if(!host){host=document.createElement('div');host.id='chatflow-cache-notice';host.setAttribute('role','status');host.style.cssText='position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:330px;padding:10px 14px;background:#eef4fb;color:#23384f;border:1px solid #8193a8;border-radius:8px;font:13px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(host);}
-  host.replaceChildren(document.createTextNode(text));
-  if(run&&!run.stopped){const b=document.createElement('button');b.type='button';b.textContent='停止保存';b.style.cssText='margin-left:8px;padding:4px 8px';b.onclick=()=>{stop(run);message('tl:captureFailed',{code:'CANCELLED_BY_USER'},run.nonce).catch(()=>{});};host.append(b);}
- }
+ // Capture progress belongs in the extension workspace, never over the host page.
+ // Users can stop a capture in the workspace. Clear any banner from an older build.
+ function status(){document.getElementById('chatflow-cache-notice')?.remove();}
  function stop(run){run.stopped=true;run.controller?.abort();run.observer?.disconnect();clearInterval(run.timer);if(active===run)active=null;status(null,'ChatFlow：本对话保存已停止；已写入的本地文件保留。');}
  async function fetchResponse(run,path,token,accountId){
   sameSource(run);const u=P.get('chatgpt').readEndpoint(path,run.source);const headers={Accept:'*/*'};if(token)headers.Authorization='Bearer '+token;if(accountId)headers['ChatGPT-Account-ID']=accountId;
