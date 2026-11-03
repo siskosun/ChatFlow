@@ -91,7 +91,7 @@
   }
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
   const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.2'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
-   state:capture.state==='ready'&&files.every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files,passages:passageRows};
+   state:capture.state==='ready'&&files.filter(a=>a.inLatestSnapshot!==false).every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files,passages:passageRows};
   C.check(new Blob([JSON.stringify(manifest,null,2)]).size<=32*1024**2,'ARCHIVE_METADATA_TOO_LARGE');
   entries.push({name:'conversation.json',blob:snapshotBlob},{name:'conversation.md',content:C.history(snapshot,{allBranches:true})},{name:'manifest.json',content:JSON.stringify(manifest,null,2)},{name:'diagnostics.json',content:JSON.stringify({schema:1,integrity:snapshot.integrity,files:files.map(a=>({state:a.state,reason:a.reason})),note:'No authentication or signed download URLs are retained.'},null,2)});
   return{blob:await buildZip(entries),manifest};
@@ -129,7 +129,7 @@
   }
   if(manifest.schema==='chatflow.archive/1'){
    C.check(['valid','partial'].includes(manifest.integrity.state),'INVALID_ARCHIVE_INTEGRITY_STATE');
-   if(manifest.state==='ready')C.check(manifest.integrity.state==='valid'&&manifest.files.every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
+   if(manifest.state==='ready')C.check(manifest.integrity.state==='valid'&&manifest.files.filter(f=>f.inLatestSnapshot!==false).every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
   }
   return manifest;
  }
@@ -237,7 +237,7 @@
     else C.check(row.state==='excluded'&&row.reason==='OUT_OF_SAVE_SCOPE','INVALID_LAST_GENERATED_EXCLUDED_STATE');
    }
   }
-  const state=manifest.state==='ready'&&snapshot.integrity.state==='valid'&&files.every(a=>a.state==='saved'||a.state==='excluded')?'ready':'partial';
+  const state=manifest.state==='ready'&&snapshot.integrity.state==='valid'&&files.filter(a=>a.inLatestSnapshot!==false).every(a=>a.state==='saved'||a.state==='excluded')?'ready':'partial';
   return S.importCapture(snapshot,files,blobs,state,manifest.saveScope||'all',passages);
  }
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}
