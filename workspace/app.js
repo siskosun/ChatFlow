@@ -23,9 +23,10 @@
   const old=selector.value||new URL(location.href).searchParams.get('source');
   sourceOptionsSignature=signature;sourceLookupKey=null;sourceLookupCaptureId=null;
   selector.replaceChildren();
-  if(!rows.length){selector.append(new Option('未找到已打开的 ChatGPT 对话',''));return rows;}
+  if(!rows.length){selector.append(new Option('未找到已打开的 ChatGPT 对话',''));$('capture').disabled=true;return rows;}
   for(const r of rows)selector.append(new Option(r.title||r.url,String(r.id)));
   if(rows.some(r=>String(r.id)===old))selector.value=String(old);
+  $('capture').disabled=!rows.some(r=>String(r.id)===selector.value);
   return rows;
  }
  async function captureForSelectedSource(){
@@ -53,7 +54,7 @@
    if(existing?.id)request.captureId=existing.id;
    const r=await call('tl:start',request);selectedId=r.captureId;sourceLookupCaptureId=r.captureId;selectedKeys.clear();messageLimit=100;
    status(existing?'正在更新档案…':allowed?'正在保存对话…':'正在保存正文；部分附件可能无法取得。');await renderRunning();
-  }catch(e){sourceLookupKey=null;sourceLookupCaptureId=null;throw e;}finally{$('capture').disabled=false;}
+  }catch(e){sourceLookupKey=null;sourceLookupCaptureId=null;throw e;}finally{$('capture').disabled=!Number.isInteger(Number($('source').value))||Number($('source').value)<=0;}
  }
  async function renderRunning(){
   const epoch=++runningEpoch,active=await call('tl:sessions'),box=$('running');
@@ -63,6 +64,7 @@
    if(epoch!==runningEpoch)return;
    const saved=rows.filter(a=>a.state==='saved').length,excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;
    const signature=JSON.stringify(['idle',$('source').value,$('asset-scope').value,capture?.id,capture?.state,capture?.snapshot?.messages.length,saved,excluded,missing]);
+   $('capture').disabled=!(Number($('source').value)>0);
    if(signature===runningSignature)return;
    runningSignature=signature;box.className='running '+(capture?.snapshot?'':'empty');box.replaceChildren();
    if(capture?.snapshot){
@@ -83,7 +85,7 @@
   const signature=JSON.stringify(['active',items.map(({r,c,saved,excluded,missing})=>[r.captureId,r.phase,r.live,c?.state,c?.snapshot?.messages.length,saved,excluded,missing])]);
   if(signature===runningSignature)return;
   runningSignature=signature;
-  $('capture').hidden=true;$('continue').hidden=true;$('asset-scope').disabled=true;
+  $('capture').hidden=true;$('capture').disabled=true;$('continue').hidden=true;$('asset-scope').disabled=true;
   const activeIds=items.map(x=>x.r.captureId).join('|');
   const displayedIds=[...box.querySelectorAll('.panel[data-capture-id]')].map(x=>x.dataset.captureId).join('|');
   if(activeIds!==displayedIds||box.className!=='running list'){
