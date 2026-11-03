@@ -54,24 +54,22 @@ for browser in ("chrome", "edge"):
     for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
         shutil.copyfile(ROOT / name, out / name)
 
-    (out / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    (out / "manifest.json").write_bytes(
+        (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     )
     hashes = {
         p.relative_to(out).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in sorted(out.rglob("*")) if p.is_file()
     }
-    (out / "BUILD_INFO.json").write_text(
-        json.dumps({
+    (out / "BUILD_INFO.json").write_bytes(
+        (json.dumps({
             "schema": 1,
             "product": "ChatFlow",
             "source_commit": commit,
             "version": "0.2",
             "status": "candidate_real_account_acceptance_pending",
             "files": hashes,
-        }, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+        }, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     )
 
     archive = DIST / f"chatflow-{browser}-0.2-candidate.zip"
@@ -113,6 +111,6 @@ sums = [
     hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.name
     for p in sorted(DIST.glob("*.zip"))
 ]
-(DIST / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
+(DIST / "SHA256SUMS").write_bytes(("\n".join(sums) + "\n").encode("utf-8"))
 assert len(sums) == 2
 print("PACKAGE_VERIFICATION_PASSED", len(sums))
