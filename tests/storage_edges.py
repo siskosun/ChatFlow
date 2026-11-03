@@ -130,6 +130,49 @@ CASES=r'''async()=>{
  const orphanZip=await TLArchive.exportCapture(textOnly),orphanRestore=await TLArchive.restore(orphanZip.blob);
  check((await S.passages(orphanRestore))[0].status==='stale','Backup falsely revived a removed source');
  report.push({name:'missing_source_passage_remains_stale_across_backup',result:'pass'});
+ // The live source may replace a DOM-only placeholder with a definitive file
+ // reference on the same original message. Do not keep a duplicate missing row.
+ function assetConversation(id,attachment){
+  return C.normalizeConversation({conversation_id:id,title:'Asset refresh',current_node:'n',mapping:{n:{parent:null,children:[],message:{id:'m',author:{role:'user'},content:{parts:['stable source']},metadata:attachment?{attachments:[attachment]}:{}}}}},'https://chatgpt.com/c/'+id);
+ }
+ const refreshId='conversation_storage_placeholder_reconciliation',refreshCapture=C.id();
+ const placeholder=assetConversation(refreshId,{name:'later.csv',mime_type:'text/csv'}),recognized=assetConversation(refreshId,{id:'file_knownLater123',name:'later.csv',mime_type:'text/csv'});
+ check(placeholder.assets.length===1&&placeholder.assets[0].ref.scheme==='unsupported','Placeholder fixture did not exercise unknown reference');
+ check(recognized.assets.length===1&&recognized.assets[0].ref.scheme!=='unsupported','Recognized fixture missing reference');
+ await S.snapshot(refreshCapture,placeholder);await S.snapshot(refreshCapture,recognized);
+ let currentAssets=await S.assets(refreshCapture);
+ check(currentAssets.length===1&&currentAssets[0].key===recognized.assets[0].key&&currentAssets[0].inLatestSnapshot,'Definitive attachment did not replace unsaved placeholder');
+ await S.beginAsset(refreshCapture,currentAssets[0].key);await S.chunk(refreshCapture,currentAssets[0].key,0,new TextEncoder().encode('latest bytes'));
+ await S.finishAsset(refreshCapture,currentAssets[0].key,'text/csv');await S.finishCapture(refreshCapture);
+ const refreshArchive=await TLArchive.exportCapture(refreshCapture),refreshRestored=await TLArchive.restore(refreshArchive.blob);
+ check(refreshArchive.manifest.state==='ready'&&(await S.assets(refreshRestored)).length===1,'Reconciled live snapshot cannot roundtrip as ready');
+ report.push({name:'live_dom_placeholder_is_replaced_by_same_message_definitive_attachment',result:'pass'});
+ // A genuinely disappeared, previously saved file is different: keep its
+ // bytes and provenance without inventing a live attachment.
+ const historicId='conversation_storage_historical_attachment',historicCapture=C.id(),oldSnapshot=assetConversation(historicId,{id:'file_oldHistory456',name:'historical.txt',mime_type:'text/plain',size:3});
+ const noAttachment=assetConversation(historicId,null);
+ await S.snapshot(historicCapture,oldSnapshot);const originalKey=oldSnapshot.assets[0].key;
+ await S.beginAsset(historicCapture,originalKey);await S.chunk(historicCapture,originalKey,0,new Uint8Array([65,66,67]));
+ const originalFile=await S.finishAsset(historicCapture,originalKey,'text/plain');
+ await S.snapshot(historicCapture,noAttachment);currentAssets=await S.assets(historicCapture);
+ check(currentAssets.length===1&&currentAssets[0].inLatestSnapshot===false&&currentAssets[0].state==='saved','Historical saved file was discarded');
+ await S.finishCapture(historicCapture);
+ const historicArchive=await TLArchive.exportCapture(historicCapture);
+ check(historicArchive.manifest.files[0].inLatestSnapshot===false&&historicArchive.manifest.state==='ready','Historical-only row falsely made current snapshot partial');
+ const restoredHistory=await TLArchive.restore(historicArchive.blob),historicRows=await S.assets(restoredHistory);
+ check(historicRows.length===1&&historicRows[0].inLatestSnapshot===false&&historicRows[0].sha256===originalFile.sha256,'Historical saved file failed to restore');
+ check((await S.verifiedBlob(historicRows[0].sha256)).size===3,'Historical bytes disappeared');
+ report.push({name:'historical_attachment_row_roundtrips_even_if_latest_snapshot_omits_it',result:'pass'});
+ // Source warnings must survive ZIP restore: derived visible text alone would
+ // otherwise make a previously partial capture look complete.
+ const integrityId='conversation_storage_integrity_stale',integrityCapture=C.id(),rawIntegrity=assetConversation(integrityId,null);
+ rawIntegrity.integrity.state='partial';
+ rawIntegrity.integrity.issues=[{code:'UNSUPPORTED_CONTENT_PART',nodeId:'n'},{code:'VISIBLE_ATTACHMENT_NOT_IN_API',nodeId:'n'}];
+ await S.snapshot(integrityCapture,rawIntegrity);await S.finishCapture(integrityCapture);
+ const integrityZip=await TLArchive.exportCapture(integrityCapture),integrityRestored=await TLArchive.restore(integrityZip.blob),integrityCaptureRow=await S.get('captures',integrityRestored);
+ check(integrityCaptureRow.state==='partial'&&integrityCaptureRow.snapshot.integrity.state==='partial','Partial snapshot was falsely marked valid');
+ check(integrityCaptureRow.snapshot.integrity.issues.some(x=>x.code==='UNSUPPORTED_CONTENT_PART')&&integrityCaptureRow.snapshot.integrity.issues.some(x=>x.code==='VISIBLE_ATTACHMENT_NOT_IN_API'),'Original source integrity issues were lost');
+ report.push({name:'source_integrity_issues_survive_zip_restore_without_laundering',result:'pass'});
  return report;
 }'''
 
