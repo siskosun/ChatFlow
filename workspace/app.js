@@ -332,7 +332,7 @@
  setInterval(()=>{if(refreshing||document.hidden)return;refreshing=true;Promise.resolve().then(async()=>{if(view==='capture')await renderRunning();if(view==='handoff'&&handoffId)await renderHandoffState();}).catch(()=>{}).finally(()=>refreshing=false);},3000);
  // A browser may surface the ChatGPT tab after the workspace first loads.
  // Do not require a manual refresh, and never wipe a user's current selection.
- const syncSources=()=>guard(async()=>{await sources();if(view==='capture'){runningSignature=null;await renderRunning();}});
+ const syncSources=()=>guard(async()=>{const prior=sourceOptionsSignature;await sources();if(view==='capture'){if(prior!==sourceOptionsSignature)runningSignature=null;await renderRunning();}});
  setTimeout(syncSources,1200);setTimeout(syncSources,4200);
  window.addEventListener('focus',syncSources);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSources();});
