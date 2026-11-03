@@ -24,15 +24,11 @@
   "background": {
     "service_worker": "src/tl-service.js"
   },
-  "side_panel": {
-    "default_path": "workspace/index.html"
-  },
   "permissions": [
     "storage",
     "scripting",
     "tabs",
-    "downloads",
-    "sidePanel"
+    "downloads"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
