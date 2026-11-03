@@ -49,25 +49,30 @@ ChatFlow 保存用户明确选择的 ChatGPT 对话、可访问分支和能够�
 | CF-15 | 0.2 集成、回归与候选交付 | done | 本文第 3 节准确运行时代码全绿；构建包已逐文件校验 |
 | CF-16 | 后置真实环境与真人验收 | deferred | 工程阶段完成后执行，未以合成测试冒充通过 |
 
-## 3. 准确提交与可复核证据
+## 3. 当前可复核验收证据
 
-本轮最后一次运行时代码提交：`23dc70f7e62cd9fcea98cc2aa9a12912b01d8d85`。
+**最后一次运行时代码验收提交：** `dd60f6bf5e832886f4495bd4db2942ea923be7f3`。
+**对应运行：** [GitHub Actions #41637976619](https://github.com/siskosun/ChatFlow/actions/runs/41637976619)。
 
-对应 [GitHub Actions #41424001367](https://github.com/siskosun/ChatFlow/actions/runs/41424001367)：
+| 门禁 | 结果 | 证据 |
+|---|---|---|
+| Ubuntu `verify` | completed / success | Node 132/132，通过；合成 Chromium MV3 47/47，通过；真实 Chromium IndexedDB 合成数据 16/16，通过 |
+| Windows `windows-baseline` | completed / success | Python 3.12/Node 22 构建，Node 132/132，通过 |
+| `reproducible-build` | completed / success | 下载同一提交的 Windows 与 Ubuntu 构建，逐字节 `cmp` Chrome ZIP、Edge ZIP、`SHA256SUMS`，输出 `CROSS_PLATFORM_BYTE_IDENTICAL` |
+| 真实浏览器登录测试 | **未执行** | 不以合成页替代用户的 Edge/Tabbit 真实验收 |
 
-- `verify`（Ubuntu）：completed / success。
-- `windows-baseline`：completed / success。
-- Node：129/129 通过，0 失败、0 跳过。
-- Chromium MV3 合成端到端：35/35 通过，browser-report.json 无错误。
-- Chromium IndexedDB：13/13 通过；该数字包含迁移用例，不另加一次重复打印的 PASS。
-- Chrome/Edge：两包构建成功；manifest 版本 0.2、BUILD_INFO.source_commit、SHA256SUMS、包内 26 个文件哈希均已核验。
-- 已检查 320px 与 1280px 档案截图；它们是合成页面，不是独立真人测试。
+该提交的产物：`chatflow-candidate-dd60f6bf5e832886f4495bd4db2942ea923be7f3`（artifact `13232290213`）。
+Windows 构建对照 artifact `13231885951`；合成浏览器及数据库证据 artifact `13231477149`；源码 artifact `13232125173`。
 
-运行时代码候选 artifact：`13130703084`。外层 ZIP SHA-256：`7a0a30cd39f41ed65205f50e2ece22a248fa7ad0ee981168f6091f5ccc66e84a`。该 artifact 中 Chrome/Edge 两个安装 ZIP 的 SHA-256 均为 `4e6f92823147a33164f82d213a9aadecc8adaccaafd902bdded16c740d15756f`。
+本次修复覆盖：CRLF 与路径排序导致的跨平台构建差异、历史附件行 ZIP 恢复、完整性问题在恢复后被洗白、无来源时保存按钮未禁用、采集失败提示、接续失败后缺少人工重新准备入口。对应验证包括：
 
-证据 artifact：`13131940115`，包含 browser-report.json、storage-report.json 及视口截图；源代码 artifact：`13131515682`。
+- `capture_button_disabled_when_no_chatgpt_conversations_are_open`
+- `blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry`
+- `live_dom_placeholder_is_replaced_by_same_message_definitive_attachment`
+- `historical_attachment_row_roundtrips_even_if_latest_snapshot_omits_it`
+- `source_integrity_issues_survive_zip_restore_without_laundering`
 
-后续仅更新文档的提交不改变上述运行时代码收据。交付最新 PR HEAD 对应安装包时，仍需确认其自身 CI 成功，不能把旧 artifact 改名当成新包。最终 PR 说明记录交付 HEAD、CI 和 artifact，避免通过不断修改本文件形成无限验证循环。
+**口径约束：** 本段数值只对上面的准确代码提交及对应运行有效。GitHub 当前 PR HEAD、其自身 CI 和下载产物是后续交付的实时权威；提交新的文档或代码都可能使 HEAD 变化，不得把旧 SHA/测试计数描述为新 HEAD 的验收。0.2 仍是候选版，不能由 CI 全绿推出真实账号已通过或准许发布。
 
 ## 4. 本轮关闭的工程问题
 
@@ -75,13 +80,22 @@ ChatFlow 保存用户明确选择的 ChatGPT 对话、可访问分支和能够�
 
 异步档案渲染现在先构建独立内容，再按页面选择与递增渲染编号发布。旧请求不能覆盖新选中的档案；来源跳转不再拼接未经转义的 CSS 选择器。
 
-分支变化和来源快照变化均使旧接续包失效。界面、导出和打开目标分别检查来源；后台在创建新窗口前再次核验快照，不只依赖按钮禁用。
+分支变化和来源快照变化均使旧接续包失效。界面、导出和打开目标分别检查来源；后台在创建新标签页前再次核验快照，不只依赖按钮禁用。
 
 片段保存核对实际源消息、角色、正文哈希和偏移。上下文编译输出重新解析后的当前哈希与位置，同时在 anchorAtSave 保留原始锚点。完整消息模式不会偷偷插入调用方传来的片段。
 
 ZIP 恢复对全部字节先校验，再以一个事务提交文件、档案、附件和片段；失败不留下已提交的第一份文件。同一文件的多个合法引用可以恢复；重复导入生成新的本地片段 ID，保留 originPassageId，不覆盖已有片段。来源消息消失的历史片段作为 stale 保留，不冒充定位成功。
 
 CI 对同一分支取消过期运行，并提前检查 Python 语法。没有通过删除原有断言、放宽成功状态或把失败收据改写为成功来完成验收。
+
+## 4.1 后续审查中确认并关闭的问题
+
+- **附件历史记录与恢复：** 实时快照可能保留 `inLatestSnapshot:false` 的历史行。只允许这一显式标记的额外资产行进入恢复，仍逐一校验字节和哈希；其他未知 manifest 资产继续拒绝。相同消息、节点、文件名的未保存 DOM 临时占位符，被新的有效附件引用替代时会消解；已保存的历史字节不会被猜测性合并或删除。最新快照完整性与历史行缺失状态分别记录。
+- **原始完整性保全：** 从 conversation.json 重新构建可见消息时，保留哈希校验过的源 `integrity.issues`，避免 `UNSUPPORTED_CONTENT_PART` 或 `VISIBLE_ATTACHMENT_NOT_IN_API` 在 ZIP 恢复后丢失。对 ChatFlow 自身归档要求 manifest 与快照的完整性声明一致。
+- **界面状态与恢复：** 没有可用 ChatGPT 来源时主保存按钮处于禁用态；失败或中断的采集可见错误并能重试。已准备的接续遭遇 `injection_blocked` 等非成功终态时允许用户明确再次准备，不自动再次打开目标。
+- **位级可复现：** 构建仅对项目文本资源进行 CRLF→LF 规范化，按 POSIX 相对路径大小写敏感排序；ZIP 固定时间戳、Unix 权限元数据，采用无需依赖 zlib 版本的 stored 条目。CI 独立对照 Windows/Ubuntu 包字节而非仅检查包内文件相同。
+
+旧版 ThreadLine 审查中的“仓库只有 PLAN、sidePanel 是默认入口、重复 ZIP 导入先提交 blob”等表述已不符合现行 ChatFlow 0.2：当前仓库包含独立源码，侧栏声明已删除，文件/档案/片段恢复为同一事务。重复导入仍可生成**独立本地档案**，属于保留原归档不覆盖的设计，不等于幂等覆盖。其他未实证的新平台行为（如 Tabbit 默认文件名、真实 ChatGPT 上传控件）继续等待真实环境验证。
 
 ## 5. 数据协议与安全边界
 
@@ -110,4 +124,4 @@ CF-16 保留真实登录 Edge/ChatGPT、真实附件可用性、独立目标用�
 
 重点片段设计参考 `O0000-code/highlights-for-chatgpt` 的无破坏高亮、文字锚点和原文回跳思路；ChatFlow 的独立来源身份、恢复与上下文协议按本项目约束实现，不整体移植在线 Library/Space 改造。
 
-历史失败、修复和验收记录仍在 Git 提交及 Actions 中。`1d43c1fe322e6cc5ce732811ae5a9f0212561cd2` 的 115/32/8 收据只是早期基线，不代表之后的分支接续或本轮键盘修复；当前工程证据以第 3 节为准。
+历史失败、修复和验收记录仍在 Git 提交及 Actions 中。`1d43c1fe322e6cc5ce732811ae5a9f0212561cd2` 的 115/32/8 收据只是早期基线，不代表之后的分支接续或本轮键盘修复；当前工程证据以第 3 节及 GitHub 当前 CI 为准。
