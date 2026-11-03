@@ -158,6 +158,12 @@ async def main():
             workspace=await ctx.new_page();await workspace.goto('chrome-extension://'+extension+'/workspace/index.html')
             await workspace.wait_for_function('typeof TLStore!=="undefined"&&typeof TLArchive!=="undefined"')
             await wait_async(workspace,'()=>document.querySelector("#source").value!==""')
+            manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
+            assert 'side_panel' not in manifest and 'sidePanel' not in manifest['permissions'],manifest
+            assert await workspace.locator('.journey-step svg').count()==3
+            assert await workspace.evaluate("""() => {const c=getComputedStyle(document.querySelector('button.quiet'));return c.borderTopStyle==='solid'&&parseFloat(c.borderTopWidth)>=1;}""")
+            assert await workspace.locator('#status').inner_text()==''  # No persistent startup banner.
+            passed('standalone_entry_and_unified_visual_controls_without_startup_notice')
             # User-perspective acceptance: one obvious action, plain-language hierarchy, no tab maze.
             assert await workspace.locator('nav').count()==0
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
@@ -181,6 +187,12 @@ async def main():
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
             passed('ux_home_one_primary_action_and_clear_save_task',{'widths':[320,360,1280],'primary_actions':1})
+            # A conversation opened after the workspace must appear without manual refresh.
+            late_source=await ctx.new_page();await late_source.goto(SOURCE_AMBIG);await workspace.bring_to_front()
+            await wait_async(workspace,'()=>document.querySelectorAll("#source option").length>=2',timeout=15000)
+            await late_source.close();await workspace.bring_to_front()
+            await wait_async(workspace,'()=>document.querySelectorAll("#source option").length===1',timeout=15000)
+            passed('new_chatgpt_tab_auto_appears_in_source_picker_without_clicking_refresh')
             # Prove the test helper waits for a resolved false-to-true transition.
             await workspace.evaluate('window.fixtureAsyncReady=false;setTimeout(()=>window.fixtureAsyncReady=true,180)')
             await wait_async(workspace,'async()=>window.fixtureAsyncReady')
@@ -202,10 +214,16 @@ async def main():
             assert {a['sha256'] for a in saved}==expected
             assert 'synthetic-do-not-persist-token' not in json.dumps(cap) and 'NOT_FOR_EXPORT_SECRET' not in json.dumps(cap)
             passed('capture_120_messages_all_accessible_branches_real_bytes_and_missing_states',{'saved':7,'unavailable':3})
+            assert await source.locator('#chatflow-cache-notice').count()==0, 'capture must not overlay the ChatGPT page'
+            passed('capture_progress_has_no_chatgpt_page_overlay')
             await wait_async(workspace,'async()=>{const r=await chrome.runtime.sendMessage({type:"tl:sessions"});return r.ok&&!r.data.length&&!document.querySelector("#continue").hidden&&!document.querySelector("#capture").hidden&&document.querySelector("#capture").textContent==="重新采集对话"}',timeout=30000)
             assert await workspace.get_by_role('button',name='重新采集对话').is_visible()
             assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
+            await workspace.evaluate("window.__captureStatusAnchor=document.querySelector('#running').firstChild")
+            await asyncio.sleep(3.5)  # One full refresh interval without archive changes.
+            assert await workspace.evaluate("document.querySelector('#running').firstChild===window.__captureStatusAnchor")
+            passed('idle_capture_state_is_not_destroyed_and_recreated_each_poll')
             before_recapture=await workspace.evaluate('TLStore.all("captures").then(x=>x.length)')
             await workspace.get_by_role('button',name='重新采集对话').click()
             await wait_async(workspace,'async()=>{const r=await chrome.runtime.sendMessage({type:"tl:sessions"});return r.ok&&!r.data.length&&document.querySelector("#capture").textContent==="重新采集对话"}',timeout=90000)
@@ -238,6 +256,11 @@ async def main():
             assert stored['blocked'] in ['ARCHIVE_FILE_MISSING','ARCHIVE_FILE_HASH_MISMATCH'],stored
             assert {x['sha256'] for x in stored['files']}==expected
             passed('zip_roundtrip_restore_and_tamper_rejection_before_capture_commit',stored)
+            for _ in range(2):
+                await workspace.locator('#restore').set_input_files({'name':'broken.zip','mimeType':'application/zip','buffer':b'broken'})
+                await wait_async(workspace,'()=>document.querySelector("#status").textContent.includes("文件不是有效 ZIP")')
+                assert await workspace.locator('#restore').input_value()==''
+            passed('bad_zip_shows_human_readable_error_and_same_file_can_be_reselected')
             legacy_roundtrip=await workspace.evaluate('''async id=>{
               const out=await TLArchive.exportCapture(id),entries=await TLArchive.readZip(out.blob),manifest=JSON.parse(await (await entries.get('manifest.json').blob()).text());
               manifest.schema='threadline.archive/1';delete manifest.formatVersion;delete manifest.app;delete manifest.source;delete manifest.snapshotSchema;delete manifest.state;
@@ -484,6 +507,9 @@ async def main():
                 text=''.join(z.read(x).decode('utf-8') for x in names if x.startswith('context_part_'))
                 assert 'known fact at position 0: 0' in text and 'known fact at position 119: 2023' in text
             passed('context_builder_exports_traceable_multi_archive_bundle_without_implicit_file_bytes',{'parts':manifest['partCount'],'messages':len(manifest['sources'][0]['messageIds'])})
+            assert await workspace.locator('footer #download-status').count()==1
+            assert await workspace.evaluate("document.querySelector('footer').children.length===1")
+            passed('download_receipts_replace_one_status_instead_of_accumulating_rows')
             passage_source_checkbox=workspace.locator('.archive-select-row input[data-capture-id="'+passage_cid+'"]')
             if passage_cid!=cid:
                 await source_checkbox.uncheck()
