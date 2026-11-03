@@ -52,3 +52,28 @@ Render-only screenshots with mocked extension APIs are visual evidence only.
 Installed-extension synthetic screenshots and behavior tests are a separate
 engineering gate. Real logged-in environments, independent users and human
 assistive-technology review remain external gates.
+
+## Prototype-first revision
+
+The requested `benjitaylor/skills` workflow was applied with the pinned stageshow
+skill. The self-contained prototype, editable TSX/CSS, license notices, screenshots
+and rehearsal record are in [docs/prototypes/chatflow-0.3](prototypes/chatflow-0.3/README.md).
+The production UI was then aligned with those states:
+
+| State | Primary action | Secondary or conditional action |
+| --- | --- | --- |
+| No saved conversation | 保存对话 | File scope and optional advanced controls |
+| Saved conversation | 继续到新对话 | 重新采集; 下载备份 |
+| Prepare continuation | 准备历史与文件, then 打开新对话 | Inspect selected messages/files |
+| New task | 复制任务 | Source and exact selection confirmation |
+| Pasted result | 保存结果, then 复制结果并返回原对话 | Explicit source choice only when required |
+| Input above limit | Submission disabled; full text retained | Shorten text without losing the draft |
+
+Archive/task lists use bounded summary pages. Opening a saved result validates
+its original task and receipt before replacing the draft; each asynchronous load
+is invalidated when the user changes task, input, manual source or workflow.
+
+`tests/ui_visual_e2e.py` checks installed-extension light/dark rendering at 320,
+360 and 1440 pixels, horizontal overflow and computed visible text contrast.
+`tests/reliability_e2e.py` separately checks trusted clipboard paste and actual
+next-action behavior. Neither replaces a first-use human comprehension study.

@@ -3,11 +3,13 @@
  'use strict';
  const C=globalThis.TLCore,NAME='chatflow-local-archive-v1',openings=new Map();
  const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IDB_REQUEST_FAILED'));});
+ function captureSummary(c){return{id:c.id,title:c.snapshot?.title||c.title||'未完成采集',titleSearch:String(c.snapshot?.title||c.title||'').toLocaleLowerCase(),source:c.snapshot?.source||c.source||null,hasSnapshot:!!c.snapshot,messageCount:c.snapshot?.messages?.length||0,integrityState:c.snapshot?.integrity?.state||null,state:c.state,live:!!c.live,saveScope:c.saveScope||'all',createdAt:c.createdAt||'',updatedAt:c.updatedAt||c.createdAt||'',lastError:c.lastError||null,savedFiles:c.savedFiles||0,missingFiles:c.missingFiles||0,excludedFiles:c.excludedFiles||0};}
+ function putCapture(stores,capture){stores.captures.put(capture);stores.captureSummaries.put(captureSummary(capture));}
  function open(name=NAME){
   if(openings.has(name))return openings.get(name);
   const pending=new Promise((resolve,reject)=>{
    let abandoned=false;
-   const r=indexedDB.open(name,3);
+   const r=indexedDB.open(name,4);
    r.onupgradeneeded=()=>{
     if(abandoned){r.transaction.abort();r.result.close();return;}
     const db=r.result;
@@ -19,6 +21,18 @@
     if(!db.objectStoreNames.contains('chunks')){const ch=db.createObjectStore('chunks',{keyPath:['captureId','key','seq']});ch.createIndex('owner',['captureId','key']);ch.createIndex('capture','captureId');}
     if(!db.objectStoreNames.contains('handoffs'))db.createObjectStore('handoffs',{keyPath:'id'});
     if(!db.objectStoreNames.contains('passages')){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');p.createIndex('createdAt','createdAt');p.createIndex('source',['captureId','conversationId','messageId','nodeId']);}
+    if(!db.objectStoreNames.contains('captureSummaries')){
+     const s=db.createObjectStore('captureSummaries',{keyPath:'id'});s.createIndex('updatedAt',['updatedAt','id']);s.createIndex('sourceScope',['source.origin','source.conversationId','saveScope']);
+     const cursor=r.transaction.objectStore('captures').openCursor();cursor.onsuccess=()=>{const c=cursor.result;if(c){s.put(captureSummary(c.value));c.continue();}};
+    }
+    if(!db.objectStoreNames.contains('taskSummaries')){
+     const summaries=db.createObjectStore('taskSummaries',{keyPath:'id'});summaries.createIndex('createdAt',['createdAt','id']);
+     const results=db.createObjectStore('taskResultSummaries',{keyPath:'id'});results.createIndex('task',['taskId','createdAt','id']);results.createIndex('createdAt',['createdAt','id']);
+     const tasks=r.transaction.objectStore('tasks').openCursor();tasks.onsuccess=()=>{const cursor=tasks.result;if(cursor){const t=cursor.value;summaries.put({id:t.id,code:t.code,source:t.source,preview:String(t.text||'').replace(/\s+/g,' ').slice(0,180),textHash:t.textHash,createdAt:t.createdAt,resultCount:0});cursor.continue();return;}
+      const rows=r.transaction.objectStore('taskResults').openCursor();rows.onsuccess=()=>{const c=rows.result;if(!c)return;const v=c.value;results.put({id:v.id,taskId:v.taskId,taskCode:v.taskCode,textHash:v.textHash,assignment:v.assignment,createdAt:v.createdAt});const task=summaries.get(v.taskId);task.onsuccess=()=>{if(task.result)summaries.put({...task.result,resultCount:task.result.resultCount+1});c.continue();};};
+     };
+    }
+    if(!db.objectStoreNames.contains('taskImportRows')){const staging=db.createObjectStore('taskImportRows',{keyPath:['sessionId','kind','id']});staging.createIndex('session','sessionId');}
    };
    r.onerror=()=>{abandoned=true;openings.delete(name);reject(r.error||new Error('IDB_OPEN_FAILED'));};
    r.onblocked=()=>{abandoned=true;openings.delete(name);reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
@@ -36,6 +50,7 @@
  const get=(store,key)=>transaction([store],'readonly',s=>request(s[store].get(key)));
  const all=store=>transaction([store],'readonly',s=>request(s[store].getAll()));
  async function set(store,value){
+  if(store==='captures')return transaction(['captures','captureSummaries'],'readwrite',s=>{putCapture(s,value);return value.id;});
   if(store!=='handoffs')return transaction([store],'readwrite',s=>request(s[store].put(value)));
   // A prepared handoff must never commit pointers to files/source concurrently deleted.
   return transaction(['handoffs','captures','files'],'readwrite',async s=>{
@@ -46,6 +61,20 @@
   });
  }
  const assets=captureId=>transaction(['assets'],'readonly',s=>request(s.assets.index('capture').getAll(captureId)));
+ const readArchive=captureId=>transaction(['captures','assets','passages'],'readonly',async s=>{
+  const [capture,assets,passages]=await Promise.all([request(s.captures.get(captureId)),request(s.assets.index('capture').getAll(captureId)),request(s.passages.index('capture').getAll(captureId))]);return{capture,assets,passages};
+ });
+ async function listCaptures({query='',cursor=null,limit=50}={}){
+  C.check(typeof query==='string'&&query.length<=500&&Number.isSafeInteger(limit)&&limit>=1&&limit<=100,'INVALID_ARCHIVE_PAGE');
+  C.check(cursor===null||(Array.isArray(cursor)&&cursor.length===2&&cursor.every(v=>typeof v==='string')),'INVALID_ARCHIVE_CURSOR');
+  const q=query.trim().toLocaleLowerCase();return transaction(['captureSummaries'],'readonly',s=>new Promise((resolve,reject)=>{
+   const rows=[],keys=[],r=s.captureSummaries.index('updatedAt').openCursor(cursor?IDBKeyRange.upperBound(cursor,true):null,'prev');r.onerror=()=>reject(r.error);r.onsuccess=()=>{const c=r.result;if(!c){resolve({items:rows,nextCursor:null});return;}if(!q||c.value.titleSearch.includes(q)){if(rows.length===limit){resolve({items:rows,nextCursor:keys.at(-1)});return;}rows.push(c.value);keys.push(c.key);}c.continue();};
+  }));
+ }
+ async function findCapture(source,scope='all',preferredId=null){
+  const rows=await transaction(['captureSummaries'],'readonly',s=>request(s.captureSummaries.index('sourceScope').getAll(IDBKeyRange.only([source.origin,source.conversationId,scope]))));
+  const matches=rows.filter(c=>c.hasSnapshot||['error','interrupted','cancelled'].includes(c.state)).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))),chosen=matches.find(c=>c.id===preferredId)||matches[0];return chosen?get('captures',chosen.id):null;
+ }
  const passages=captureId=>transaction(['passages'],'readonly',s=>request(s.passages.index('capture').getAll(captureId)));
  const allPassages=()=>transaction(['passages'],'readonly',s=>request(s.passages.getAll()));
  async function putPassage(record){
@@ -81,7 +110,7 @@
  const chunks=(captureId,key)=>transaction(['chunks'],'readonly',s=>request(s.chunks.index('owner').getAll(IDBKeyRange.only([captureId,key]))));
  async function snapshot(captureId,model){
   C.check(model?.schema==='threadline.snapshot/1','INVALID_SNAPSHOT');const clean=C.persistedSnapshot(model),now=new Date().toISOString();
-  await transaction(['captures','assets','chunks'],'readwrite',async s=>{
+  await transaction(['captures','captureSummaries','assets','chunks'],'readwrite',async s=>{
    const prev=await request(s.captures.get(captureId)),prevSource=prev?.snapshot?.source||prev?.source;
    if(prevSource)C.check(prevSource.conversationId===clean.source.conversationId&&prevSource.origin===clean.source.origin,'CAPTURE_SOURCE_CHANGED');
    const prior=await request(s.assets.index('capture').getAll(captureId)),old=new Map(prior.map(a=>[a.key,a])),current=new Set(clean.assets.map(a=>a.key));
@@ -97,7 +126,7 @@
      for(const key of await request(s.chunks.index('owner').getAllKeys(IDBKeyRange.only([captureId,a.key]))))s.chunks.delete(key);
     }else s.assets.put({...a,inLatestSnapshot:false});
    }
-   s.captures.put({id:captureId,snapshot:clean,createdAt:prev?.createdAt||now,updatedAt:now,state:'capturing',live:!!prev?.live,saveScope:prev?.saveScope||'all'});
+   putCapture(s,{id:captureId,snapshot:clean,createdAt:prev?.createdAt||now,updatedAt:now,state:'capturing',live:!!prev?.live,saveScope:prev?.saveScope||'all'});
   });return get('captures',captureId);
  }
  async function beginAsset(captureId,key){
@@ -149,7 +178,8 @@
  }
  async function recover(activeIds=[]){
   const active=new Set(activeIds);
-  for(const c of await all('captures'))if((c.state==='capturing'||c.live)&&!active.has(c.id)){
+  for(const summary of await all('captureSummaries'))if((summary.state==='capturing'||summary.live)&&!active.has(summary.id)){
+   const c=await get('captures',summary.id);if(!c)continue;
    const rows=await assets(c.id);for(const a of rows)if(a.state==='downloading')await failAsset(c.id,a.key,'INTERRUPTED_RETRY_EXPLICITLY');
    await set('captures',{...c,state:c.state==='capturing'?'interrupted':c.state,live:false,cacheStoppedReason:'BROWSER_OR_WORKER_RESTART',updatedAt:new Date().toISOString()});
   }
@@ -157,13 +187,13 @@
  async function removeCapture(captureId){
   // Delete only this archive and its handoffs. Compute shared-blob references under
   // one transaction, not from a stale snapshot that races another capture commit.
-  await transaction(['captures','assets','chunks','files','handoffs','passages'],'readwrite',async s=>{
+  await transaction(['captures','captureSummaries','assets','chunks','files','handoffs','passages'],'readwrite',async s=>{
    const current=await request(s.captures.get(captureId));if(!current)return;
    C.check(!current.live&&current.state!=='capturing','STOP_CAPTURE_BEFORE_DELETE');
    const removed=await request(s.assets.index('capture').getAll(captureId));
    for(const passage of await request(s.passages.index('capture').getAll(captureId)))s.passages.delete(passage.passageId);
    const candidateHashes=new Set(removed.map(a=>a.sha256).filter(Boolean));
-   s.captures.delete(captureId);for(const a of removed)s.assets.delete([captureId,a.key]);
+   s.captures.delete(captureId);s.captureSummaries.delete(captureId);for(const a of removed)s.assets.delete([captureId,a.key]);
    for(const key of await request(s.chunks.index('capture').getAllKeys(captureId)))s.chunks.delete(key);
    const handoffs=await request(s.handoffs.getAll());
    for(const h of handoffs)if(h.captureId===captureId){s.handoffs.delete(h.id);for(const f of h.files||[])candidateHashes.add(f.sha256);}
@@ -175,11 +205,11 @@
  async function importCapture(snapshotData,items,blobs,state,saveScope='all',passageRows=[]){
   const captureId=C.id();for(const[sha,blob]of blobs)C.check(blob instanceof Blob&&blob.size>0&&await C.hashBlob(blob)===sha,'IMPORT_HASH_MISMATCH');
   const snapshotCopy=C.persistedSnapshot(snapshotData),importedPassages=passageRows.map(p=>({...p,originPassageId:p.originPassageId||p.passageId,passageId:C.id(),captureId}));
-  await transaction(['captures','assets','passages','files'],'readwrite',s=>{
+  await transaction(['captures','captureSummaries','assets','passages','files'],'readwrite',s=>{
    for(const[sha,blob]of blobs)s.files.put({sha256:sha,blob,size:blob.size});
-   s.captures.put({id:captureId,snapshot:snapshotCopy,state,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),imported:true,live:false,saveScope});for(const a of items)s.assets.put({...a,captureId});
+   putCapture(s,{id:captureId,snapshot:snapshotCopy,state,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),imported:true,live:false,saveScope});for(const a of items)s.assets.put({...a,captureId});
    for(const p of importedPassages)s.passages.put(p);
   });return captureId;
  }
- globalThis.TLStore=Object.freeze({open,get,all,set,assets,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
+ globalThis.TLStore=Object.freeze({open,get,all,set,assets,readArchive,listCaptures,findCapture,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
 })();

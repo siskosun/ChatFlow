@@ -2,9 +2,33 @@
 
 ## 0.3 - engineering candidate, 2026-11-03
 
+### Reliability, capacity and interaction revision
+
+- Freeze the selected conversation, tab and document before asynchronous capture
+  work; reject route/document changes and drain in-flight writes before stopping.
+- Export `chatflow.archive/2` with bounded chunks and validate the completed ZIP
+  through the restore parser. A 65 MiB attachment now fits multiple entries;
+  running downloads/live capture block export. The 256 MiB total limit remains.
+- Replace the task library's new backup format with bounded JSONL records,
+  complete counts/digest validation and one atomic final import. Preserve legacy
+  JSON import and prevent damaged or conflicting receipts from false deduplication.
+- Upgrade IndexedDB to v4 with body-free summaries and keyset pages; preserve all
+  original records, and read full text only for the selected archive/task/result.
+- Cache snapshot hashes within each compilation and use sets for wide graph
+  normalization. Add explicit synthetic performance budgets and browser DB tests.
+- Draw the interaction prototype using `benjitaylor/skills` stageshow, then align
+  the implementation: a single next action, quiet recapture, clear source/return
+  states, responsive layout and shared light/dark colors.
+- Retain pasted input in full, mark over-limit fields visibly, and block submission.
+  Selected text above the limit is refused while the existing draft is preserved.
+- Update 0.3 installation/package references and archive application version.
+  Installed-extension, actual IndexedDB, trusted-paste and visual checks run in
+  CI; authenticated, independent-user and assistive-technology acceptance remain
+  explicitly separate.
+
 - Add source-bound, local Task Loop without a full archive, GitHub or Agent API.
 - Persist separate receipts, strict manual-assignment provenance and atomic
-  task backup import; upgrade IndexedDB v2 to v3 without deleting records.
+  task backup import; upgrade IndexedDB v2/v3 to v4 without deleting records.
 - Give continuation and task return equal home entries; make complex options
   opt-in without weakening safety checks or hiding meaningful errors.
 - Add on-demand exact-ID navigation, search, selected-turn md/json/txt export

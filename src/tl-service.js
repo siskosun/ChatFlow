@@ -4,7 +4,19 @@ const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,ap
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
 const trusted=sender=>sender?.id===api.runtime.id;
 function workspace(sender){C.check(trusted(sender)&&String(sender.url||'').startsWith(api.runtime.getURL('workspace/')),'WORKSPACE_ONLY');}
-async function keepRuns(){await api.storage.session.set({tlRuns:[...runs.values()].map(({controller,...r})=>r)});}
+const startingTabs=new Set();
+async function freezeSource(msg){
+ C.check(Number.isInteger(msg.tabId)&&typeof msg.expectedUrl==='string','SOURCE_LOCK_REQUIRED');
+ const expected=P.identify(msg.expectedUrl).identity,tab=await api.tabs.get(msg.tabId),source=P.identify(tab.url).identity;
+ C.check(source.origin===expected.origin&&source.conversationId===expected.conversationId,'SOURCE_CONVERSATION_CHANGED');
+ let frames;try{frames=await api.scripting.executeScript({target:{tabId:msg.tabId,...(msg.expectedDocumentId?{documentIds:[msg.expectedDocumentId]}:{frameIds:[0]})},func:()=>location.href});}catch{throw new Error('SOURCE_DOCUMENT_CHANGED');}
+ const frame=frames?.find(r=>r.frameId===0);C.check(frame?.documentId,'DOCUMENT_ID_UNAVAILABLE');
+ if(msg.expectedDocumentId)C.check(frame.documentId===msg.expectedDocumentId,'SOURCE_DOCUMENT_CHANGED');
+ const observed=P.identify(frame.result).identity,current=P.identify((await api.tabs.get(msg.tabId)).url).identity;
+ C.check([observed,current].every(s=>s.origin===expected.origin&&s.conversationId===expected.conversationId),'SOURCE_CONVERSATION_CHANGED');
+ return{tabId:msg.tabId,source:expected,expectedUrl:expected.url,expectedConversationId:expected.conversationId,expectedDocumentId:frame.documentId};
+}
+async function keepRuns(){await api.storage.session.set({tlRuns:[...runs.values()].map(({controller,pending,...r})=>r)});}
 let bootError=null;
 const boot=(async()=>{
  const old=(await api.storage.session.get('tlRuns')).tlRuns||[];
@@ -20,26 +32,32 @@ async function sourceRun(msg,sender){
  let pageOrigin;try{pageOrigin=new URL(sender.url||sender.tab.url).origin;}catch{}
  C.check(pageOrigin===run.source.origin,'SOURCE_ORIGIN_CHANGED');
  if(run.documentId)C.check(sender.documentId===run.documentId,'SOURCE_DOCUMENT_CHANGED');else{C.check(sender.documentId,'DOCUMENT_ID_UNAVAILABLE');run.documentId=sender.documentId;await keepRuns();}
- const now=P.identify((await api.tabs.get(run.tabId)).url).identity;C.check(now.conversationId===run.source.conversationId&&now.origin===run.source.origin,'SOURCE_NAVIGATED');return run;
+ const now=P.identify((await api.tabs.get(run.tabId)).url).identity;C.check(runs.get(msg.nonce)===run&&!run.cancelled,'CAPTURE_SESSION_NOT_FOUND');C.check(now.conversationId===run.source.conversationId&&now.origin===run.source.origin,'SOURCE_NAVIGATED');return run;
 }
-async function sendToSource(tabId,message){
- try{return await api.tabs.sendMessage(tabId,message);}catch{await api.scripting.executeScript({target:{tabId},files:['src/tl-core.js','src/tl-provider.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message);}
+async function sendToSource(tabId,message,documentId){
+ const target={tabId,documentIds:[documentId]},options={documentId};
+ try{return await api.tabs.sendMessage(tabId,message,options);}catch{await api.scripting.executeScript({target,files:['src/tl-core.js','src/tl-provider.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message,options);}
 }
 async function startCapture(msg){
  C.check(Number.isInteger(msg.tabId),'INVALID_TAB_ID');
- if(msg.expectedDocumentId!=null)C.check(typeof msg.expectedDocumentId==='string'&&msg.expectedDocumentId.length>0,'INVALID_EXPECTED_DOCUMENT');C.check(![...runs.values()].some(r=>r.tabId===msg.tabId),'SOURCE_ALREADY_RUNNING');
+ C.check(typeof msg.expectedDocumentId==='string'&&msg.expectedDocumentId.length>0&&(typeof msg.expectedUrl==='string'||typeof msg.expectedConversationId==='string'),'SOURCE_LOCK_REQUIRED');
+ C.check(!startingTabs.has(msg.tabId)&&![...runs.values()].some(r=>r.tabId===msg.tabId),'SOURCE_ALREADY_RUNNING');startingTabs.add(msg.tabId);
+ try{return await startLockedCapture(msg);}finally{startingTabs.delete(msg.tabId);}
+}
+async function startLockedCapture(msg){
  const scope=msg.scope==null?'all':msg.scope;C.check(['all','last_generated'].includes(scope),'INVALID_SAVE_SCOPE');C.check(!(msg.live&&scope==='last_generated'),'LIVE_CACHE_REQUIRES_ALL_SCOPE');
  const tab=await api.tabs.get(msg.tabId),source=P.identify(tab.url).identity,captureId=msg.captureId||C.id(),previous=await S.get('captures',captureId);
  if(msg.expectedConversationId)C.check(msg.expectedConversationId===source.conversationId,'SOURCE_CONVERSATION_CHANGED');
+ const frozen=await freezeSource({...msg,expectedUrl:msg.expectedUrl||source.url});
  if(previous){const p=previous.snapshot?.source||previous.source;C.check(p?.conversationId===source.conversationId&&p.origin===source.origin,'CAPTURE_SOURCE_CHANGED');C.check((previous.saveScope||'all')===scope,'CAPTURE_SCOPE_CHANGED');}
  else await S.set('captures',{id:captureId,title:C.scrubText(tab.title||'读取对话中'),source,snapshot:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),state:'capturing',live:!!msg.live,saveScope:scope});
- const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:msg.expectedDocumentId||null,cancelled:false};runs.set(nonce,run);await keepRuns();
- try{const response=await sendToSource(tab.id,{type:'tl:capture',nonce,live:run.live,scope:run.scope});C.check(response?.ok,'CHATGPT_PAGE_NOT_READY');}
- catch(e){runs.delete(nonce);await keepRuns();const c=await S.get('captures',captureId);await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});throw new Error('CHATGPT_PAGE_NOT_READY');}
+ const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:frozen.expectedDocumentId,cancelled:false};runs.set(nonce,run);await keepRuns();
+ try{const response=await sendToSource(tab.id,{type:'tl:capture',nonce,live:run.live,scope:run.scope,expectedSource:source},run.documentId);C.check(response?.ok,response?.code||'CHATGPT_PAGE_NOT_READY');}
+ catch(e){runs.delete(nonce);await keepRuns();const c=await S.get('captures',captureId);await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});throw e;}
  return{captureId};
 }
 async function stopCapture(captureId){
- for(const[nonce,r]of runs)if(r.captureId===captureId){r.cancelled=true;r.controller?.abort();runs.delete(nonce);await api.tabs.sendMessage(r.tabId,{type:'tl:stopCapture',nonce}).catch(()=>{});}
+ for(const[nonce,r]of runs)if(r.captureId===captureId){r.cancelled=true;r.controller?.abort();runs.delete(nonce);await r.pending?.catch(()=>{});await api.tabs.sendMessage(r.tabId,{type:'tl:stopCapture',nonce},{documentId:r.documentId}).catch(()=>{});}
  await keepRuns();const c=await S.get('captures',captureId);if(c){for(const a of await S.assets(captureId))if(a.state==='downloading')await S.failAsset(captureId,a.key,'CANCELLED_BY_USER');await S.set('captures',{...c,state:c.state==='capturing'?'cancelled':c.state,live:false});}
 }
 async function externalDownload(run,msg){
@@ -123,9 +141,10 @@ async function handle(msg,sender){
   const h=await targetHandoff(msg,sender);C.check(h.state==='claimed','HANDOFF_ALREADY_FINISHED');C.check(['draft_prepared','upload_confirmed','upload_unknown','injection_blocked','partial_injection'].includes(msg.state),'INVALID_HANDOFF_STATE');
   const code=/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:null,updated={...h,state:msg.state,lastError:code,reportedAt:new Date().toISOString()};await S.set('handoffs',updated);return updated;
  }
- if(['tl:sources','tl:start','tl:stop','tl:sessions','tl:prepareHandoff','tl:openHandoff','tl:confirmUpload','tl:focusTarget'].includes(msg.type)){
+ if(['tl:sources','tl:freezeSource','tl:start','tl:stop','tl:sessions','tl:prepareHandoff','tl:openHandoff','tl:confirmUpload','tl:focusTarget'].includes(msg.type)){
   workspace(sender);
   if(msg.type==='tl:sources'){const tabs=await api.tabs.query({url:['https://chatgpt.com/*','https://chat.openai.com/*']});return tabs.flatMap(t=>{try{const source=P.identify(t.url).identity;return[{id:t.id,title:C.scrubText(t.title),url:source.url}];}catch{return[];}});}
+  if(msg.type==='tl:freezeSource')return freezeSource(msg);
   if(msg.type==='tl:start')return startCapture(msg);
   if(msg.type==='tl:stop'){await stopCapture(msg.captureId);return{stopped:true};}
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
@@ -134,7 +153,13 @@ async function handle(msg,sender){
   if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
   if(msg.type==='tl:confirmUpload'){const h=await S.get('handoffs',msg.id);C.check(h&&['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state),'HANDOFF_NOT_CONFIRMABLE');C.check(msg.confirmed===true,'USER_CONFIRMATION_REQUIRED');await S.set('handoffs',{...h,state:'user_verified_upload',userVerifiedAt:new Date().toISOString(),note:'User confirmed page attachments; this is not model-read or sent-message evidence.'});return{confirmed:true};}
  }
- const run=await sourceRun(msg,sender);run.phase=msg.type.slice(3);
+ const run=await sourceRun(msg,sender);
+ // Serialize writes for this run. A stop marks the run cancelled immediately,
+ // drains an already-started write, then commits its final stable state.
+ const operation=(run.pending||Promise.resolve()).then(()=>{C.check(runs.get(run.nonce)===run&&!run.cancelled,'CAPTURE_SESSION_NOT_FOUND');run.phase=msg.type.slice(3);return handleRunMessage(msg,run);});
+ run.pending=operation.catch(()=>{});return operation;
+}
+async function handleRunMessage(msg,run){
  if(msg.type==='tl:snapshot'){
   C.check(msg.snapshot?.source?.conversationId===run.source.conversationId&&msg.snapshot?.source?.origin===run.source.origin,'SNAPSHOT_SOURCE_MISMATCH');C.check(JSON.stringify(msg.snapshot).length<=16*1024*1024,'SNAPSHOT_MESSAGE_SIZE_LIMIT');
   await S.snapshot(run.captureId,msg.snapshot);const c=await S.get('captures',run.captureId);await S.set('captures',{...c,live:run.live});const rows=await S.assets(run.captureId);return{savedKeys:rows.filter(a=>a.state==='saved').map(a=>a.key)};
@@ -144,7 +169,7 @@ async function handle(msg,sender){
  if(msg.type==='tl:assetEnd')return S.finishAsset(run.captureId,msg.key,msg.mime);
  if(msg.type==='tl:assetFail'){await S.failAsset(run.captureId,msg.key,/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:'DOWNLOAD_FAILED');return{ok:true};}
  if(msg.type==='tl:external')return externalDownload(run,msg);
- if(msg.type==='tl:finish'){const c=await S.finishCapture(run.captureId);await ChatFlowExperimentService.onCaptureFinished(run,S,api);if(run.live){run.phase='watching';await S.set('captures',{...c,live:true});}else runs.delete(run.nonce);await keepRuns();return c;}
+ if(msg.type==='tl:finish'){const c=await S.finishCapture(run.captureId);if(!run.cancelled)await ChatFlowExperimentService.onCaptureFinished(run,S,api);if(run.live&&!run.cancelled){run.phase='watching';await S.set('captures',{...c,live:true});}else runs.delete(run.nonce);await keepRuns();return c;}
  if(msg.type==='tl:heartbeat')return{active:true};
  if(msg.type==='tl:captureFailed'){const c=await S.get('captures',run.captureId);if(c)await S.set('captures',{...c,state:c.snapshot?'partial':'error',live:false,lastError:/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:'CAPTURE_FAILED'});run.controller?.abort();runs.delete(run.nonce);await keepRuns();return{stopped:true};}
  throw new Error('UNKNOWN_OPERATION');

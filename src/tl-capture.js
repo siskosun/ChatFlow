@@ -87,9 +87,10 @@
   }catch(e){const reason=code(e);await message('tl:captureFailed',{code:reason},run.nonce).catch(()=>{});stop(run);status(null,'ChatFlow：保存中止（'+reason+'）。已保存的字节保留，未确认的结果不自动重试。');}
   finally{run.busy=false;}
  }
- function start(nonce,live,scope='all'){
+ function start(nonce,live,scope='all',expectedSource){
   C.check(['all','last_generated'].includes(scope),'INVALID_SAVE_SCOPE');C.check(!(live&&scope==='last_generated'),'LIVE_CACHE_REQUIRES_ALL_SCOPE');
-  if(active)stop(active);const run={nonce,source:P.identify(location.href).identity,live:!!live,scope,busy:false,stopped:false,dirty:true};active=run;
+  const source=P.identify(location.href).identity;C.check(expectedSource?.conversationId===source.conversationId&&expectedSource?.origin===source.origin,'SOURCE_CONVERSATION_CHANGED');
+  if(active)stop(active);const run={nonce,source,live:!!live,scope,busy:false,stopped:false,dirty:true};active=run;
   if(run.live){
    run.observer=new MutationObserver(records=>{if(records.some(r=>{const e=r.target instanceof Element?r.target:r.target.parentElement;return!e?.closest('#chatflow-cache-notice');}))run.dirty=true;});
    run.observer.observe(document.body||document.documentElement,{childList:true,subtree:true});
@@ -102,7 +103,7 @@
  }
  api.runtime.onMessage.addListener((msg,sender,respond)=>{
   if(sender.id!==api.runtime.id)return false;
-  if(msg?.type==='tl:capture'){try{C.check(typeof msg.nonce==='string'&&msg.nonce.length>20,'INVALID_CAPTURE_NONCE');start(msg.nonce,msg.live,msg.scope||'all');respond({ok:true});}catch(e){respond({ok:false,code:code(e)});}return false;}
+  if(msg?.type==='tl:capture'){try{C.check(typeof msg.nonce==='string'&&msg.nonce.length>20,'INVALID_CAPTURE_NONCE');start(msg.nonce,msg.live,msg.scope||'all',msg.expectedSource);respond({ok:true});}catch(e){respond({ok:false,code:code(e)});}return false;}
   if(msg?.type==='tl:stopCapture'){if(active?.nonce===msg.nonce)stop(active);respond({ok:true});return false;}return false;
  });
 })();

@@ -75,5 +75,5 @@ test('oversized ZIP restore errors are explained in plain user language',()=>{
  for(const reason of ['ZIP_RESOURCE_LIMIT','ZIP_COMPRESSION_RATIO_LIMIT','ZIP_EXPANSION_LIMIT']){
   assert.match(workspace,new RegExp(reason+':'));
  }
- assert.match(workspace,/单文件 64 MiB，合计 256 MiB/);
+ assert.match(workspace,/单个 ZIP 条目 64 MiB，合计 256 MiB/);
 });

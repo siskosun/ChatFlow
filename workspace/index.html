@@ -13,7 +13,7 @@
   <p id="status" role="status" aria-live="polite"></p>
 
   <section id="capture-view" class="view" hidden>
-    <button type="button" class="back quiet" data-view="home">‹ 首页</button><div class="intro"><h1>把这段对话，带到新聊天</h1></div>
+    <button type="button" class="back quiet" data-view="home">‹ 首页</button><div class="intro"><h1 id="capture-heading">保存这段对话</h1></div>
     <div class="journey" aria-label="操作流程：保存、整理、接续">
       <span class="journey-step current"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0-4-4m4 4 4-4M5 17v3h14v-3"/></svg><span>保存</span></span>
       <span class="journey-connector" aria-hidden="true"></span>
@@ -22,17 +22,17 @@
       <span class="journey-step"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 2-2zM10 11h7m0 0-3-3m3 3-3 3"/></svg><span>接续</span></span>
     </div>
     <div class="task-card">
-      <label for="source">选择要保存的对话</label>
+      <label for="source">来源对话</label>
       <div class="source-row"><select id="source"><option value="">正在查找已打开的 ChatGPT 对话</option></select><button id="refresh-source" type="button" class="quiet">刷新</button></div>
-      <label for="asset-scope">文件保存范围</label>
+      <label for="asset-scope">文件范围</label>
       <select id="asset-scope">
-        <option value="all">保存对话中的所有文件</option>
-        <option value="last_generated">仅保存最后生成的文件</option>
+        <option value="all">全部文件</option>
+        <option value="last_generated">最后生成的文件</option>
       </select>
       <p id="scope-hint" class="hint"></p>
-      <button id="capture" class="primary full" type="button" disabled>保存对话</button>
-      <button id="continue" class="quiet full" type="button" hidden>继续这段对话</button>
       <div id="running" class="running empty">尚未开始保存。</div>
+      <button id="continue" class="primary full" type="button" hidden>继续到新对话</button>
+      <div class="capture-secondary"><button id="capture" class="primary full" type="button" disabled>保存对话</button><button id="capture-backup" class="quiet" type="button" hidden>下载备份</button></div>
     </div>
     <button id="open-tools" type="button" class="quiet tools-entry">打开此对话的搜索与时间轴</button>
     <details class="advanced">
@@ -60,7 +60,7 @@
         <label for="context-mode">内容范围</label>
         <select id="context-mode"><option value="messages">完整消息（默认）</option><option value="passages">仅已选重点片段</option><option value="mixed">完整消息 + 已选重点片段</option></select>
         <label for="context-query">关键词筛选（可选，空白表示全部所选消息）</label>
-        <input id="context-query" type="text" maxlength="500" placeholder="例如：预算 留存 风险">
+        <input id="context-query" type="text" placeholder="例如：预算 留存 风险">
         <label for="context-token-budget">估算 token 预算</label>
         <input id="context-token-budget" class="small" type="number" min="1000" max="1000000" value="100000">
         <label for="context-part-size">每个历史分段字符数</label>
@@ -72,18 +72,18 @@
   </section>
 
   <section id="handoff-view" class="view" hidden>
-    <div class="view-heading"><button type="button" class="back quiet" data-view="archive">‹ 返回</button><h1>继续这段对话</h1></div>
+    <div class="view-heading"><button type="button" class="back quiet" data-view="archive">‹ 返回</button><h1>继续到新对话</h1></div>
     <p id="handoff-source" class="muted"></p>
     <div class="task-card">
-      <label for="instructions">这次要继续做什么？（可选）</label>
-      <textarea id="instructions" rows="3" maxlength="4000" placeholder="例如：继续完善方案，重点检查成本和风险。"></textarea>
+      <label for="instructions">接下来做什么？（可选）</label>
+      <textarea id="instructions" rows="3" placeholder="例如：继续完善方案，重点检查成本和风险。"></textarea>
       <p id="selection-summary" class="hint"></p>
       <details class="advanced compact"><summary>批次设置</summary><label for="batch-limit">每批文件数</label><input id="batch-limit" class="small" type="number" min="2" max="50" value="10"></details>
-      <button id="prepare" type="button" class="primary full">准备新对话</button>
+      <button id="prepare" type="button" class="primary full">准备历史与文件</button>
     </div>
     <div id="handoff-result" hidden>
       <div class="result-card"><p id="handoff-state" role="status"></p><details id="staging-details"><summary>查看待上传文件</summary><div id="staging" class="list"></div></details>
-        <button id="open-target" type="button" class="primary full">打开新聊天标签页</button>
+        <button id="open-target" type="button" class="primary full">打开新对话</button>
         <div class="secondary-actions"><button id="focus-target" type="button" class="quiet">查看新聊天</button><button id="download-handoff" type="button" class="quiet">下载全部接续文件</button></div>
       </div>
       <details class="advanced"><summary>查看接续提示</summary><pre id="prompt"></pre></details>

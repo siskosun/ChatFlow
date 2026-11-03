@@ -5,3 +5,7 @@ conversations/
 exports/
 __pycache__/
 
+# Reproducible packages and synthetic CI evidence are workflow artifacts.
+dist/
+test-results/
+

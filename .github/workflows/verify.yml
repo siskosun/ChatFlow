@@ -37,8 +37,10 @@ jobs:
         run: python build.py
       - name: Node regression and security checks
         run: python -c "import glob,subprocess; subprocess.run(['node','--test']+sorted(glob.glob('tests/*.test.mjs')),check=True)"
+      - name: Representative algorithm performance budgets
+        run: node tests/performance.mjs
       - name: Python test syntax preflight
-        run: python -m py_compile build.py tests/browser_e2e.py tests/storage_edges.py tests/task_loop_e2e.py
+        run: python -m py_compile build.py tests/browser_e2e.py tests/storage_edges.py tests/task_loop_e2e.py tests/archive_reliability_e2e.py tests/task_storage_v4.py tests/reliability_e2e.py tests/ui_visual_e2e.py
       - name: Install pinned synthetic browser test tools
         run: |
           python -m pip install playwright==1.56.0
@@ -49,6 +51,14 @@ jobs:
         run: xvfb-run -a python tests/storage_edges.py
       - name: Task Loop and navigation synthetic acceptance
         run: xvfb-run -a python tests/task_loop_e2e.py
+      - name: Real IndexedDB recoverable large archives and busy capture regression
+        run: xvfb-run -a python tests/archive_reliability_e2e.py
+      - name: Real IndexedDB task backup capacity, migration and summary pagination
+        run: xvfb-run -a python tests/task_storage_v4.py
+      - name: Source changes, trusted paste and representative archive library
+        run: xvfb-run -a python tests/reliability_e2e.py
+      - name: Responsive light and dark interface contrast
+        run: xvfb-run -a python tests/ui_visual_e2e.py
       - name: Candidate artifacts, not a production release
         if: success()
         uses: actions/upload-artifact@v4

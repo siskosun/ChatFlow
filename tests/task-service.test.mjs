@@ -5,12 +5,12 @@ import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const URL_A='https://chatgpt.com/c/conversation_task_source_A',URL_B='https://chatgpt.com/c/conversation_task_source_B';
 const sender={id:'extension',url:'chrome-extension://extension/workspace/index.html',tab:{id:10,windowId:9}};
-function setup({existing=true,changeOnSecondGet=false,scriptUrl=URL_A}={}){
+function setup({existing=true,changeOnSecondGet=false,scriptUrl=URL_A,selection='selected synthetic text'}={}){
  const events=[],tabs=new Map(existing?[[20,{id:20,windowId:9,url:URL_A}]]:[]);let gets=0;
  const api={runtime:{id:'extension',getURL:path=>'chrome-extension://extension/'+path},
   windows:{update:async(...args)=>events.push(['focus',...structuredClone(args)])},
   tabs:{query:async()=>[...tabs.values()],get:async id=>{gets++;const tab=tabs.get(id);return changeOnSecondGet&&gets===2?{...tab,url:URL_B}:tab;},update:async(id,options)=>{events.push(['update',id,{...options}]);return tabs.get(id);},create:async options=>{events.push(['create',{...options}]);return{id:30,...options};},sendMessage:async(id,msg)=>{events.push(['message',id,{...msg}]);return{ok:true};}},
-  scripting:{executeScript:async options=>{events.push(['script',options.files?Array.from(options.files):'selection']);return[{frameId:0,documentId:'doc-A',result:{url:scriptUrl,title:'Same title',text:'selected synthetic text',messageId:'m1',nodeId:null}}];}}};
+  scripting:{executeScript:async options=>{events.push(['script',options.files?Array.from(options.files):'selection']);return[{frameId:0,documentId:'doc-A',result:{url:scriptUrl,title:'Same title',text:selection,messageId:'m1',nodeId:null}}];}}};
  const ctx=vm.createContext({console,URL,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,crypto:webcrypto,atob,btoa});
  for(const path of ['tl-core.js','tl-tasks.js'])vm.runInContext(fs.readFileSync(new URL('../src/'+path,import.meta.url),'utf8'),ctx);
  const task=ctx.TLTasks.createTask({origin:'https://chatgpt.com',conversationId:'conversation_task_source_A',url:URL_A},'small task');
@@ -28,6 +28,9 @@ test('source creation reads only selected message and returns verified identity,
 test('source selector mismatch and script navigation race fail before associating a task',async()=>{
  const h=setup();await assert.rejects(h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_B}),/TASK_SOURCE_CHANGED/);assert.equal(h.events.length,0);
  for(const options of [{changeOnSecondGet:true},{scriptUrl:URL_B}]){const h=setup(options);await assert.rejects(h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_A}),/TASK_SOURCE_CHANGED/);}
+});
+test('oversized page selection returns an explicit overflow flag, never a truncated usable prefix',async()=>{
+ const h=setup({selection:'x'.repeat(20001)}),r=await h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_A});assert.equal(r.selectionTooLong,true);assert.equal(r.selection,'');assert.equal(r.source.url,URL_A);
 });
 test('existing-source return focuses the exact source without scripting, navigation or Send',async()=>{
  const h=setup(),r=await h.handle({type:'tl:taskReturn',taskId:h.task.id,url:'https://evil.example'});assert.equal(r.state,'source_opened_not_sent');assert.deepEqual(h.events,[['update',20,{active:true}],['focus',9,{focused:true}]]);

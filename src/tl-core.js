@@ -134,9 +134,10 @@
    messages.push({id:mid,nodeId,role:m.author.role,text:visible.text,timestamp:Number.isFinite(time)&&time>0?time:null,finished:m.status==='finished_successfully'||m.metadata?.finished===true,assetKeys:refs.map(a=>a.key)});assets.push(...refs);
   }
   check(messages.length>0,'NO_VISIBLE_MESSAGES');
+  const childSets=new Map();
   for(const n of Object.values(nodes)){
    if(n.parent&&!nodes[n.parent])issues.push({code:'BROKEN_PARENT',nodeId:n.id});
-   if(n.parent&&nodes[n.parent]&&!nodes[n.parent].children.includes(n.id))issues.push({code:'PARENT_CHILD_MISMATCH',nodeId:n.id});
+   if(n.parent&&nodes[n.parent]){let children=childSets.get(n.parent);if(!children){children=new Set(nodes[n.parent].children);childSets.set(n.parent,children);}if(!children.has(n.id))issues.push({code:'PARENT_CHILD_MISMATCH',nodeId:n.id});}
    for(const c of n.children)if(!nodes[c]||nodes[c].parent!==n.id)issues.push({code:'CHILD_PARENT_MISMATCH',nodeId:n.id});
   }
   const checked=new Set();
@@ -146,9 +147,9 @@
    chain.forEach(x=>checked.add(x));
   }
   const currentNode=conv.current_node||conv.currentNode||null,active=[],seen=new Set();if(!currentNode||!nodes[currentNode])issues.push({code:'MISSING_CURRENT_NODE'});
-  let cur=currentNode;while(cur&&nodes[cur]&&!seen.has(cur)){seen.add(cur);active.unshift(cur);cur=nodes[cur].parent;}
+  let cur=currentNode;while(cur&&nodes[cur]&&!seen.has(cur)){seen.add(cur);active.push(cur);cur=nodes[cur].parent;}active.reverse();
   const roots=Object.values(nodes).filter(n=>!n.parent).map(n=>n.id),reached=new Set(),queue=[...roots];
-  while(queue.length){const n=queue.pop();if(reached.has(n)||!nodes[n])continue;reached.add(n);queue.push(...nodes[n].children);}
+  while(queue.length){const n=queue.pop();if(reached.has(n)||!nodes[n])continue;reached.add(n);for(const child of nodes[n].children)queue.push(child);}
   for(const n of Object.keys(nodes))if(!reached.has(n))issues.push({code:'UNREACHABLE_NODE',nodeId:n});
   const unique=new Map();for(const a of assets)if(!unique.has(a.key))unique.set(a.key,a);
   return{schema:'threadline.snapshot/1',source,title:scrubText(conv.title||'未命名对话').slice(0,500),capturedAt:new Date().toISOString(),currentNode,nodes,messages,active,assets:[...unique.values()],

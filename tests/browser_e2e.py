@@ -179,7 +179,7 @@ async def main():
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert not await workspace.locator('#quota').is_visible()
             assert await workspace.locator('details.advanced').first.evaluate('(e)=>!e.open')
-            assert await workspace.get_by_role('heading',name='把这段对话，带到新聊天').is_visible()
+            assert await workspace.get_by_role('heading',name='保存这段对话').is_visible()
             assert await workspace.get_by_role('button',name='保存对话').is_visible()
             await workspace.locator('#source').focus()
             await workspace.keyboard.press('Tab')
@@ -188,8 +188,8 @@ async def main():
             assert await workspace.evaluate("document.activeElement.id==='asset-scope'")
             assert await workspace.locator('main').count()==1
             assert await workspace.locator('#status').get_attribute('role')=='status'
-            assert await workspace.get_by_label('选择要保存的对话').count()==1
-            assert await workspace.get_by_label('文件保存范围').count()==1
+            assert await workspace.get_by_label('来源对话').count()==1
+            assert await workspace.get_by_label('文件范围').count()==1
             assert await workspace.locator('#asset-scope').input_value()=='all'
             assert await workspace.locator('#asset-scope').locator('option').count()==2
             for width in [320,360,480,768,1280]:
@@ -233,7 +233,7 @@ async def main():
             passed('capture_progress_has_no_chatgpt_page_overlay')
             await wait_async(workspace,'async()=>{const r=await chrome.runtime.sendMessage({type:"tl:sessions"});return r.ok&&!r.data.length&&!document.querySelector("#continue").hidden&&!document.querySelector("#capture").hidden&&document.querySelector("#capture").textContent==="重新采集对话"}',timeout=30000)
             assert await workspace.get_by_role('button',name='重新采集对话').is_visible()
-            assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
+            assert await workspace.get_by_role('button',name='继续到新对话').is_visible()
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             await workspace.evaluate("window.__captureStatusAnchor=document.querySelector('#running').firstChild")
             await asyncio.sleep(3.5)  # One full refresh interval without archive changes.
@@ -253,8 +253,8 @@ async def main():
             await source.goto(SOURCE)
             await wait_async(workspace,'()=>document.querySelector("#capture").textContent==="重新采集对话"&&!document.querySelector("#continue").hidden',timeout=15000)
             passed('recapture_source_lookup_revalidates_same_tab_conversation_navigation')
-            await workspace.get_by_role('button',name='继续这段对话').click()
-            await workspace.get_by_role('heading',name='继续这段对话').wait_for(state='visible',timeout=5000)
+            await workspace.get_by_role('button',name='继续到新对话').click()
+            await workspace.get_by_role('heading',name='继续到新对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             await workspace.get_by_role('link',name='ChatFlow首页').click()
             passed('ux_after_save_replaces_save_action_with_continue_action')
@@ -310,7 +310,8 @@ async def main():
             passed('indexeddb_sequence_and_interrupted_write_fail_closed',chunk_result)
             start=await workspace.evaluate('''async id=>{
               const r=await chrome.runtime.sendMessage({type:'tl:sources'}),tab=r.data.find(t=>t.url.endsWith('/'+id));
-              const s=await chrome.runtime.sendMessage({type:'tl:start',tabId:tab.id,live:true});if(!s.ok)throw Error(s.code);return s.data;
+              const frozen=await chrome.runtime.sendMessage({type:'tl:freezeSource',tabId:tab.id,expectedUrl:tab.url});if(!frozen.ok)throw Error(frozen.code);
+              const s=await chrome.runtime.sendMessage({type:'tl:start',...frozen.data,live:true});if(!s.ok)throw Error(s.code);return s.data;
             }''',CID)
             live_id=start['captureId']
             await wait_async(workspace,'async id=>{const c=await TLStore.get("captures",id);return c?.snapshot&&c.live&&["ready","partial"].includes(c.state)}',arg=live_id,timeout=90000)
@@ -324,7 +325,7 @@ async def main():
             await scope_workspace.wait_for_function("document.querySelector('#source').value !== ''")
             await scope_workspace.locator('#asset-scope').select_option('last_generated')
             assert await scope_workspace.locator('#live').is_disabled()
-            rejected=await scope_workspace.evaluate('''async cid=>{const r=await chrome.runtime.sendMessage({type:'tl:sources'}),t=r.data.find(x=>x.url.endsWith('/'+cid));return await chrome.runtime.sendMessage({type:'tl:start',tabId:t.id,live:true,scope:'last_generated'});}''',CID)
+            rejected=await scope_workspace.evaluate('''async cid=>{const r=await chrome.runtime.sendMessage({type:'tl:sources'}),t=r.data.find(x=>x.url.endsWith('/'+cid)),f=await chrome.runtime.sendMessage({type:'tl:freezeSource',tabId:t.id,expectedUrl:t.url});if(!f.ok)throw Error(f.code);return await chrome.runtime.sendMessage({type:'tl:start',...f.data,live:true,scope:'last_generated'});}''',CID)
             assert rejected['ok'] is False and rejected['code']=='LIVE_CACHE_REQUIRES_ALL_SCOPE',rejected
             await scope_workspace.locator('details.advanced summary').first.click();await scope_workspace.locator('#allow-media').uncheck()
             await scope_workspace.set_viewport_size({'width':1280,'height':900});await scope_workspace.screenshot(path=str(OUT/'ux-home-last-generated-1280.png'),full_page=True)
@@ -472,15 +473,15 @@ async def main():
             await workspace.locator('#archive-branch').select_option(label='当前分支')
             await workspace.locator('.message pre').filter(has_text='known fact at position 0: 0').wait_for(state='visible')
             passed('archive_branch_selector_saves_and_navigates_passages_across_accessible_branches')
-            await workspace.get_by_role('button',name='继续这段对话').wait_for(state='visible',timeout=5000)
+            await workspace.get_by_role('button',name='继续到新对话').wait_for(state='visible',timeout=5000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
-            assert await workspace.get_by_role('button',name='继续这段对话').is_visible()
+            assert await workspace.get_by_role('button',name='继续到新对话').is_visible()
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 await workspace.screenshot(path=str(OUT/f'ux-archive-{width}.png'),full_page=True)
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
-            await workspace.get_by_role('button',name='继续这段对话').click()
-            assert await workspace.get_by_role('heading',name='继续这段对话').is_visible()
+            await workspace.get_by_role('button',name='继续到新对话').click()
+            assert await workspace.get_by_role('heading',name='继续到新对话').is_visible()
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             await workspace.get_by_role('button',name='准备新对话').click()
             await wait_async(workspace,'async()=>!document.querySelector("#handoff-result").hidden&&document.querySelector("#open-target")&&!document.querySelector("#open-target").disabled',timeout=30000)
@@ -513,7 +514,7 @@ async def main():
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('#archive-branch').select_option(alternate_value)
             await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').wait_for(state='visible')
-            await workspace.get_by_role('button',name='继续这段对话').click()
+            await workspace.get_by_role('button',name='继续到新对话').click()
             assert await workspace.locator('#open-target').is_disabled()
             assert await workspace.locator('#prepare').is_visible()
             await workspace.get_by_role('button',name='我的档案').click()

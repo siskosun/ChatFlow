@@ -2,26 +2,22 @@
 
 ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.3 聚焦 ChatGPT 对话保存、附件真实字节保全、本地档案恢复，以及向新的普通 ChatGPT 对话安全接续。0.3 仅有 ChatGPT 生产适配器；其他平台不宣称支持。
 
-## 0.3 development scope
+## 两项主功能
 
-Two equal primary journeys: conversation continuation and lightweight Task
-Return. Tasks are local, carry a short marker through ordinary copy/paste,
-and return to their exact source without GitHub or an Agent API. ChatFlow
-opens the source and copies the result; it does not send or overwrite a draft.
-Advanced context/experiment/passage controls are opt-in. Current-conversation
-search, exact-ID question navigation, selected-turn export and LaTeX copy load
-only when requested. See [Task Loop](docs/TASK_LOOP.md) and [UI/reuse record](docs/UI_0.3.md).
+**继续到新对话**：保存所选对话及可取得的文件，核对本地档案，再准备历史和文件带到新聊天。
 
-This is an engineering candidate, not a release or authenticated-user acceptance.
-The exact engineering state is [Checkpoint](chatflow-0.3.tsm.json). Existing 0.2
-receipts in PLAN are historical, not validation of the new implementation.
+**任务回传**：从当前对话复制一个带来源标记的小任务，接收结果后保存，复制结果并回到原对话。不需要 GitHub 或 Agent API。
+
+上下文包、重点片段、并行实验等放在高级功能中，按需启用。对话搜索、问题导航、所选回合导出和 LaTeX 复制按需加载。参见[任务回传](docs/TASK_LOOP.md)与[界面说明](docs/UI_0.3.md)。
+
+当前是工程候选。[PR #3](https://github.com/siskosun/ChatFlow/pull/3) 的最新提交与对应 CI 是源码验证入口；历史 0.2 验收不能代表新实现已通过。真实登录、独立用户和真人辅助技术验收安排在开发完成之后。
 
 ## 核心流程
 
 1. **保存对话**：选择已打开的 ChatGPT 对话，选择保存范围并保存。
 2. **我的档案**：查找档案、检查消息/分支/附件完整性、导出或恢复 ZIP。
-3. **继续这段对话**：选择需要的原始附件，生成接续包并在当前浏览器窗口打开新的普通聊天标签页。ChatFlow 只预填和附加文件，永不自动发送。
-4. **创建上下文包**：从多份档案中筛选所选分支/全部可访问分支、完整消息或重点片段与关键词，按预算完整分段，输出来源清单和可选原始附件。档案详情中的“继续这段对话”也沿用所选分支，并记录来源哈希。
+3. **继续到新对话**：选择需要的原始附件，生成接续包并在当前浏览器窗口打开新的普通聊天标签页。ChatFlow 只预填和附加文件，永不自动发送。
+4. **创建上下文包**：从多份档案中筛选所选分支/全部可访问分支、完整消息或重点片段与关键词，按预算完整分段，输出来源清单和可选原始附件。档案详情中的“继续到新对话”也沿用所选分支，并记录来源哈希。
 5. **重点片段**：在档案消息中选择并保存关键原文，保留消息/分支来源，支持高亮恢复、重新定位和按片段编译上下文。
 6. **并行对照实验**：冻结同一份材料与任务，开启 2–4 个独立会话，逐个手动发送，采集结果后进行盲测比较与人工裁决。
 
@@ -46,8 +42,12 @@ receipts in PLAN are historical, not validation of the new implementation.
 
 不得将真实对话、附件、Cookie、Token、签名 URL 或内部资料提交到公开仓库。真实账号验收只记录脱敏结果。
 
-## 0.3 ZIP 恢复限制
+## 备份可靠性
 
-当前版本会在导入 ZIP/ZIP64 之前核验压缩包资源上限：单条目压缩和展开均不得超过 64 MiB，累计展开不得超过 256 MiB，deflate 压缩比例不得超过 200 倍。超限档案将明确拒绝并保留原有本地记录；**能导出 ZIP 不代表该版本能恢复任意大的 ZIP**。后续如需支持超限归档，必须实现带配额检查的分块恢复，不应调高内存上限。
+0.3 归档在导出成功前执行真实恢复解析与完整性校验。超过 64 MiB 的单附件会分块写入 ZIP；归档总展开上限仍为 256 MiB，超限在导出前拒绝。采集和下载未结束时不生成备份。静态部分档案保持缺失标记，不把下载进度当作文件字节。
+
+任务库使用逐记录 `.jsonl` 备份，容量覆盖 1,000 个任务和 2,000 份结果；完整校验后才原子恢复。旧归档和旧任务 JSON 继续支持导入。目标设备配额和下载后损坏仍会影响恢复。
+
+普通保存锁定所选对话和页面文档。异步等待中切换对话会停止该次保存，不把新页面归给旧来源。详细规则见[档案格式](docs/ARCHIVE_FORMAT.md)、[任务格式](docs/TASK_LOOP.md)与[性能预算](docs/PERFORMANCE.md)。
 
 本版本仍为工程候选：真实已登录 ChatGPT、真实文件、5 名独立用户与辅助技术验收未完成。

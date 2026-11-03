@@ -34,7 +34,10 @@
   const row=read.find(x=>x.frameId===0),data=row?.result;
   C.check(data&&data.url===identity.url,'TASK_SOURCE_CHANGED');
   const after=C.chatUrl((await api.tabs.get(msg.tabId)).url);C.check(after.url===identity.url,'TASK_SOURCE_CHANGED');
-  return{source:T.source({...identity,title:data.title,messageId:data.messageId,nodeId:data.nodeId}),selection:data.text,documentId:row.documentId||null};
+  const selectionTooLong=typeof data.text==='string'&&data.text.length>T.LIMITS.task;
+  // The page probe reads at most limit+1 as an overflow sentinel. Never expose
+  // that prefix as if it were a complete selection that the user can save.
+  return{source:T.source({...identity,title:data.title,messageId:data.messageId,nodeId:data.nodeId}),selection:selectionTooLong?'':data.text,selectionTooLong,documentId:row.documentId||null};
  }
  globalThis.TLTaskService=Object.freeze({handle});
 })();

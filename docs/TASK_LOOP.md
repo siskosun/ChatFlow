@@ -34,18 +34,45 @@ assignment basis (`marker_matched` or `manual_assigned`) and receipt time.
 Task IDs and source bindings are immutable. There is deliberately no automatic
 "sent" or "accepted" state. Opening a tab means only `source_opened_not_sent`.
 
-IndexedDB version 3 adds `tasks` and `taskResults` without deleting archive or
-passage stores. The separate task JSON backup (`chatflow.task-bundle/1`) carries
-all task records and receipts. Archive ZIPs remain archive backups; they do not
-implicitly contain task records. Task backup import validates identities,
-hashes, counts, uniqueness and references, then commits atomically. Existing
-source conflicts reject the entire import instead of overwriting records.
+IndexedDB version 4 preserves `tasks` and `taskResults` and adds small
+`taskSummaries` and `taskResultSummaries` stores plus temporary `taskImportRows`.
+Upgrade builds summaries with cursors, without collecting the original bodies
+in an array. A task summary carries its source, marker, a 180-unit preview,
+creation time and receipt count. A receipt summary carries identifiers, hash,
+assignment basis and creation time, never the result body. Summary writes and
+original-record writes share one transaction.
+
+Task backup exports `chatflow.task-backup/2` as JSON Lines (`.jsonl`). A header
+fixes task/result counts; one bounded line holds each task or receipt; a final
+record carries counts and SHA-256 over the preceding exact UTF-8 lines. The
+writer takes one readonly IndexedDB snapshot, validates each record, and builds
+Blob parts one record at a time. It does not stringify the entire library or
+read the library's results with `getAll()`.
+
+Restore reads at most 256 KiB per slice and rejects lines larger than 2 MiB
+before JSON parsing. It validates source identities, record hashes, counts,
+uniqueness, references, UTF-8 and the final digest. Records are staged in batches
+of eight; only after all checks pass does one transaction merge the entire
+backup into live records and summaries. A conflict, storage failure or bad
+footer leaves the original library unchanged. Same-origin Web Locks serialize
+imports. Startup cleanup removes interrupted staging only when no import holds
+the lock; staging is never exposed as saved tasks. Temporary staging requires
+available browser storage during restore.
+
+Old `chatflow.task-bundle/1` JSON files remain importable with the original
+4 MiB file-read bound. The legacy in-memory `bundle()` / `restore(object)` APIs
+remain for compatibility; the UI uses the streaming file APIs. Archive ZIPs
+remain archive backups and do not implicitly contain task records.
 
 ## Safety limits
 
 Task text: 20,000 UTF-16 units. Result text: 262,144 units. Local records: 1,000
-tasks and 2,000 results. A task backup is limited to 4 MiB. Over-limit input is
-rejected rather than silently truncated. A plain-text task exchange carries
+tasks and 2,000 results. The v2 backup has the same record-count limits as the
+live library and a 2 MiB UTF-8 limit per JSON line. This covers even the worst
+JSON escaping of every allowed 262,144-unit result. The outer file bound is
+`3002 × (2 MiB + 1 byte)`; ordinary valid records are much smaller. There is no
+4 MiB whole-library limit for new exports. Over-limit input is rejected rather
+than silently truncated. A plain-text task exchange carries
 no source URL, credentials or transcript beyond the selected task text.
 
 Only a standalone marker on the first nonempty line can automatically bind a
@@ -70,10 +97,31 @@ or manual association, not an invented automatic match. Tasks can be deleted
 locally with confirmation; this cascades only their receipts, never remote
 chats or archive files. Import files and Agent outputs are untrusted data.
 
+## List performance
+
+`listPage({limit:25,cursor})` reads `taskSummaries` in descending `[createdAt,id]`
+order. `resultPage(taskId,{limit:25,cursor})` reads the matching receipt-summary
+index. The maximum page size is 100; each request reads only one extra summary
+to decide whether a next page exists. `taskChoices()` reads at most 1,000 small
+summaries for manual source selection. `match(text)` looks up one task by its
+unique marker index. Full task/result bodies are loaded only for the selected
+item through `get(id)` / `getResult(id)`.
+
+The cloud Chromium regression seeds 1,000 tasks (about 2 KiB each) and 2,000
+receipts (about 4 KiB each), exports/restores that full-count library, and fails
+if metadata pagination touches original bodies. Runner budgets: first metadata
+page <1,500 ms, ten-page p95 <500 ms, and full-count fixture restore <60 s.
+These are engineering gates for the pinned CI environment, not timing promises
+for a user's browser. A separate fixture tests sixteen maximum-size receipts.
+The test report records actual bytes and timing; a missing report is not a pass.
+
 ## Acceptance
 
-`tests/tasks.test.mjs` and `tests/task-service.test.mjs` cover pure data and
-service boundaries. `tests/task_loop_e2e.py` exercises the installed MV3
+`tests/tasks.test.mjs`, `tests/task-service.test.mjs` and
+`tests/task-reliability.test.mjs` cover pure data, record-size, streaming format
+and service boundaries. `tests/task_storage_v4.py` checks actual Chromium
+IndexedDB migration, real export/restore above 4 MiB, atomic failures,
+interrupted staging cleanup and full-count summary pagination. `tests/task_loop_e2e.py` exercises the installed MV3
 extension, real IndexedDB, identity conflicts, clipboard denial, navigation,
 mobile layouts, restart and non-sending behavior with synthetic fixtures.
 These do not certify authenticated ChatGPT behavior or human usability.

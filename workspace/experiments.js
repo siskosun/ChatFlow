@@ -51,7 +51,8 @@
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
     const size = ChatFlowExperimentCore.byteLength(value);
     $("ff-bytes").textContent = "最终发送文本：" + size.toLocaleString() +
-      " / 24,000 UTF-8 字节" + (size>24000?"（超出限制）":"");
+      " / 24,000 UTF-8 字节" + (size>24000?" · 超限；全文已保留，请缩短后继续。":"");
+    for(const id of inputs)$(id).setAttribute('aria-invalid',String(size>24000));
     $("ff-save").disabled = createBusy || size > 24000 || !$("ff-p").value.trim();
   }
   let currentExperiment = null,currentData=null,readTicket=0,listTicket=0;
@@ -351,6 +352,10 @@
     pendingCreate = null; // Editing invalidates the previous frozen creation intent.
     bytes();
   });
+  for (const [id,limit] of [['ff-criteria',400],['ff-notes',4000]]) {
+    const input=$(id),hint=document.createElement('p');hint.id=id+'-limit';hint.className='subtle';hint.setAttribute('role','status');hint.hidden=true;input.after(hint);input.setAttribute('aria-describedby',hint.id);
+    input.addEventListener('input',()=>{const excess=input.value.length-limit;hint.hidden=excess<=0;hint.textContent=excess>0?'超出 '+excess+' 个字符；全文已保留。':'';input.setAttribute('aria-invalid',String(excess>0));input.setCustomValidity(excess>0?hint.textContent:'');$('ff-verdict').disabled=$('ff-criteria').value.length>400||$('ff-notes').value.length>4000;});
+  }
   $("ff-create").addEventListener("submit", async event => {
     event.preventDefault();
     if (createBusy) return;
@@ -449,6 +454,7 @@
   });
   $("ff-verdict").addEventListener("click", async event => {
     if (!currentExperiment) return;
+    if($('ff-criteria').value.length>400||$('ff-notes').value.length>4000){notice('内容超过上限，全文已保留。请缩短后提交。',true);return;}
     const button = event.target;
     const payload = {type:"FF_VERDICT", experimentId:currentExperiment,
       preference:$("ff-preference").value, criteria:$("ff-criteria").value,

@@ -6,16 +6,38 @@
     },
     "Two-flow UI and advanced preferences": {
       "status": "implemented",
-      "description": "Two equal journeys and opt-in advanced preferences implemented; five-width render-only checks are not MV3 acceptance."
+      "description": "Requested benjitaylor/skills stageshow prototype drawn first; production next actions, concise text, pagination and dark theme aligned. Render-only screenshots are separate from installed-extension CI and human acceptance."
     },
     "Navigation and licensed utilities": {
       "status": "implemented",
       "description": "Pinned MIT Toolkit components adapted; exact-ID source-bound panel implemented; browser behavior awaiting CI."
+    },
+    "Source locked capture": {
+      "status": "implemented",
+      "description": "Selected conversation and document frozen before async work; exact-document sends and drained stop writes implemented. Node and installed-extension cases included; formal CI pending."
+    },
+    "Recoverable archives": {
+      "status": "implemented",
+      "description": "archive/2 chunks large attachments and validates exports with restore parser; busy exports blocked; actual IDB 65 MiB roundtrip awaits exact-commit CI."
+    },
+    "Task backup capacity and integrity": {
+      "status": "implemented",
+      "description": "Bounded JSONL backups, staged validation and atomic merge; v4 metadata pages; legacy import retained. Corrupt or conflicting duplicate receipts are rejected."
+    },
+    "Input integrity and performance": {
+      "status": "implemented",
+      "description": "Full pasted text retained with visible limits; lazy per-compile snapshot hash, linear graph checks and summary pages implemented; explicit Node/browser budgets included."
     }
   },
   "Validation": {
-    "Regression and real Chromium synthetic QA": "todo",
-    "Cloud build reproducibility": "todo",
+    "Regression and real Chromium synthetic QA": {
+      "status": "implemented",
+      "description": "Regression scripts cover source races, 65 MiB archive, 16 maximum task results, full-count library, trusted paste and 42 visual states; exact-commit CI execution pending."
+    },
+    "Cloud build reproducibility": {
+      "status": "implemented",
+      "description": "Existing Ubuntu/Windows deterministic build gate extended for 0.3 reliability revision; exact-commit CI execution pending."
+    },
     "Authenticated and independent human acceptance": {
       "status": "blocked",
       "description": "Requires authorized real browser and independent human participants; synthetic tests cannot substitute."

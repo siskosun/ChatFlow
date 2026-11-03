@@ -35,14 +35,23 @@
   return new Blob([...local,...central,...tail],{type:'application/zip'});
  }
  const exactNumber=x=>{C.check(x<=BigInt(Number.MAX_SAFE_INTEGER),'ZIP64_OFFSET_TOO_LARGE');return Number(x);};
- // No ZIP entry is allowed to allocate gigabytes before local quota or user review.
- // Larger archives require a future streamed-to-IndexedDB reader, not a raised cap.
- const MAX_ZIP_EXPANDED=256*1024**2,MAX_ZIP_ENTRY=64*1024**2,MAX_ZIP_RATIO=200;
- async function readZip(blob,{maxEntries=50000,maxExpanded=MAX_ZIP_EXPANDED,maxEntry=MAX_ZIP_ENTRY,maxCentral=32*1024**2,maxRatio=MAX_ZIP_RATIO}={}){
+ // The writer and reader share the same resource contract. Large *files* may
+ // span bounded entries; this never raises the decompression or total limits.
+ const MAX_ZIP_EXPANDED=256*1024**2,MAX_ZIP_ENTRY=64*1024**2,MAX_ZIP_RATIO=200,MAX_ZIP_ENTRIES=50000,MAX_ZIP_CENTRAL=32*1024**2,MAX_JSON=32*1024**2;
+ const isChatFlow=m=>m.schema==='chatflow.archive/1'||m.schema==='chatflow.archive/2';
+ const partPath=(sha,index)=>'assets/'+sha+'/'+String(index).padStart(6,'0')+'.bin';
+ function exportLimits(entries){
+  let expanded=0,central=0;C.check(entries.length<=MAX_ZIP_ENTRIES,'ARCHIVE_EXPORT_LIMIT');
+  for(const entry of entries){const size=entry.blob?.size??new Blob([entry.content||'']).size;expanded+=size;central+=46+enc.encode(entry.name).length;
+   C.check(size<=MAX_ZIP_ENTRY&&expanded<=MAX_ZIP_EXPANDED&&central<=MAX_ZIP_CENTRAL,'ARCHIVE_EXPORT_LIMIT');}
+ }
+ async function readZip(blob,{maxEntries=MAX_ZIP_ENTRIES,maxExpanded=MAX_ZIP_EXPANDED,maxEntry=MAX_ZIP_ENTRY,maxCentral=MAX_ZIP_CENTRAL,maxRatio=MAX_ZIP_RATIO}={}){
   C.check(Number.isSafeInteger(maxExpanded)&&maxExpanded>0&&Number.isSafeInteger(maxEntry)&&maxEntry>0&&Number.isSafeInteger(maxRatio)&&maxRatio>0,'INVALID_ZIP_LIMIT');
   maxExpanded=Math.min(maxExpanded,MAX_ZIP_EXPANDED);
   maxEntry=Math.min(maxEntry,MAX_ZIP_ENTRY);
   maxRatio=Math.min(maxRatio,MAX_ZIP_RATIO);
+  C.check(Number.isSafeInteger(maxEntries)&&maxEntries>0&&Number.isSafeInteger(maxCentral)&&maxCentral>0,'INVALID_ZIP_LIMIT');
+  maxEntries=Math.min(maxEntries,MAX_ZIP_ENTRIES);maxCentral=Math.min(maxCentral,MAX_ZIP_CENTRAL);
   C.check(blob instanceof Blob&&blob.size>=22,'INVALID_ZIP');
   const tailStart=Math.max(0,blob.size-65557),tail=new Uint8Array(await blob.slice(tailStart).arrayBuffer()),v=new DataView(tail.buffer);let e=-1;
   for(let i=tail.length-22;i>=0;i--)if(v.getUint32(i,true)===0x06054b50&&i+22+v.getUint16(i+20,true)===tail.length){e=i;break;}
@@ -79,30 +88,48 @@
   C.check(p===data.length,'ZIP_DIRECTORY_TRAILING_DATA');return entries;
  }
  async function exportCapture(captureId){
-  const capture=await S.get('captures',captureId);C.check(capture,'CAPTURE_NOT_FOUND');
-  const rows=await S.assets(captureId),passageRows=(await S.passages(captureId)).map(p=>{const resolved=globalThis.TLPassages.resolve(p,capture.snapshot);return{...p,status:resolved.status,reason:resolved.reason};}),entries=[],paths=new Set(),files=[];
+  // Freeze capture, asset and passage metadata in one IndexedDB transaction.
+  // Export never serializes a partly downloaded file as if it were recoverable.
+  const view=await S.readArchive(captureId),capture=view.capture;C.check(capture,'CAPTURE_NOT_FOUND');
+  const rows=view.assets;C.check(capture.state!=='capturing'&&!capture.live&&!rows.some(a=>a.state==='downloading'),'ARCHIVE_BUSY');
+  const passageRows=view.passages.map(p=>{const resolved=globalThis.TLPassages.resolve(p,capture.snapshot);return{...p,status:resolved.status,reason:resolved.reason};}),entries=[],payloads=new Map(),files=[];
   C.check(passageRows.length<=5000,'PASSAGE_COUNT_LIMIT');
+  // Reject over-budget captures before hashing or generating an unusable ZIP.
+  const declared=new Map();for(const a of rows)if(a.state==='saved'){C.check(Number.isSafeInteger(a.size)&&a.size>0,'INVALID_SAVED_ASSET_MANIFEST');declared.set(a.sha256,a.size);}
+  C.check([...declared.values()].reduce((sum,size)=>sum+size,0)<=MAX_ZIP_EXPANDED,'ARCHIVE_EXPORT_LIMIT');
   for(const a of rows){
-   const item={key:a.key,messageId:a.messageId,nodeId:a.nodeId,name:a.name,mime:a.mime,kind:a.kind,origin:a.origin||'unknown',authorRole:a.authorRole||'unknown',ref:a.ref,expectedSize:a.expectedSize,state:a.state,reason:a.reason||null,size:a.size||0,sha256:a.sha256||null,inLatestSnapshot:a.inLatestSnapshot!==false};
+   const item={key:a.key,messageId:a.messageId,nodeId:a.nodeId,name:a.name,mime:a.mime,kind:a.kind,origin:a.origin||'unknown',authorRole:a.authorRole||'unknown',ref:a.ref,expectedSize:a.expectedSize,state:a.state,reason:a.reason||null,size:0,sha256:null,inLatestSnapshot:a.inLatestSnapshot!==false};
    if(a.state==='saved'){
-    try{const blob=await S.verifiedBlob(a.sha256);const path='assets/'+a.sha256+'.bin';if(!paths.has(path)){entries.push({name:path,blob});paths.add(path);}files.push({...item,path,size:blob.size});}
-    catch{files.push({...item,state:'corrupt',reason:'LOCAL_FILE_INTEGRITY_FAILED',path:null,size:0,sha256:null});}
+    let payload=payloads.get(a.sha256);
+    if(!payload){
+     let blob;try{blob=await S.verifiedBlob(a.sha256);}catch{throw new Error('LOCAL_FILE_INTEGRITY_FAILED');}
+     C.check(blob.size===a.size&&blob.size>0,'LOCAL_FILE_INTEGRITY_FAILED');
+     if(blob.size<=MAX_ZIP_ENTRY){const path='assets/'+a.sha256+'.bin';entries.push({name:path,blob});payload={path,size:blob.size,sha256:a.sha256};}
+     else{const parts=[];for(let offset=0,index=0;offset<blob.size;offset+=MAX_ZIP_ENTRY,index++){const piece=blob.slice(offset,Math.min(offset+MAX_ZIP_ENTRY,blob.size)),path=partPath(a.sha256,index);parts.push({path,size:piece.size});entries.push({name:path,blob:piece});}payload={path:null,parts,size:blob.size,sha256:a.sha256};}
+     payloads.set(a.sha256,payload);
+    }
+    C.check(payload.size===a.size,'LOCAL_FILE_INTEGRITY_FAILED');files.push({...item,...payload});
    }else files.push({...item,path:null});
   }
   const snapshot=C.persistedSnapshot(capture.snapshot),snapshotBlob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}),snapshotHash=await C.hashBlob(snapshotBlob);
-  const manifest={schema:'chatflow.archive/1',formatVersion:1,app:{name:'ChatFlow',version:'0.2'},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
+  const version=globalThis.chrome?.runtime?.getManifest?.().version;C.check(typeof version==='string','ARCHIVE_APP_VERSION_UNAVAILABLE');
+  const manifest={schema:'chatflow.archive/2',formatVersion:2,app:{name:'ChatFlow',version},source:{provider:'chatgpt',conversationId:snapshot.source.conversationId,origin:snapshot.source.origin},snapshotSchema:snapshot.schema,archiveId:capture.id,createdAt:capture.createdAt,exportedAt:new Date().toISOString(),snapshotPath:'conversation.json',snapshotSha256:snapshotHash,saveScope:capture.saveScope||'all',integrity:snapshot.integrity,
    state:capture.state==='ready'&&files.filter(a=>a.inLatestSnapshot!==false).every(a=>a.state==='saved'||a.state==='excluded')&&snapshot.integrity.state==='valid'?'ready':'partial',files,passages:passageRows};
-  C.check(new Blob([JSON.stringify(manifest,null,2)]).size<=32*1024**2,'ARCHIVE_METADATA_TOO_LARGE');
+  C.check(new Blob([JSON.stringify(manifest,null,2)]).size<=MAX_JSON&&snapshotBlob.size<=MAX_JSON,'ARCHIVE_METADATA_TOO_LARGE');
   entries.push({name:'conversation.json',blob:snapshotBlob},{name:'conversation.md',content:C.history(snapshot,{allBranches:true})},{name:'manifest.json',content:JSON.stringify(manifest,null,2)},{name:'diagnostics.json',content:JSON.stringify({schema:1,integrity:snapshot.integrity,files:files.map(a=>({state:a.state,reason:a.reason})),note:'No authentication or signed download URLs are retained.'},null,2)});
-  return{blob:await buildZip(entries),manifest};
+  exportLimits(entries);const blob=await buildZip(entries);
+  // Use the exact restore parser and integrity checks, without importing rows.
+  // Disk quota and future corruption remain environmental, not format success.
+  await inspectArchive(blob);
+  return{blob,manifest,verification:{restoreValidated:true,state:manifest.state}};
  }
- async function jsonEntry(entries,name,max=32*1024**2){const e=entries.get(name);C.check(e&&e.size<=max,'MISSING_OR_LARGE_JSON');return JSON.parse(await(await e.blob()).text());}
+ async function jsonEntry(entries,name,max=MAX_JSON){const e=entries.get(name);C.check(e&&e.size<=max,'MISSING_OR_LARGE_JSON');return JSON.parse(await(await e.blob()).text());}
  function validateManifest(manifest){
-  C.check(C.record(manifest)&&['chatflow.archive/1','threadline.archive/1'].includes(manifest.schema),'UNRECOGNIZED_ARCHIVE');
+  C.check(C.record(manifest)&&['chatflow.archive/1','chatflow.archive/2','threadline.archive/1'].includes(manifest.schema),'UNRECOGNIZED_ARCHIVE');
   C.check(manifest.snapshotPath==='conversation.json'&&/^[0-9a-f]{64}$/.test(manifest.snapshotSha256||'')&&Array.isArray(manifest.files),'INVALID_ARCHIVE_MANIFEST');
   C.check(['all','last_generated'].includes(manifest.saveScope||'all'),'INVALID_ARCHIVE_SAVE_SCOPE');
-  if(manifest.schema==='chatflow.archive/1'){
-   C.check(manifest.formatVersion===1&&manifest.app?.name==='ChatFlow'&&/^0\.(?:1|2)(?:$|\.)/.test(manifest.app.version||''),'INVALID_ARCHIVE_APP_VERSION');
+  if(isChatFlow(manifest)){
+   C.check(manifest.formatVersion===(manifest.schema==='chatflow.archive/2'?2:1)&&manifest.app?.name==='ChatFlow'&&/^\d+(?:\.\d+){1,3}$/.test(manifest.app.version||''),'INVALID_ARCHIVE_APP_VERSION');
    C.check(manifest.source?.provider==='chatgpt'&&typeof manifest.source.conversationId==='string'&&/^[A-Za-z0-9_-]{8,200}$/.test(manifest.source.conversationId),'INVALID_ARCHIVE_SOURCE');
    C.check(typeof manifest.source.origin==='string'&&['https://chatgpt.com','https://chat.openai.com'].includes(manifest.source.origin),'INVALID_ARCHIVE_ORIGIN');
    C.check(manifest.snapshotSchema==='threadline.snapshot/1'&&['ready','partial'].includes(manifest.state)&&C.record(manifest.integrity),'INVALID_ARCHIVE_STATE');
@@ -113,7 +140,7 @@
    keys.add(file.key);
    C.check(['saved','excluded','unavailable','discovered','downloading','corrupt','missing','unknown'].includes(file.state),'INVALID_MANIFEST_ASSET_STATE');
    C.check(Number.isSafeInteger(file.size)&&file.size>=0,'INVALID_MANIFEST_ASSET_SIZE');
-   if(manifest.schema==='chatflow.archive/1'){
+   if(isChatFlow(manifest)){
     C.check(typeof file.messageId==='string'&&file.messageId.length>0&&typeof file.nodeId==='string'&&file.nodeId.length>0,'INVALID_MANIFEST_ASSET_REFERENCE');
     C.check(typeof file.name==='string'&&file.name.length>0&&typeof file.mime==='string'&&typeof file.kind==='string'&&typeof file.origin==='string','INVALID_MANIFEST_ASSET_METADATA');
    }
@@ -123,11 +150,15 @@
     C.check(file.state==='saved'&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'INVALID_SAVED_ASSET_MANIFEST');
     C.check(file.path==='assets/'+file.sha256+'.bin','ASSET_PATH_HASH_MISMATCH');
    }
-   if(file.state==='saved')C.check(file.path&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'SAVED_ASSET_WITHOUT_BYTES');
-   if(file.state==='excluded')C.check(!file.path&&!file.sha256&&file.size===0,'EXCLUDED_ASSET_HAS_BYTES');
-   if(!['saved','excluded'].includes(file.state))C.check(!file.path&&!file.sha256&&file.size===0,'UNAVAILABLE_ASSET_HAS_BYTES');
+   if(file.parts!=null){
+    C.check(manifest.schema==='chatflow.archive/2'&&file.state==='saved'&&!file.path&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>MAX_ZIP_ENTRY&&file.size<=MAX_ZIP_EXPANDED&&Array.isArray(file.parts)&&file.parts.length===Math.ceil(file.size/MAX_ZIP_ENTRY),'INVALID_ASSET_PARTS');
+    let size=0;for(let i=0;i<file.parts.length;i++){const part=file.parts[i],expected=Math.min(MAX_ZIP_ENTRY,file.size-i*MAX_ZIP_ENTRY);C.check(C.record(part)&&part.path===partPath(file.sha256,i)&&part.size===expected,'INVALID_ASSET_PART');safePath(part.path);C.check(!paths.has(part.path)||paths.get(part.path)===part.size,'CONFLICTING_MANIFEST_PATH');paths.set(part.path,part.size);size+=part.size;}C.check(size===file.size,'ASSET_PART_SIZE_MISMATCH');
+   }
+   if(file.state==='saved')C.check((file.path||file.parts)&&/^[0-9a-f]{64}$/.test(file.sha256||'')&&file.size>0,'SAVED_ASSET_WITHOUT_BYTES');
+   if(file.state==='excluded')C.check(!file.path&&!file.parts&&!file.sha256&&file.size===0,'EXCLUDED_ASSET_HAS_BYTES');
+   if(!['saved','excluded'].includes(file.state))C.check(!file.path&&!file.parts&&!file.sha256&&file.size===0,'UNAVAILABLE_ASSET_HAS_BYTES');
   }
-  if(manifest.schema==='chatflow.archive/1'){
+  if(isChatFlow(manifest)){
    C.check(['valid','partial'].includes(manifest.integrity.state),'INVALID_ARCHIVE_INTEGRITY_STATE');
    if(manifest.state==='ready')C.check(manifest.integrity.state==='valid'&&manifest.files.filter(f=>f.inLatestSnapshot!==false).every(f=>['saved','excluded'].includes(f.state)),'READY_ARCHIVE_HAS_INCOMPLETE_ASSETS');
   }
@@ -197,13 +228,18 @@
    state:'unavailable',reason:'HISTORICAL_ATTACHMENT_NOT_IN_LATEST_SNAPSHOT',inLatestSnapshot:false
   };
  }
- async function restore(blob){
+ async function inspectArchive(blob){
   const entries=await readZip(blob),rawManifest=await jsonEntry(entries,'manifest.json');
   if((rawManifest.saveScope||'all')==='all'&&Array.isArray(rawManifest.files)&&rawManifest.files.some(f=>f?.state==='excluded'))throw new Error('INVALID_ALL_SCOPE_EXCLUSIONS');
   const manifest=validateManifest(rawManifest);
-  const rawBlob=await entries.get('conversation.json')?.blob();C.check(rawBlob,'SNAPSHOT_MISSING');C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
+  const snapshotEntry=entries.get('conversation.json');C.check(snapshotEntry,'SNAPSHOT_MISSING');C.check(snapshotEntry.size<=MAX_JSON,'ARCHIVE_METADATA_TOO_LARGE');
+  const rawBlob=await snapshotEntry.blob();C.check(await C.hashBlob(rawBlob)===manifest.snapshotSha256,'SNAPSHOT_HASH_MISMATCH');
   const rawSnapshot=JSON.parse(await rawBlob.text());
-  if(manifest.schema==='chatflow.archive/1')C.check(JSON.stringify(rawSnapshot.integrity)===JSON.stringify(manifest.integrity),'ARCHIVE_INTEGRITY_MISMATCH');
+  if(isChatFlow(manifest)){
+   C.check(JSON.stringify(rawSnapshot.integrity)===JSON.stringify(manifest.integrity),'ARCHIVE_INTEGRITY_MISMATCH');
+   const source=C.chatUrl(rawSnapshot.source?.url);
+   C.check(source.conversationId===manifest.source.conversationId&&source.origin===manifest.source.origin&&rawSnapshot.source.conversationId===source.conversationId&&rawSnapshot.source.origin===source.origin,'ARCHIVE_SOURCE_MISMATCH');
+  }
   const snapshot=validatedSnapshot(rawSnapshot),passages=validatePassages(manifest.passages==null?[]:manifest.passages,snapshot,manifest.archiveId),byKey=new Map(snapshot.assets.map(a=>[a.key,a])),files=[],blobs=new Map(),keys=new Set();
   if(manifest.state==='ready')C.check(snapshot.integrity.state==='valid','ARCHIVE_PARTIAL_SNAPSHOT_MARKED_READY');
   for(const m of manifest.files){
@@ -214,9 +250,10 @@
    // keys without that marker remain rejected.
    const meta=byKey.get(m.key)||(m.inLatestSnapshot===false?historicAssetMetadata(m):null);C.check(meta,'UNKNOWN_MANIFEST_ASSET');
    if(m.state==='saved'){
-    C.check(/^[a-f0-9]{64}$/.test(m.sha256||'')&&m.path==='assets/'+m.sha256+'.bin'&&m.size>0,'INVALID_SAVED_FILE');
-    const e=entries.get(m.path);C.check(e&&e.size===m.size,'ARCHIVE_FILE_MISSING');const b=await e.blob();C.check(await C.hashBlob(b)===m.sha256,'ARCHIVE_FILE_HASH_MISMATCH');
-    blobs.set(m.sha256,new Blob([b],{type:meta.mime}));files.push({...meta,state:'saved',size:b.size,sha256:m.sha256,reason:null,inLatestSnapshot:m.inLatestSnapshot!==false});
+    C.check(/^[a-f0-9]{64}$/.test(m.sha256||'')&&(m.path==='assets/'+m.sha256+'.bin'||m.parts)&&m.size>0,'INVALID_SAVED_FILE');
+    let b=blobs.get(m.sha256);
+    if(!b){const parts=[];for(const part of m.parts||[{path:m.path,size:m.size}]){const e=entries.get(part.path);C.check(e&&e.size===part.size,'ARCHIVE_FILE_MISSING');parts.push(await e.blob());}b=new Blob(parts,{type:meta.mime});C.check(b.size===m.size,'ASSET_PART_SIZE_MISMATCH');C.check(await C.hashBlob(b)===m.sha256,'ARCHIVE_FILE_HASH_MISMATCH');blobs.set(m.sha256,b);}
+    C.check(b.size===m.size,'CONFLICTING_MANIFEST_PATH');files.push({...meta,state:'saved',size:b.size,sha256:m.sha256,reason:null,inLatestSnapshot:m.inLatestSnapshot!==false});
    }else if(m.state==='excluded')files.push({...meta,state:'excluded',size:0,sha256:null,reason:'OUT_OF_SAVE_SCOPE'});
    else files.push({...meta,state:'unavailable',size:0,sha256:null,reason:typeof m.reason==='string'&&/^[A-Z0-9_]+$/.test(m.reason)?m.reason:'IMPORTED_FILE_UNAVAILABLE'});
   }
@@ -238,8 +275,9 @@
    }
   }
   const state=manifest.state==='ready'&&snapshot.integrity.state==='valid'&&files.filter(a=>a.inLatestSnapshot!==false).every(a=>a.state==='saved'||a.state==='excluded')?'ready':'partial';
-  return S.importCapture(snapshot,files,blobs,state,manifest.saveScope||'all',passages);
+  return{snapshot,files,blobs,state,saveScope:manifest.saveScope||'all',passages};
  }
+ async function restore(blob){const p=await inspectArchive(blob);return S.importCapture(p.snapshot,p.files,p.blobs,p.state,p.saveScope,p.passages);}
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}
  async function compareOfficial(captureId,zipBlob){
   const rows=await S.assets(captureId),candidates=[];let total=0;
@@ -260,5 +298,5 @@
   }
   return{schema:1,checkedAt:new Date().toISOString(),records,note:'Only exact file IDs and unambiguous original filenames are recognized. Unmatched files do not prove absence from the official export. Unknown mapping formats and historical-file availability require a real account sample.'};
  }
- globalThis.TLArchive=Object.freeze({crc,safePath,buildZip,readZip,exportCapture,restore,validateManifest,validatedSnapshot,compareOfficial});
+ globalThis.TLArchive=Object.freeze({crc,safePath,buildZip,readZip,exportCapture,restore,validateManifest,validatedSnapshot,compareOfficial,limits:Object.freeze({entry:MAX_ZIP_ENTRY,expanded:MAX_ZIP_EXPANDED,metadata:MAX_JSON,entries:MAX_ZIP_ENTRIES})});
 })();

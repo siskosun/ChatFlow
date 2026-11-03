@@ -31,7 +31,7 @@ async function captureCase({external=false}={}){
   location:{href:sourceUrl},document:{getElementById:()=>null,querySelectorAll:()=>[]},
   setTimeout:(fn,ms)=>{timers.push(ms);return timers.length;},clearTimeout:()=>{},setInterval:()=>{throw Error('NO_LIVE_CACHE');},clearInterval:()=>{}});
  for(const name of ['tl-core','tl-provider','tl-capture'])vm.runInContext(read('src/'+name+'.js'),env,{filename:name});
- let ack;listener({type:'tl:capture',nonce:'synthetic-nonce-abcdefghijklmnop',scope:'all',live:false},{id:chrome.runtime.id},r=>{ack=r;});
+ let ack;listener({type:'tl:capture',nonce:'synthetic-nonce-abcdefghijklmnop',scope:'all',live:false,expectedSource:{origin:'https://chatgpt.com',conversationId:'capture_deadline_1234'}},{id:chrome.runtime.id},r=>{ack=r;});
  assert.equal(ack.ok,true);
  const outcome=await Promise.race([completion,new Promise((_,reject)=>setTimeout(()=>reject(Error('CAPTURE_STALLED')),2000))]);
  assert.equal(outcome,'tl:finish');

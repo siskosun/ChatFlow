@@ -25,6 +25,10 @@
    const branchMessages=allBranches?snapshot.messages:activeNodes.map(id=>byNode.get(id)).filter(Boolean);
    const messageSelection=terms.length?branchMessages.filter(m=>terms.every(term=>String(m.text||'').toLocaleLowerCase().includes(term))):branchMessages;
    const selected=passageMode==='passages'?[]:messageSelection;
+   // Cache only for this synchronous compile and source. Persisted snapshots are
+   // mutable objects; a cross-call object cache could accept stale source hashes.
+   let cachedSnapshotHash;
+   const getSnapshotHash=()=>cachedSnapshotHash??=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(snapshot))).hex();
    const selectedPassages=[],passageIds=new Set();
    for(const passage of passageMode==='messages'?[]:(source.passages||[])){
     check(!passageIds.has(passage.passageId),'DUPLICATE_CONTEXT_PASSAGE');passageIds.add(passage.passageId);
@@ -33,14 +37,14 @@
     if(terms.length&&!terms.every(term=>String(passage.text||'').toLocaleLowerCase().includes(term)))continue;
     const resolved=globalThis.TLPassages?.resolve?.(passage,snapshot);
     check(resolved?.status==='anchored','CONTEXT_PASSAGE_NOT_ANCHORED');
-    const resolvedPassage={...passage,snapshotHash:globalThis.TLPassages.snapshotHash(snapshot),messageHash:globalThis.TLPassages.messageHash(resolved.message),startOffset:resolved.startOffset,endOffset:resolved.endOffset,status:resolved.status,anchorAtSave:{snapshotHash:passage.snapshotHash,messageHash:passage.messageHash,startOffset:passage.startOffset,endOffset:passage.endOffset},resolution:resolved.reason};
+    const resolvedPassage={...passage,snapshotHash:getSnapshotHash(),messageHash:globalThis.TLPassages.messageHash(resolved.message),startOffset:resolved.startOffset,endOffset:resolved.endOffset,status:resolved.status,anchorAtSave:{snapshotHash:passage.snapshotHash,messageHash:passage.messageHash,startOffset:passage.startOffset,endOffset:passage.endOffset},resolution:resolved.reason};
     selectedPassages.push({passage:resolvedPassage,resolved});passageRecords.push(resolvedPassage);
    }
    if(passageMode==='passages'&&selectedPassages.length===0){excludedSources.push({captureId:source.captureId,reason:'NO_SELECTED_PASSAGES_AFTER_FILTER'});continue;}
    check(selected.length>0||selectedPassages.length>0,terms.length?'NO_CONTEXT_MATCHES_FOR_SOURCE':'EMPTY_CONTEXT_SOURCE');
    const selectedIds=new Set(selected.map(m=>m.id)),selectedNodes=new Set([...selected.map(m=>m.nodeId),...selectedPassages.map(x=>x.passage.nodeId)]);
    const rendered=[],sourceDuplicates=[],sourceConflicts=[];
-   const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(snapshot))).hex();
+   const snapshotHash=getSnapshotHash();
    const sourceIndex=sourceRecords.length;
    for(const message of selected){
     const identity=JSON.stringify([snapshot.source.origin,snapshot.source.conversationId,message.id,message.nodeId]);
@@ -83,9 +87,10 @@
    const combined=[text,passageText].filter(Boolean).join('\n\n');
    sections.push('# 来源 '+(sourceIndex+1)+'：'+snapshot.title+'\n\n'+combined);
    const rows=Array.isArray(snapshot.assets)?snapshot.assets:[];
+   const storedAssets=new Map((source.assetRows||[]).map(a=>[a.key,a]));
    for(const asset of rows){
     const inScope=selectedNodes.has(asset.nodeId);
-    const row=source.assetRows?.find(x=>x.key===asset.key)||null;
+    const row=storedAssets.get(asset.key)||null;
     const state=row?.state||asset.state||'unknown';
     const saved=state==='saved'&&!!row?.sha256&&row.size>0;
     assetRecords.push({
