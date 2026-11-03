@@ -485,8 +485,8 @@ async def main():
             # Failed/unknown target must offer a user-initiated new preparation.
             # The old target stays untouched; no automatic retry is performed.
             prepared_id=await workspace.evaluate("""async()=>{
-              const all=await TLStore.all('handoffs');
-              return all.filter(h=>h.state==='prepared').sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0]?.id;
+              const all=await TLStore.all('handoffs'),shown=document.querySelector('#prompt')?.textContent;
+              return all.find(h=>h.state==='prepared'&&h.prompt===shown)?.id;
             }""")
             assert prepared_id, 'UI prepared handoff not found'
             await workspace.evaluate("""async id=>{
