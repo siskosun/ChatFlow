@@ -43,10 +43,9 @@
     });
   });
   function notice(message, error=false) {
-    $("ff-notice").textContent = message;
-    $("ff-notice").dataset.error = String(error);
-    let toast=$("ff-action-status");if(!toast){toast=document.createElement("div");toast.id="ff-action-status";toast.setAttribute("aria-hidden","true");document.body.append(toast);}
-    toast.textContent=message;toast.dataset.error=String(error);toast.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.hidden=true,error?9000:5000);
+    // The in-card live region is the only status. A duplicate body-level toast
+    // would obscure a browser viewport and repeat the same text.
+    const el=$("ff-notice");el.textContent=message;el.dataset.error=String(error);
   }
   function bytes() {
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
@@ -57,7 +56,6 @@
   }
   let currentExperiment = null,currentData=null,readTicket=0,listTicket=0;
   const verdictDrafts=new Map();
-  let toastTimer;
   async function runOperation(payload, busyButton) {
     if (busyButton) busyButton.disabled = true;
     try {
@@ -335,8 +333,7 @@
     $("ff-local").hidden = status.enabled !== true;
     if (status.enabled) await list();
     else $("ff-detail").hidden = true;
-    notice(status.enabled ? "已启用：仅本地冻结/存储，不会发送消息。" :
-      "功能未启用。没有自动网页操作。");
+    notice(status.enabled ? "并行实验已启用；发送仍由你手动完成。" : "");
     bytes();
   }
   $("ff-enable").addEventListener("change", async event => {
@@ -481,8 +478,6 @@
     } catch (e) { notice(e.message, true); }
     finally { button.disabled = false; }
   });
-  const manifest = chrome.runtime.getManifest();
-  $("ff-version-note").textContent = "当前加载版本 v" + manifest.version +
-    "。侧载扩展不会自动更新：升级新版后请在扩展管理页手动「重新加载」，并完全重启浏览器。";
+  $("ff-version-note").textContent = "";
   refresh().catch(error => notice(error.message,true));
 })();
