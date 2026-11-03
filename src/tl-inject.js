@@ -9,10 +9,23 @@
  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
  const code=e=>/^[A-Z0-9_]{2,100}$/.test(e?.message||'')?e.message:'HANDOFF_NOT_CONFIRMED';
  async function send(type,data={}){const r=await api.runtime.sendMessage({type,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
+ // Only explicit new-chat handoffs show a temporary, dismissible status.
+ // Passive source capture never creates UI on ChatGPT itself.
+ let noticeTimeout=null;
  function notice(text){
   let el=document.getElementById('chatflow-handoff-notice');
-  if(!el){el=document.createElement('div');el.id='chatflow-handoff-notice';el.setAttribute('role','status');el.style.cssText='position:fixed;bottom:12px;right:12px;max-width:400px;z-index:2147483647;padding:12px 16px;border:1px solid #8193a8;border-radius:8px;background:#eef4fb;color:#23384f;font:14px/1.6 system-ui;box-shadow:0 2px 10px #0002';(document.body||document.documentElement).append(el);}
-  el.textContent=text;
+  if(!el){
+   el=document.createElement('div');el.id='chatflow-handoff-notice';el.setAttribute('role','status');
+   el.style.cssText='position:fixed;top:10px;right:10px;width:max-content;max-width:min(310px,calc(100vw - 20px));z-index:2147483647;padding:10px 36px 10px 12px;border:1px solid #ccd8e2;border-radius:10px;background:#fff;color:#264259;font:12px/1.5 system-ui;box-shadow:0 4px 16px #142e3422;overflow-wrap:anywhere';
+   (document.body||document.documentElement).append(el);
+  }
+  el.replaceChildren(document.createTextNode(text));
+  const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','关闭 ChatFlow 提示');
+  close.style.cssText='position:absolute;top:4px;right:5px;min-width:24px;height:24px;border:0;background:transparent;color:#456;cursor:pointer';
+  close.addEventListener('click',()=>{clearTimeout(noticeTimeout);el.remove();});
+  el.append(close);
+  clearTimeout(noticeTimeout);
+  noticeTimeout=setTimeout(()=>{el.remove();noticeTimeout=null;},text.includes('未确认')||text.includes('手动上传')?12000:4500);
  }
  const visible=e=>!!e&&(e.getClientRects().length>0||e.offsetParent!==null);
  const value=e=>e instanceof HTMLTextAreaElement?e.value:(e.innerText||e.textContent||'');
