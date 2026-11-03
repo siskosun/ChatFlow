@@ -1,0 +1,57 @@
+{
+  "scope": "node_synthetic_algorithms_not_real_user_library",
+  "runtime": "v24.22.1",
+  "source": "working_tree",
+  "snapshotBytes": 1198081,
+  "budgets": "median of three isolated calls; baseline one call; same fixture",
+  "cases": [
+    {
+      "name": "normalize_50000_wide",
+      "runs": 3,
+      "timesMs": [
+        672.79,
+        478.11,
+        470.34
+      ],
+      "medianMs": 478.11,
+      "budgetMs": 2000,
+      "status": "pass"
+    },
+    {
+      "name": "normalize_50000_chain",
+      "runs": 3,
+      "timesMs": [
+        544.41,
+        602.15,
+        490.85
+      ],
+      "medianMs": 544.41,
+      "budgetMs": 2000,
+      "status": "pass"
+    },
+    {
+      "name": "compile_100_passages_from_1mb_snapshot",
+      "runs": 3,
+      "timesMs": [
+        55.21,
+        51.8,
+        48.08
+      ],
+      "medianMs": 51.8,
+      "budgetMs": 750,
+      "status": "pass"
+    },
+    {
+      "name": "compile_empty_passages_from_100_sources",
+      "runs": 3,
+      "timesMs": [
+        41.06,
+        38.67,
+        48.54
+      ],
+      "medianMs": 41.06,
+      "budgetMs": 250,
+      "status": "pass"
+    }
+  ]
+}

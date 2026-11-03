@@ -188,8 +188,12 @@ async def main():
             assert await workspace.evaluate("document.activeElement.id==='asset-scope'")
             assert await workspace.locator('main').count()==1
             assert await workspace.locator('#status').get_attribute('role')=='status'
-            assert await workspace.get_by_label('来源对话').count()==1
-            assert await workspace.get_by_label('文件范围').count()==1
+            source_control=workspace.locator('#capture-view').get_by_label('来源对话',exact=True)
+            assert await source_control.count()==1
+            assert await source_control.get_attribute('id')=='source'
+            scope_control=workspace.locator('#capture-view').get_by_label('文件范围',exact=True)
+            assert await scope_control.count()==1
+            assert await scope_control.get_attribute('id')=='asset-scope'
             assert await workspace.locator('#asset-scope').input_value()=='all'
             assert await workspace.locator('#asset-scope').locator('option').count()==2
             for width in [320,360,480,768,1280]:
@@ -483,10 +487,10 @@ async def main():
             await workspace.get_by_role('button',name='继续到新对话').click()
             assert await workspace.get_by_role('heading',name='继续到新对话').is_visible()
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
-            await workspace.get_by_role('button',name='准备新对话').click()
+            await workspace.locator('#handoff-view').get_by_role('button',name='准备历史与文件',exact=True).click()
             await wait_async(workspace,'async()=>!document.querySelector("#handoff-result").hidden&&document.querySelector("#open-target")&&!document.querySelector("#open-target").disabled',timeout=30000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
-            assert await workspace.get_by_role('button',name='打开新聊天标签页').is_visible()
+            assert await workspace.locator('#handoff-view').get_by_role('button',name='打开新对话',exact=True).is_visible()
             assert not await workspace.locator('#staging-details').evaluate('(e)=>e.open')
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
@@ -506,8 +510,8 @@ async def main():
               await TLStore.set('handoffs',{...h,state:'injection_blocked',lastError:'USER_DRAFT_PRESENT'});
             }""",prepared_id)
             await wait_async(workspace,'()=>!document.querySelector("#prepare").hidden&&document.querySelector("#open-target").hidden',timeout=12000)
-            assert await workspace.get_by_role('button',name='重新准备接续包').is_visible()
-            await workspace.get_by_role('button',name='重新准备接续包').click()
+            assert await workspace.locator('#handoff-view').get_by_role('button',name='重新准备历史与文件',exact=True).is_visible()
+            await workspace.locator('#handoff-view').get_by_role('button',name='重新准备历史与文件',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
             # A previously prepared package must not survive a source-branch change.

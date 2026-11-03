@@ -32,7 +32,7 @@
   "Validation": {
     "Regression and real Chromium synthetic QA": {
       "status": "implemented",
-      "description": "Regression scripts cover source races, 65 MiB archive, 16 maximum task results, full-count library, trusted paste and 42 visual states; exact-commit CI execution pending."
+      "description": "Corrected the confirmed 5e41d8b browser locator collision by scoping exact labels to the capture view; aligned preparation/open button labels. Independent browser suites now all run after browser-tool installation even if one suite fails. Full exact-head CI rerun required."
     },
     "Cloud build reproducibility": {
       "status": "implemented",

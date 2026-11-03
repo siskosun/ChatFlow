@@ -1,0 +1,198 @@
+{
+  "scope": "synthetic_development_visual_only",
+  "checks": [
+    {
+      "view": "home",
+      "theme": "light",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "capture",
+      "theme": "light",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "tasks",
+      "theme": "light",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "settings",
+      "theme": "light",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "home",
+      "theme": "light",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "capture",
+      "theme": "light",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "tasks",
+      "theme": "light",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "settings",
+      "theme": "light",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "home",
+      "theme": "light",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "capture",
+      "theme": "light",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "tasks",
+      "theme": "light",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "settings",
+      "theme": "light",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "home",
+      "theme": "dark",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "capture",
+      "theme": "dark",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "tasks",
+      "theme": "dark",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "settings",
+      "theme": "dark",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "home",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "capture",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "tasks",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "settings",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "home",
+      "theme": "dark",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "capture",
+      "theme": "dark",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "tasks",
+      "theme": "dark",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "settings",
+      "theme": "dark",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "test": "failed_capture_retains_old_snapshot_retry_primary",
+      "retry": "重试保存",
+      "primary": true,
+      "continueHidden": true
+    },
+    {
+      "test": "task_text_retains_20002_utf16_units",
+      "value": 20002,
+      "blocked": true,
+      "notice": "已输入 20,002 / 20,000 字符；内容已完整保留，请缩短后再试。"
+    },
+    {
+      "view": "experiments",
+      "theme": "light",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "experiments",
+      "theme": "light",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "experiments",
+      "theme": "light",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "view": "experiments",
+      "theme": "dark",
+      "width": 1100,
+      "overflow": false
+    },
+    {
+      "view": "experiments",
+      "theme": "dark",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "view": "experiments",
+      "theme": "dark",
+      "width": 320,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

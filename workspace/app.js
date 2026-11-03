@@ -16,7 +16,7 @@
  function bytes(n){return n>=1024**3?(n/1024**3).toFixed(2)+' GB':n>=1024**2?(n/1024**2).toFixed(1)+' MB':n>=1024?(n/1024).toFixed(1)+' KB':n+' B';}
  function switchView(v){if(!document.getElementById(v+'-view'))return;view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='archive')guard(refreshArchives);if(v==='handoff')guard(updateSelection);document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
  function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
- function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('prepare').hidden=false;$('prepare').textContent='重新生成接续包';status('内容已更改，请重新准备。');}}
+ function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('prepare').hidden=false;$('prepare').textContent='重新准备历史与文件';status('内容已更改，请重新准备。');}}
  async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
  async function sources(){
   const rows=await call('tl:sources'),selector=$('source'),signature=JSON.stringify(rows.map(r=>[r.id,r.url,r.title]));
@@ -130,7 +130,7 @@
   const zip=await A.buildZip(entries);await download(zip,'chatflow-context-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip');
   status('上下文包已生成：'+compiled.manifest.sources.length+' 份档案、'+compiled.manifest.sources.reduce((n,s)=>n+s.messageIds.length,0)+' 条消息、'+compiled.parts.length+' 个历史分段、估算 '+compiled.estimatedTokens+' tokens。'+(compiled.manifest.budgetExceeded?'已超过预算，内容已完整分段，请分批上传。':'')+'请核对清单后手动上传。');
  }
- async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='准备新对话';$('open-target').disabled=true;$('open-target').hidden=false;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
+ async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='准备历史与文件';$('open-target').disabled=true;$('open-target').hidden=false;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
  function fileInput(text,onFile){const label=node('label',text,'file-button'),input=document.createElement('input');input.type='file';input.accept='.zip,application/zip';input.addEventListener('change',()=>guard(async()=>{const file=input.files?.[0];if(file)await onFile(file);input.value='';}));label.append(input);return label;}
  async function download(blob,name){
   const url=URL.createObjectURL(blob),serial=++downloadStatusNonce,filename=C.safeName(name),label=$('download-status');
@@ -325,7 +325,7 @@
   const message=(labels[h.state]||h.state)+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
   const ready=h.state==='prepared'&&planFingerprint===fingerprint()&&fresh;
   $('prepare').hidden=ready;
-  $('prepare').textContent='重新准备接续包';
+  $('prepare').textContent='重新准备历史与文件';
   $('open-target').disabled=!ready;
   $('open-target').hidden=!ready;
   $('focus-target').disabled=!h.targetTabId;
