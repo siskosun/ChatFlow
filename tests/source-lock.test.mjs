@@ -8,7 +8,7 @@ const A='https://chatgpt.com/c/source_conversation_A',B='https://chatgpt.com/c/s
 async function harness(){
  const records=new Map(),events=[],page={id:7,url:A,title:'A',documentId:'document-A'},listeners={};
  const event=()=>({addListener(){}}),store={get:async(_,key)=>structuredClone(records.get(key)),all:async()=>[],assets:async()=>[],set:async(_,v)=>{records.set(v.id,structuredClone(v));events.push(['write',v]);},recover:async()=>{}};
- const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener(fn){listeners.service=fn;}}},action:{onClicked:event()},storage:{session:{get:async()=>({}),set:async()=>{}}},
+ const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener(fn){listeners.service=fn;}}},action:{onClicked:event()},sidePanel:{setPanelBehavior:async()=>{}},storage:{session:{get:async()=>({}),set:async()=>{}}},
   tabs:{get:async()=>({...page}),query:async()=>[{...page}],onUpdated:event(),onRemoved:event(),sendMessage:async(id,msg,options)=>{events.push(['send',msg,options]);assert.equal(id,7);if(options.documentId!==page.documentId)throw Error('SOURCE_DOCUMENT_CHANGED');if(msg.expectedSource?.url!==page.url)return{ok:false,code:'SOURCE_CONVERSATION_CHANGED'};return{ok:true};}},
   scripting:{executeScript:async options=>{events.push(['probe',options.target]);if(options.target.documentIds&&!options.target.documentIds.includes(page.documentId))throw Error('missing document');return[{frameId:0,documentId:page.documentId,result:page.url}];}}
  };
