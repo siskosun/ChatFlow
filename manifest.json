@@ -4,7 +4,7 @@
   "version": "0.3",
   "version_name": "0.3 engineering candidate - external acceptance deferred",
   "minimum_chrome_version": "116",
-  "description": "Save selected ChatGPT conversations and actual files locally, verify archives, and continue in a new chat without sending.",
+  "description": "Engineering trial: save ChatGPT chats and files locally in a side panel; manual continuation only, never auto-send.",
   "homepage_url": "https://github.com/siskosun/ChatFlow",
   "icons": {
     "16": "icons/icon-16.png",
