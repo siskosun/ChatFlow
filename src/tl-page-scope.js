@@ -39,7 +39,7 @@
    else if(ids.size===0)unknown.push(root);
    else conflicting.push(root);
   }
-  if(matches.length===1&&!conflicting.length)return{status:'confirmed',root:matches[0],conversationId:id};
+  if(matches.length===1&&visible.length===1)return{status:'confirmed',root:matches[0],conversationId:id};
   if(matches.length>1||conflicting.length||visible.length>1)return{status:'ambiguous',root:null,conversationId:id};
   if(unknown.length===1)return{status:'unverified',root:unknown[0],conversationId:id};
   return{status:'unavailable',root:null,conversationId:id};
