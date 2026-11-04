@@ -8,7 +8,7 @@ F、H、I、J 节保留 PR #1、0.2、首次 Edge 和 Tabbit 反馈的历史来�
 
 ## 安装和身份确认
 
-1. 只从准确提交 SHA、完整工程门禁成功的 GitHub Actions 候选产物取得 Edge 包；获取路径见 [INSTALL.md](INSTALL.md)。
+1. 按 [INSTALL.md](INSTALL.md) 选择 main 源码试用或精确提交的成功 CI 候选包；两者的证据级别不同，不能视为已发布版本。
 2. 校验 SHA256SUMS；解压后在独立 Edge 配置中加载解压扩展。
 3. 检查 `BUILD_INFO.json` 的 `source_commit`、产品名和版本均匹配；确认 ChatFlow 0.3。记录候选包和安装后文件的校验结果。
 4. 不覆盖旧研线/ThreadLine 扩展，不清理旧扩展数据。ChatFlow 与旧扩展使用独立存储，不会自动迁移。
