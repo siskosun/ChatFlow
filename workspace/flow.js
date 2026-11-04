@@ -18,7 +18,7 @@
   if(!tab)throw Error('WORKSPACE_WINDOW_REQUIRED');
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
- const defaults={context:false,experiments:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
+ const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
@@ -124,7 +124,6 @@
  const settingsBox=n('div',null,{class:'task-card'});
  const featureRows=[
   ['context','组合多份档案','从选中的本地档案生成来源清楚的上下文包。'],
-  ['experiments','并行对照实验','同一任务对照 2–4 个新聊天；逐个由你手动发送。'],
   ['live','实时缓存当前对话','只有对指定对话主动开启后才追踪新生成文件。'],
   ['diagnostics','存储与文件诊断','显示本地占用情况并申请持久化存储。'],
   ['passages','重点片段与分支','保存关键原文，查看可访问分支及定位状态。'],
