@@ -167,6 +167,13 @@ async def main():
             await workspace.locator('#home-view [data-view="capture"]').click()
             assert await workspace.locator('#source-empty-help').is_visible()
             passed('two_equal_primary_journeys_and_advanced_off_by_default')
+            await workspace.locator('header [data-view="archive"]').click()
+            assert await workspace.locator('#archive-view').is_visible()
+            await workspace.locator('.archive-empty button').wait_for(state='visible')
+            assert '还没有本地档案' in await workspace.locator('.archive-empty').inner_text()
+            await workspace.locator('.archive-empty button').click()
+            assert await workspace.locator('#capture-view').is_visible()
+            passed('empty_archive_offers_save_first_and_routes_to_capture_without_side_effects')
             source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
             assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
             await workspace.bring_to_front()
