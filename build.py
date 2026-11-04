@@ -33,6 +33,7 @@ def put_file(source: Path, target: Path):
 RUNTIME_FILES = [
     "src/tl-core.js",
     "src/tl-provider.js",
+    "src/tl-page-scope.js",
     "src/tl-capture.js",
     "src/tl-inject.js",
     "src/tl-passages.js",
