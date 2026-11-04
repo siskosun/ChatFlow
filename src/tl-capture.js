@@ -80,8 +80,13 @@
  }
  function reconcileVisibleAttachments(model){
   const sc=globalThis.TLPageScope?.current();
-  if(!sc?.root||sc.status==='ambiguous')return;
   const selector='[data-message-author-role] a[download],[data-message-author-role] [data-testid="file-chip"]';
+  if(!sc?.root||sc.status==='ambiguous'){
+   // Do not attribute an outgoing thread's files to this source, but disclose the skipped observation.
+   const ambiguous=globalThis.TLPageScope?[...document.querySelectorAll(selector)].some(e=>TLPageScope.isVisible(e)):false;
+   if(ambiguous){model.integrity.state='partial';model.integrity.issues.push({code:'VISIBLE_ATTACHMENT_SCOPE_AMBIGUOUS'});}
+   return;
+  }
   const visible=[...sc.root.querySelectorAll(selector)].filter(e=>TLPageScope.contains(sc,e));
   if(!visible.length)return;
   if(sc.status!=='confirmed'){
