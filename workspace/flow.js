@@ -12,7 +12,7 @@
  function say(text,error=false){
   const e=!$('tasks-view')?.hidden?$('task-status'):!$('settings-view')?.hidden?$('settings-status'):$('status');if(!e)return;
   clearTimeout(noticeTimers.get(e));const message=String(text||'');
-  e.replaceChildren(document.createTextNode(message));e.classList.toggle('error',!!error&&!!message);
+  e.textContent=message;e.classList.toggle('error',!!error&&!!message);
   if(message&&error){const close=n('button','关闭提示',{type:'button',class:'status-dismiss','aria-label':'关闭当前错误提示'});close.addEventListener('click',()=>{e.textContent='';e.classList.remove('error');});e.append(close);}
   else if(message)noticeTimers.set(e,setTimeout(()=>{if(e.textContent===message)e.textContent='';},4500));
  }
