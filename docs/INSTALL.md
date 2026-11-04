@@ -1,28 +1,39 @@
-# ChatFlow 0.3 安装与更新
+# ChatFlow 0.3 工程试用安装与更新
 
-## 取得候选包
+**未创建正式 Release；真实登录、独立用户和真人辅助技术验收尚未执行。** 这是工程候选版，而不是浏览器商店发布。
 
-1. 打开 [ChatFlow PR #3](https://github.com/siskosun/ChatFlow/pull/3)，确认准确提交 SHA，以及对应 GitHub Actions `verify`、`windows-baseline`、`reproducible-build` 均通过。PR #3 是 0.3 工程候选，包含之前的 0.1/0.2 基线；工程候选不等于正式发布。
-2. 在该准确提交的成功 Actions 运行中下载 `chatflow-candidate-<SHA>` artifact。
-3. 解压 artifact，确认包含 Chrome 与 Edge 候选 ZIP 及 `SHA256SUMS`。校验 ZIP 哈希，不要混用其他提交的旧 artifact。
-4. 解压目标浏览器 ZIP，确认根目录直接包含 `manifest.json`、`workspace/`、`src/`、`BUILD_INFO.json`，且 BUILD_INFO 的 source_commit 与已核验提交一致。
+## 途径 A：直接加载 main 源码（地址固定，首次试用更容易）
 
+1. 打开 [main 仓库](https://github.com/siskosun/ChatFlow/tree/main)，选择 **Code → Download ZIP**，解压后找到仓库根目录的 `manifest.json`；或使用 `git clone`。
+2. 核对根目录有 `workspace/`、`src/`、`icons/`。旧弹窗已移到测试样本目录，现行入口是原生侧边栏。
+3. Edge 打开 `edge://extensions/`（Chrome 是 `chrome://extensions/`），启用开发人员模式，选择“加载解压缩的扩展”，指向**直接包含 manifest.json 的仓库根目录**。
+4. 在普通窗口登录 ChatGPT 并打开一段已有对话，点击工具栏上的 ChatFlow 图标打开侧边栏。
+5. 查看 [main 最新提交 SHA](https://github.com/siskosun/ChatFlow/commits/main) 和 [main CI](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain)。源码加载不包含 BUILD_INFO.json，因此只是开发者试用，不等于附带构建校验的候选 ZIP。
+
+## 途径 B：准确提交的可复现候选 ZIP
+
+1. 在 [GitHub Actions verify](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain) 选择 main 上 verify、windows-baseline、reproducible-build **全部通过**的运行，记录该运行的准确 SHA。
+2. 下载 `chatflow-candidate-<SHA>` artifact。解压外层包，校验 SHA256SUMS，然后再解压其中的 Edge/Chrome 候选 ZIP。
+3. 选择**内层**直接包含 manifest.json、workspace/、src/、BUILD_INFO.json 的目录加载，不要选 ZIP 文件或外层 artifact 文件夹。
+4. 核对 BUILD_INFO.json 的 source_commit 与成功运行的提交 SHA 完全一致。
+
+**Actions artifact 会过期**；[PR #3](https://github.com/siskosun/ChatFlow/pull/3) 已合并，旧 PR 附件不作为永久安装入口。目前没有 Release 下载地址，不应将候选版描述为已正式发布。
 ## Microsoft Edge：首次安装
 
 1. 真实账号验收在工程开发完成后进行，首次测试建议使用独立 Edge 配置文件。
 2. 打开 `edge://extensions/`，开启“开发人员模式”。
-3. 选择“加载解压缩的扩展”，指向 `chatflow-edge-0.3-candidate.zip` 解压后包含 `manifest.json` 的目录。
+3. 选择“加载解压缩的扩展”，指向途径 A 的仓库根目录，或途径 B 的 Edge 内层 ZIP 解压目录。两者都必须直接包含 `manifest.json`。
 4. 确认扩展名称为 ChatFlow、版本为 0.3。打开普通 ChatGPT 对话，点击扩展图标即可在 Edge 原生侧边栏打开 ChatFlow；ChatGPT 页面保持可见。
 
 ## Google Chrome：首次安装
 
 1. 打开 `chrome://extensions/`，开启“开发者模式”。
-2. 选择“加载已解压的扩展程序”，指向 `chatflow-chrome-0.3-candidate.zip` 解压后包含 `manifest.json` 的目录。
+2. 选择“加载已解压的扩展程序”，指向途径 A 的仓库根目录，或途径 B 的 Chrome 内层 ZIP 解压目录。
 3. 确认名称、版本和图标。打开普通 ChatGPT 对话后点击 ChatFlow 图标，Chrome 原生侧边栏会在当前窗口中显示 ChatFlow。
 
 ## 侧边栏使用方式
 
-点击浏览器工具栏的 ChatFlow 图标打开侧边栏。侧边栏与 ChatGPT 网页并排显示，不再新建全页面工作区。切换 ChatGPT 标签页时，侧边栏继续保留；保存和任务回传会检查选定的实际来源。接续到新对话会在同一浏览器窗口新建普通 ChatGPT 标签页，不自动发送。需要 Chrome 116+ 或支持原生扩展侧边栏的 Edge 版本。
+点击浏览器工具栏的 ChatFlow 图标打开侧边栏。请先在普通窗口登录 ChatGPT，并打开一段已有对话；空白新聊天没有可保存的来源 ID。侧边栏与 ChatGPT 网页并排显示，不再新建全页面工作区。切换 ChatGPT 标签页时，侧边栏继续保留；保存和任务回传会检查选定的实际来源。接续到新对话会在同一浏览器窗口新建普通 ChatGPT 标签页，不自动发送。需要 Chrome 116+ 或支持原生扩展侧边栏的 Edge 版本。
 
 ## 保留已有数据的更新
 
