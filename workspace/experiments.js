@@ -284,6 +284,14 @@
     renderCompare(value);
     if(draft){for(const [key,selector] of [["preference","ff-preference"],["criteria","ff-criteria"],["notes","ff-notes"],["confidence","ff-confidence"]])if(draft[key]!==undefined)$(selector).value=draft[key];for(const answer of draft.calibration||[]){const input=[...document.querySelectorAll('#ff-calibration-items input')].find(n=>n.name===answer.name&&n.value===answer.value);if(input)input.checked=true;}}
     else {$("ff-criteria").value="";$("ff-notes").value="";$("ff-confidence").value="medium";}
+    // Programmatic value assignment does not dispatch input. Reset stale limits
+    // when changing experiments rather than leaving the verdict disabled.
+    for(const [field,limit] of [['ff-criteria',400],['ff-notes',4000]]){
+     const input=$(field),excess=input.value.length-limit,hint=$(field+'-limit');
+     const invalid=excess>0;input.setCustomValidity(invalid?'内容超过安全上限':'');input.setAttribute('aria-invalid',String(invalid));
+     if(hint){hint.hidden=!invalid;hint.textContent=invalid?'超出 '+excess+' 个字符；全文已保留。':'';}
+    }
+    $('ff-verdict').disabled=$('ff-criteria').value.length>400||$('ff-notes').value.length>4000;
     document.querySelectorAll('#ff-list button[data-experiment-id]').forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.experimentId===id)));
   }
   async function list() {
