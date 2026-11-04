@@ -4,7 +4,7 @@
   if (globalThis.TLCaptureInstalled) return;
   globalThis.TLCaptureInstalled = true;
   const C = globalThis.TLCore, P = globalThis.ChatFlowProviders, api = chrome;
-  const DOWNLOAD_TIMEOUT_MS = 60000, CHUNK_BYTES = 262144;
+  const DOWNLOAD_TIMEOUT_MS = 60000, CHUNK_BYTES = C.TRANSFER_CHUNK_BYTES;
   const JSON_LIMITS = Object.freeze({ session: 1024 ** 2, conversation: 32 * 1024 ** 2, metadata: 2 * 1024 ** 2 });
   let active = null;
   const code = e => e?.name === 'AbortError' ? 'CANCELLED_OR_TIMEOUT' :

@@ -121,7 +121,7 @@
   // Use the exact restore parser and integrity checks, without importing rows.
   // Disk quota and future corruption remain environmental, not format success.
   await inspectArchive(blob);
-  return{blob,manifest,verification:{restoreValidated:true,state:manifest.state}};
+  return{blob,manifest,sourceSubject:globalThis.TLEvidence?.subject(view)||null,verification:{restoreValidated:true,state:manifest.state}};
  }
  async function jsonEntry(entries,name,max=MAX_JSON){const e=entries.get(name);C.check(e&&e.size<=max,'MISSING_OR_LARGE_JSON');return JSON.parse(await(await e.blob()).text());}
  function validateManifest(manifest){
@@ -278,6 +278,52 @@
   return{snapshot,files,blobs,state,saveScope:manifest.saveScope||'all',passages};
  }
  async function restore(blob){const p=await inspectArchive(blob);return S.importCapture(p.snapshot,p.files,p.blobs,p.state,p.saveScope,p.passages);}
+ /** Generate and parse-check an exact ZIP; never claim that it was imported. */
+ async function exportVerified(captureId){
+  const E=globalThis.TLEvidence,view=await S.readArchive(captureId),subject=E.subject(view);
+  const version=globalThis.chrome.runtime.getManifest().version;
+  let out;
+  try{
+   out=await exportCapture(captureId);
+   C.check(out.sourceSubject===subject,'VERIFICATION_SOURCE_CHANGED');
+   const receipt={schema:'chatflow.verification/1',kind:'backup',status:'passed',subject,
+    archiveSha256:await C.hashBlob(out.blob),archiveBytes:out.blob.size,checkedAt:Date.now(),version,imported:false};
+   // exportCapture freezes its own view. Recheck both returned snapshot and source
+   // after asynchronous validation, rather than certifying a later revision.
+   const now=await S.readArchive(captureId);
+   C.check(E.subject(now)===subject,'VERIFICATION_SOURCE_CHANGED');
+   const recorded=await S.recordVerification(captureId,receipt);
+   C.check(recorded,'VERIFICATION_SOURCE_CHANGED');
+   return {...out,receipt};
+  }catch(error){
+   try{await S.recordVerification(captureId,{schema:'chatflow.verification/1',kind:'backup',status:'failed',subject,
+    archiveSha256:null,archiveBytes:0,checkedAt:Date.now(),version,imported:false,code:'BACKUP_VALIDATION_FAILED'});}
+   catch{/* The original operation error remains visible; no success receipt is created. */}
+   throw error;
+  }
+ }
+ /** Import atomically, then read the committed DB and recheck its actual blobs. */
+ async function restoreVerified(blob){
+  const E=globalThis.TLEvidence,p=await inspectArchive(blob),archiveSha256=await C.hashBlob(blob);
+  const id=await S.importCapture(p.snapshot,p.files,p.blobs,p.state,p.saveScope,p.passages);
+  let subject=null;
+  try{
+   const view=await S.readArchive(id);subject=E.subject(view);
+   C.check(JSON.stringify(C.persistedSnapshot(view.capture.snapshot))===JSON.stringify(C.persistedSnapshot(p.snapshot)),'RESTORE_READBACK_FAILED');
+   C.check(JSON.stringify(E.assetProjection(view.assets))===JSON.stringify(E.assetProjection(p.files)),'RESTORE_READBACK_FAILED');
+   C.check(JSON.stringify(E.passageProjection(view.passages))===JSON.stringify(E.passageProjection(p.passages)),'RESTORE_READBACK_FAILED');
+   for(const [sha,original]of p.blobs){const actual=await S.verifiedBlob(sha);C.check(actual.size===original.size,'RESTORE_READBACK_FAILED');}
+   const receipt={schema:'chatflow.verification/1',kind:'restore',status:'passed',subject,archiveSha256,
+    archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true};
+   C.check(await S.recordVerification(id,receipt),'VERIFICATION_SOURCE_CHANGED');
+   return {id,verified:true,receipt};
+  }catch{
+   // Import has already committed. Do not tell the user nothing was written.
+   if(subject)try{await S.recordVerification(id,{schema:'chatflow.verification/1',kind:'restore',status:'failed',subject,
+    archiveSha256,archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true,code:'RESTORE_READBACK_FAILED'});}catch{/* returned result still exposes failure */}
+   return {id,verified:false,code:'RESTORE_READBACK_FAILED'};
+  }
+ }
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}
  async function compareOfficial(captureId,zipBlob){
   const rows=await S.assets(captureId),candidates=[];let total=0;
@@ -298,5 +344,5 @@
   }
   return{schema:1,checkedAt:new Date().toISOString(),records,note:'Only exact file IDs and unambiguous original filenames are recognized. Unmatched files do not prove absence from the official export. Unknown mapping formats and historical-file availability require a real account sample.'};
  }
- globalThis.TLArchive=Object.freeze({crc,safePath,buildZip,readZip,exportCapture,restore,validateManifest,validatedSnapshot,compareOfficial,limits:Object.freeze({entry:MAX_ZIP_ENTRY,expanded:MAX_ZIP_EXPANDED,metadata:MAX_JSON,entries:MAX_ZIP_ENTRIES})});
+ globalThis.TLArchive=Object.freeze({crc,safePath,buildZip,readZip,exportCapture,exportVerified,restoreVerified,restore,validateManifest,validatedSnapshot,compareOfficial,limits:Object.freeze({entry:MAX_ZIP_ENTRY,expanded:MAX_ZIP_EXPANDED,metadata:MAX_JSON,entries:MAX_ZIP_ENTRIES})});
 })();

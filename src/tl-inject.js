@@ -85,26 +85,26 @@
     }
     C.check(value(el).replace(/\r/g, '').trim() === text.replace(/\r/g, '').trim(), 'PREFILL_NOT_CONFIRMED');
   }
-  function uploadsConfirmed(names, composer) {
-    const area = composerArea(composer);
-    if (!area || !names.length || new Set(names).size !== names.length) return false;
-    const candidates = area.querySelectorAll(CHIP_SELECTOR);
-    if (candidates.length > 100) return false;
-    const chips = [...candidates].filter(visible), used = new Set();
-    for (const name of names) {
-      const matches = [];
-      for (let i = 0; i < chips.length; i += 1) {
-        if (used.has(i)) continue;
-        const chip = chips[i], state = chip.getAttribute('data-state') || chip.getAttribute('data-status');
-        if (!['ready','uploaded','complete','success'].includes(state) || chip.querySelector('[role="progressbar"],[aria-busy="true"]')) continue;
-        const text = chip.getAttribute('data-filename') || chip.getAttribute('title') || chip.textContent;
-        if (typeof text === 'string' && text.trim() === name) matches.push(i);
+  function observeFiles(names,composer){
+    const area=composerArea(composer),unknown=()=>names.map(()=>({state:'unknown',basis:null}));
+    if(!area||!names.length||new Set(names).size!==names.length)return unknown();
+    const candidates=area.querySelectorAll(CHIP_SELECTOR);
+    if(candidates.length>100)return unknown();
+    const chips=[...candidates].filter(visible),used=new Set();
+    return names.map(name=>{
+      const matches=[];
+      for(let i=0;i<chips.length;i++){
+        const chip=chips[i],text=chip.getAttribute('data-filename')||chip.getAttribute('title')||chip.textContent;
+        if(typeof text==='string'&&text.trim()===name)matches.push(i);
       }
-      if (matches.length !== 1) return false;
-      used.add(matches[0]);
-    }
-    return true;
+      if(matches.length!==1||used.has(matches[0]))return {state:'unknown',basis:null};
+      const i=matches[0],chip=chips[i];used.add(i);
+      const state=chip.getAttribute('data-state')||chip.getAttribute('data-status');
+      return ['ready','uploaded','complete','success'].includes(state)&&!chip.querySelector('[role="progressbar"],[aria-busy="true"]')?
+        {state:'page_ready',basis:'exact_filename_ready'}:{state:'unknown',basis:null};
+    });
   }
+  function uploadsConfirmed(names,composer){return names.length>0&&observeFiles(names,composer).every(row=>row.state==='page_ready');}
   function observeManualExperimentSend(handoff, el) {
     let armed = true;
     function clear() {
@@ -146,43 +146,46 @@
     } catch (error) { notice('ChatFlow：分支 ' + handoff.branch + ' 预填未确认（' + code(error) + '）。不会自动发送或重试；请回实验页手动重新预填。'); }
   }
   async function prepare() {
-    if (started) return;
+    if(started)return;
     let handoff;
-    try { handoff = await send('tl:claimHandoff'); }
-    catch (error) { notice('ChatFlow：新聊天页面未通过身份检查（' + code(error) + '），没有注入材料。请回档案页重新准备；不会自动重试。'); return; }
-    if (!handoff) return;
-    started = true; let attempted = false;
-    try {
-      notice('ChatFlow：核验本地接续材料。不会自动发送消息。'); await waitForEditor(); preflight();
-      const files = [];
-      for (const file of handoff.files) files.push(await receiveFile(handoff, file));
-      const el = preflight(); let input = null, manualReason = null;
-      try { input = generalFileInput(el); if (!input.multiple && files.length !== 1) manualReason = 'FILE_INPUT_IS_SINGLE_ONLY'; }
-      catch (error) { if (code(error) === 'GENERAL_FILE_INPUT_UNAVAILABLE_OR_AMBIGUOUS') manualReason = code(error); else throw error; }
-      const transfer = new DataTransfer();
-      for (const file of files) { C.check(file.size > 0, 'EMPTY_FILE_REJECTED'); transfer.items.add(file); }
-      prefill(el, handoff.prompt); P.identify(location.href, { target: true }).identity;
-      C.check(value(el).trim() === handoff.prompt.trim(), 'USER_DRAFT_CHANGED');
-      if (manualReason) {
-        await send('tl:handoffStatus', { id: handoff.id, state: 'draft_prepared', code: manualReason });
-        notice('ChatFlow：接续文字已经预填，但当前页面没有可确认的附件入口。请返回档案页下载文件，手动上传并核对；不会自动发送。'); return;
+    try{handoff=await send('tl:claimHandoff');}
+    catch(error){notice('\u65b0\u5bf9\u8bdd\u8eab\u4efd\u672a\u786e\u8ba4\uff08'+code(error)+'\uff09\uff0c\u6ca1\u6709\u6ce8\u5165\u6750\u6599\u3002');return;}
+    if(!handoff)return;started=true;
+    let attempted=false,evidence=handoff.files.map(file=>({index:file.index,state:'prepared',basis:null}));
+    const report=(type,state,reason)=>send(type,{id:handoff.id,attemptId:handoff.attemptId,files:evidence,state,code:reason});
+    try{
+      await waitForEditor();preflight();
+      const files=[];for(const file of handoff.files)files.push(await receiveFile(handoff,file));
+      const el=preflight();let input=null,manualReason=null;
+      try{input=generalFileInput(el);if(!input.multiple&&files.length!==1)manualReason='FILE_INPUT_IS_SINGLE_ONLY';}
+      catch(error){if(code(error)==='GENERAL_FILE_INPUT_UNAVAILABLE_OR_AMBIGUOUS')manualReason=code(error);else throw error;}
+      const transfer=new DataTransfer();
+      for(const file of files){C.check(file.size>0,'EMPTY_FILE_REJECTED');transfer.items.add(file);}
+      prefill(el,handoff.prompt);P.identify(location.href,{target:true}).identity;
+      C.check(value(el).trim()===handoff.prompt.trim(),'USER_DRAFT_CHANGED');
+      if(manualReason){
+        await report('tl:handoffStatus','draft_prepared',manualReason);
+        notice('\u8349\u7a3f\u5df2\u51c6\u5907\uff1b\u9875\u9762\u6ca1\u6709\u53ef\u786e\u8ba4\u7684\u9644\u4ef6\u5165\u53e3\uff0c\u8bf7\u4e0b\u8f7d\u540e\u624b\u52a8\u4e0a\u4f20\u3002');return;
       }
-      const area = composerArea(el);
-      attempted = true; // A thrown event handler cannot make an uncertain attempt retryable.
-      input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
-      let confirmed = false;
-      for (let i = 0; i < 32; i += 1) {
-        await sleep(250); P.identify(location.href, { target: true }).identity;
-        C.check(el.isConnected && input.isConnected && editor() === el && composerArea(el) === area, 'COMPOSER_REPLACED');
-        if (uploadsConfirmed(files.map(file => file.name), el)) { confirmed = true; break; }
+      const area=composerArea(el);attempted=true;
+      input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+      evidence=evidence.map(row=>({...row,state:'offered'}));
+      await report('tl:handoffProgress');
+      let confirmed=false;
+      for(let i=0;i<32;i++){
+        await sleep(250);P.identify(location.href,{target:true}).identity;
+        C.check(el.isConnected&&input.isConnected&&editor()===el&&composerArea(el)===area,'COMPOSER_REPLACED');
+        evidence=observeFiles(files.map(file=>file.name),el).map((row,index)=>({...row,index:handoff.files[index].index}));
+        confirmed=evidence.every(row=>row.state==='page_ready');
+        if(confirmed)break;
       }
-      await send('tl:handoffStatus', { id: handoff.id, state: confirmed ? 'upload_confirmed' : 'upload_unknown' });
-      notice((confirmed ? 'ChatFlow：网页显示首批附件就绪（不代表模型已读取）。' : 'ChatFlow：已尝试附加首批文件，但结果尚未确认，请检查网页。') +
-        '请核对后手动发送。' + (handoff.remainingBatches ? '另有 ' + handoff.remainingBatches + ' 批待手动补充。' : ''));
-    } catch (error) {
-      try { await send('tl:handoffStatus', { id: handoff.id, state: attempted ? 'partial_injection' : 'injection_blocked', code: code(error) }); }
-      catch { /* explicit local warning remains; no receipt success is manufactured */ }
-      notice('ChatFlow：自动接续未确认（' + code(error) + '）。不会自动重试或清除草稿。请回档案页下载接续包，手动上传。');
+      await report('tl:handoffStatus',confirmed?'upload_confirmed':'upload_unknown');
+      notice((confirmed?'\u7f51\u9875\u663e\u793a\u9996\u6279\u9644\u4ef6\u5c31\u7eea\uff08\u4e0d\u4ee3\u8868\u6a21\u578b\u5df2\u8bfb\u53d6\uff09\u3002':'\u9644\u4ef6\u7ed3\u679c\u5c1a\u672a\u5168\u90e8\u786e\u8ba4\uff0c\u8bf7\u67e5\u770b\u9010\u6587\u4ef6\u72b6\u6001\u3002')+'\u8bf7\u6838\u5bf9\u540e\u624b\u52a8\u53d1\u9001\u3002'+(handoff.remainingBatches?'\u53e6\u6709 '+handoff.remainingBatches+' \u6279\u5f85\u624b\u52a8\u8865\u5145\u3002':''));
+    }catch(error){
+      if(attempted)evidence=evidence.map(row=>({...row,state:'unknown',basis:null}));
+      try{await report('tl:handoffStatus',attempted?'partial_injection':'injection_blocked',code(error));}
+      catch{/* Keep the local warning. A lost reply never becomes a successful receipt. */}
+      notice('\u81ea\u52a8\u63a5\u7eed\u672a\u786e\u8ba4\uff08'+code(error)+'\uff09\u3002\u4e0d\u4f1a\u81ea\u52a8\u91cd\u8bd5\u6216\u6e05\u9664\u8349\u7a3f\uff1b\u8bf7\u624b\u52a8\u6838\u5bf9\u3002');
     }
   }
   api.runtime.onMessage.addListener((msg, sender, respond) => {

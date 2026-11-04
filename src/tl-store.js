@@ -5,36 +5,79 @@
  const request=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IDB_REQUEST_FAILED'));});
  function captureSummary(c){return{id:c.id,title:c.snapshot?.title||c.title||'未完成采集',titleSearch:String(c.snapshot?.title||c.title||'').toLocaleLowerCase(),source:c.snapshot?.source||c.source||null,hasSnapshot:!!c.snapshot,messageCount:c.snapshot?.messages?.length||0,integrityState:c.snapshot?.integrity?.state||null,state:c.state,live:!!c.live,saveScope:c.saveScope||'all',createdAt:c.createdAt||'',updatedAt:c.updatedAt||c.createdAt||'',lastError:c.lastError||null,savedFiles:c.savedFiles||0,missingFiles:c.missingFiles||0,excludedFiles:c.excludedFiles||0};}
  function putCapture(stores,capture){stores.captures.put(capture);stores.captureSummaries.put(captureSummary(capture));}
+ // Version 5 repairs v2 -> v4 databases whose existing passages store missed indexes.
+ // No records, keys, archive formats or blob references are rewritten.
+ const DB_VERSION = 5;
+ const schema = {
+  tasks: ['id', [['code','code',true]]],
+  taskResults: ['id', [['task','taskId'], ['content',['taskId','textHash'],true]]],
+  captures: ['id', []],
+  assets: [['captureId','key'], [['capture','captureId']]],
+  files: ['sha256', []],
+  chunks: [['captureId','key','seq'], [['owner',['captureId','key']], ['capture','captureId']]],
+  handoffs: ['id', []],
+  passages: ['passageId', [['capture','captureId'], ['createdAt','createdAt'], ['source',['captureId','conversationId','messageId','nodeId']]]],
+  captureSummaries: ['id', [['updatedAt',['updatedAt','id']], ['sourceScope',['source.origin','source.conversationId','saveScope']]]],
+  taskSummaries: ['id', [['createdAt',['createdAt','id']]]],
+  taskResultSummaries: ['id', [['task',['taskId','createdAt','id']], ['createdAt',['createdAt','id']]]],
+  taskImportRows: [['sessionId','kind','id'], [['session','sessionId']]]
+ };
+ /** Convergent, atomic schema repair. Index creation errors abort the whole upgrade. */
+ function upgrade(db, tx, oldVersion) {
+  C.check(Number.isInteger(oldVersion) && oldVersion >= 0 && oldVersion < DB_VERSION, 'IDB_INVALID_OLD_VERSION');
+  const hadCaptureSummaries = db.objectStoreNames.contains('captureSummaries');
+  const hadTaskSummaries = db.objectStoreNames.contains('taskSummaries');
+  const hadResultSummaries = db.objectStoreNames.contains('taskResultSummaries');
+  for (const [name, [keyPath, indexes]] of Object.entries(schema)) {
+   const store = db.objectStoreNames.contains(name) ? tx.objectStore(name) : db.createObjectStore(name, {keyPath});
+   C.check(JSON.stringify(store.keyPath) === JSON.stringify(keyPath), 'IDB_SCHEMA_KEY_CONFLICT');
+   for (const [indexName, path, unique = false] of indexes) {
+    if (store.indexNames.contains(indexName)) {
+     const prior = store.index(indexName);
+     if (JSON.stringify(prior.keyPath) === JSON.stringify(path) && prior.unique === unique && !prior.multiEntry) continue;
+     store.deleteIndex(indexName);
+    }
+    store.createIndex(indexName, path, {unique});
+   }
+  }
+  if (!hadCaptureSummaries) {
+   const cursor = tx.objectStore('captures').openCursor();
+   cursor.onsuccess = () => {const row = cursor.result; if (row) {tx.objectStore('captureSummaries').put(captureSummary(row.value)); row.continue();}};
+  }
+  if (!hadTaskSummaries || !hadResultSummaries) {
+   const summaries = tx.objectStore('taskSummaries'), results = tx.objectStore('taskResultSummaries');
+   summaries.clear(); results.clear();
+   const cursor = tx.objectStore('tasks').openCursor();
+   cursor.onsuccess = () => {
+    const row = cursor.result;
+    if (row) {
+     const t = row.value;
+     summaries.put({id:t.id,code:t.code,source:t.source,preview:String(t.text||'').replace(/\s+/g,' ').slice(0,180),textHash:t.textHash,createdAt:t.createdAt,resultCount:0});
+     row.continue(); return;
+    }
+    const receipts = tx.objectStore('taskResults').openCursor();
+    receipts.onsuccess = () => {
+     const receipt = receipts.result;
+     if (!receipt) return;
+     const v = receipt.value;
+     results.put({id:v.id,taskId:v.taskId,taskCode:v.taskCode,textHash:v.textHash,assignment:v.assignment,createdAt:v.createdAt});
+     const task = summaries.get(v.taskId);
+     task.onsuccess = () => {if (task.result) summaries.put({...task.result,resultCount:task.result.resultCount+1}); receipt.continue();};
+    };
+   };
+  }
+ }
  function open(name=NAME){
   if(openings.has(name))return openings.get(name);
   const pending=new Promise((resolve,reject)=>{
-   let abandoned=false;
-   const r=indexedDB.open(name,4);
-   r.onupgradeneeded=()=>{
+   let abandoned=false, migrationError=null;
+   const r=indexedDB.open(name,DB_VERSION);
+   r.onupgradeneeded=event=>{
     if(abandoned){r.transaction.abort();r.result.close();return;}
-    const db=r.result;
-    if(!db.objectStoreNames.contains('tasks')){const t=db.createObjectStore('tasks',{keyPath:'id'});t.createIndex('code','code',{unique:true});}
-    if(!db.objectStoreNames.contains('taskResults')){const r=db.createObjectStore('taskResults',{keyPath:'id'});r.createIndex('task','taskId');r.createIndex('content',['taskId','textHash'],{unique:true});}
-    if(!db.objectStoreNames.contains('captures'))db.createObjectStore('captures',{keyPath:'id'});
-    if(!db.objectStoreNames.contains('assets')){const a=db.createObjectStore('assets',{keyPath:['captureId','key']});a.createIndex('capture','captureId');}
-    if(!db.objectStoreNames.contains('files'))db.createObjectStore('files',{keyPath:'sha256'});
-    if(!db.objectStoreNames.contains('chunks')){const ch=db.createObjectStore('chunks',{keyPath:['captureId','key','seq']});ch.createIndex('owner',['captureId','key']);ch.createIndex('capture','captureId');}
-    if(!db.objectStoreNames.contains('handoffs'))db.createObjectStore('handoffs',{keyPath:'id'});
-    if(!db.objectStoreNames.contains('passages')){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');p.createIndex('createdAt','createdAt');p.createIndex('source',['captureId','conversationId','messageId','nodeId']);}
-    if(!db.objectStoreNames.contains('captureSummaries')){
-     const s=db.createObjectStore('captureSummaries',{keyPath:'id'});s.createIndex('updatedAt',['updatedAt','id']);s.createIndex('sourceScope',['source.origin','source.conversationId','saveScope']);
-     const cursor=r.transaction.objectStore('captures').openCursor();cursor.onsuccess=()=>{const c=cursor.result;if(c){s.put(captureSummary(c.value));c.continue();}};
-    }
-    if(!db.objectStoreNames.contains('taskSummaries')){
-     const summaries=db.createObjectStore('taskSummaries',{keyPath:'id'});summaries.createIndex('createdAt',['createdAt','id']);
-     const results=db.createObjectStore('taskResultSummaries',{keyPath:'id'});results.createIndex('task',['taskId','createdAt','id']);results.createIndex('createdAt',['createdAt','id']);
-     const tasks=r.transaction.objectStore('tasks').openCursor();tasks.onsuccess=()=>{const cursor=tasks.result;if(cursor){const t=cursor.value;summaries.put({id:t.id,code:t.code,source:t.source,preview:String(t.text||'').replace(/\s+/g,' ').slice(0,180),textHash:t.textHash,createdAt:t.createdAt,resultCount:0});cursor.continue();return;}
-      const rows=r.transaction.objectStore('taskResults').openCursor();rows.onsuccess=()=>{const c=rows.result;if(!c)return;const v=c.value;results.put({id:v.id,taskId:v.taskId,taskCode:v.taskCode,textHash:v.textHash,assignment:v.assignment,createdAt:v.createdAt});const task=summaries.get(v.taskId);task.onsuccess=()=>{if(task.result)summaries.put({...task.result,resultCount:task.result.resultCount+1});c.continue();};};
-     };
-    }
-    if(!db.objectStoreNames.contains('taskImportRows')){const staging=db.createObjectStore('taskImportRows',{keyPath:['sessionId','kind','id']});staging.createIndex('session','sessionId');}
+    try{upgrade(r.result,r.transaction,event.oldVersion);}
+    catch(error){migrationError=error;r.transaction.abort();}
    };
-   r.onerror=()=>{abandoned=true;openings.delete(name);reject(r.error||new Error('IDB_OPEN_FAILED'));};
+   r.onerror=()=>{abandoned=true;openings.delete(name);reject(migrationError||r.error||new Error('IDB_OPEN_FAILED'));};
    r.onblocked=()=>{abandoned=true;openings.delete(name);reject(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS'));};
    r.onsuccess=()=>{if(abandoned){r.result.close();return;}r.result.onversionchange=()=>{r.result.close();openings.delete(name);};resolve(r.result);};
   });
@@ -138,7 +181,7 @@
   });
  }
  async function chunk(captureId,key,seq,bytes){
-  C.check(bytes instanceof Uint8Array&&bytes.length>0&&bytes.length<=262144,'INVALID_CHUNK');
+  C.check(bytes instanceof Uint8Array&&bytes.length>0&&bytes.length<=C.TRANSFER_CHUNK_BYTES,'INVALID_CHUNK');
   await transaction(['assets','chunks'],'readwrite',async s=>{
    const a=await request(s.assets.get([captureId,key]));C.check(a?.state==='downloading','ASSET_NOT_DOWNLOADING');C.check(Number.isSafeInteger(seq)&&seq===a.chunks,'CHUNK_SEQUENCE_MISMATCH');
    s.chunks.put({captureId,key,seq,blob:new Blob([bytes])});s.assets.put({...a,chunks:seq+1,size:a.size+bytes.length});
@@ -211,5 +254,18 @@
    for(const p of importedPassages)s.passages.put(p);
   });return captureId;
  }
- globalThis.TLStore=Object.freeze({open,get,all,set,assets,readArchive,listCaptures,findCapture,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
+ /** Persist evidence only if the capture still has the exact verified contents. */
+ async function recordVerification(captureId,receipt){
+  const E=globalThis.TLEvidence,clean=E.validateReceipt(receipt);
+  return transaction(['captures','captureSummaries','assets','passages'],'readwrite',async stores=>{
+   const capture=await request(stores.captures.get(captureId));
+   C.check(capture?.snapshot,'CAPTURE_NOT_FOUND');
+   const assets=await request(stores.assets.index('capture').getAll(captureId));
+   const passages=await request(stores.passages.index('capture').getAll(captureId));
+   if(E.subject({capture,assets,passages})!==clean.subject)return false;
+   const verifications=[...(capture.verifications||[]),clean].slice(-10);
+   putCapture(stores,{...capture,verifications});return true;
+  });
+ }
+ globalThis.TLStore=Object.freeze({DB_VERSION,recordVerification,open,get,all,set,assets,readArchive,listCaptures,findCapture,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
 })();

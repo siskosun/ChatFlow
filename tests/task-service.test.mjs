@@ -64,7 +64,7 @@ test('missing task and missing workspace window cannot open a destination',async
 });
 test('optional page tools load only from an explicit source-bound command',async()=>{
  const h=setup();assert.equal(await h.handle({type:'unrelated'}),undefined);assert.equal(h.events.length,0);
- const r=await h.handle({type:'tl:openTools',tabId:20,expectedUrl:URL_A});assert.equal(r.opened,true);assert.deepEqual(h.events[0],['script',['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-tools-page.js']]);assert.equal(h.events[1][2].url,URL_A);
+ const r=await h.handle({type:'tl:openTools',tabId:20,expectedUrl:URL_A});assert.equal(r.opened,true);assert.deepEqual(h.events[0],['script',['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-navigation.js','src/tl-tools-page.js']]);assert.equal(h.events[1][2].url,URL_A);
 });
 test('tool injection does not show a panel if the tab changed during injection',async()=>{
  const h=setup({changeOnSecondGet:true});await assert.rejects(h.handle({type:'tl:openTools',tabId:20,expectedUrl:URL_A}),/TASK_SOURCE_CHANGED/);assert.equal(h.events.filter(x=>x[0]==='message').length,0);

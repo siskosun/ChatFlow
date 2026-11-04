@@ -41,6 +41,10 @@
   const addCandidate=value=>{const text=typeof value==='string'?value.trim():'';if(text&&!candidates.includes(text))candidates.push(text);};
   for(const attr of ['data-message-id','data-turn-key','data-chatgpt-selection-message-id','data-turn-id','data-turn-id-container','data-node-id']){
    addCandidate(node.getAttribute(attr));addCandidate(node.querySelector('['+attr+']')?.getAttribute(attr));
+  }
+  for(const el of [node,node.querySelector('[data-chatgpt-search-message-ids]')].filter(Boolean)){
+   const raw=el.getAttribute('data-chatgpt-search-message-ids')||'';
+   if(raw.length<=8192){const tokens=raw.trim().split(/\s+/).filter(Boolean);if(tokens.length<=32)for(const id of tokens)addCandidate(id);}
   }return candidates;
  }
  function nextMatchIndex(cursor,step,count){if(!Number.isInteger(count)||count<1)return-1;if(!Number.isInteger(cursor)||cursor<0||cursor>=count)return step<0?count-1:0;return(cursor+(step<0?-1:1)+count)%count;}

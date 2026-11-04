@@ -77,7 +77,7 @@
   check(blob instanceof Blob&&blob.size>0&&blob.size<=LIMITS.backupBytes,'TASK_BUNDLE_LIMIT');
   let parts=[],length=0;
   const decode=()=>{const bytes=new Uint8Array(length);let off=0;for(const p of parts){bytes.set(p,off);off+=p.length;}parts=[];length=0;let line;try{line=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw Error('TASK_BACKUP_UTF8_INVALID');}return{line,bytes};};
-  for(let offset=0;offset<blob.size;offset+=262144){const bytes=new Uint8Array(await blob.slice(offset,offset+262144).arrayBuffer());let start=0;for(let i=0;i<bytes.length;i++)if(bytes[i]===10){const part=bytes.subarray(start,i);parts.push(part);length+=part.length;check(length<=LIMITS.backupRecordBytes,'TASK_BACKUP_RECORD_LIMIT');yield decode();start=i+1;}const tail=bytes.subarray(start);if(tail.length){parts.push(tail);length+=tail.length;check(length<=LIMITS.backupRecordBytes,'TASK_BACKUP_RECORD_LIMIT');}}
+  for(let offset=0;offset<blob.size;offset+=C.TRANSFER_CHUNK_BYTES){const bytes=new Uint8Array(await blob.slice(offset,offset+C.TRANSFER_CHUNK_BYTES).arrayBuffer());let start=0;for(let i=0;i<bytes.length;i++)if(bytes[i]===10){const part=bytes.subarray(start,i);parts.push(part);length+=part.length;check(length<=LIMITS.backupRecordBytes,'TASK_BACKUP_RECORD_LIMIT');yield decode();start=i+1;}const tail=bytes.subarray(start);if(tail.length){parts.push(tail);length+=tail.length;check(length<=LIMITS.backupRecordBytes,'TASK_BACKUP_RECORD_LIMIT');}}
   if(length)yield decode();
  }
  async function readBackup(blob,sink=()=>{}){

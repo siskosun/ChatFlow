@@ -295,3 +295,18 @@ CF-16 保留真实登录 Edge/ChatGPT、真实附件可用性、独立目标用�
 `chatflow-0.3.tsm.json` 现有 `pass` 只代表先前较窄范围的测试，不证明上述新增门禁。按 Checkpoint 规则使用 `scripts/tsm.py` 维护新功能和验证节点；不直接修改 JSON 状态文件或伪造 `pass`。各 PR 在评论中列准确 HEAD、代码差异、失败/成功测试和 CI 链接。PR-A 未验证前，不得把 PR-B 的功能截图视为可靠性证明。
 
 所有上游源码复用固定许可与 SHA，更新 `THIRD_PARTY_NOTICES.md`；仅纯计算算法允许适配，禁止复制 AI Chat TOC 模糊文本匹配、凭据提取及完整注入器。仓库 `AGENTS.md` 禁止直推 main、自动合并、正式 Release、商店上架和用户本机 Remote 操作。
+
+
+## 15. Rollout implementation amendment
+
+The fixed A baseline is `dc30f51652e459a417401288a42d64026419565d` with successful
+GitHub run `41812175880`. The subsequent implementation preserves archive/2 and task
+backup formats, but uses **IndexedDB v5** to repair missing indexes on already-v4
+databases. A v4-only repair would never run for those existing databases. This is an
+explicit exception to the earlier keep-v4 preference, with no data deletion or new
+business store. The upgrade/backward-format contracts are tested separately.
+
+B-D and engineering review fixes retain the two main workflows. E answer headings
+remain an independently testable optional increment. Runtime permissions, no-autosend,
+no-unknown-upload-retry and no main/release writes remain unchanged. Checkpoint owns
+execution status; see REVIEW_DISPOSITION_2026-11-04.md for review scope and limitations.

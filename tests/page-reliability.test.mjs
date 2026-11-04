@@ -150,16 +150,17 @@ test('navigation cancels on user wheel and restores temporary event listeners', 
   const handlers = new Map();
   const window = { addEventListener: (key, value) => handlers.set(key, value), removeEventListener: (key, value) => { if (handlers.get(key) === value) handlers.delete(key); } };
   let writes = 0; const body = {};
-  const box = { clientHeight: 500, scrollHeight: 2000, parentElement: body, scrollBy() { writes += 1; handlers.get('wheel')?.(); } };
+  const box = { clientHeight: 500, scrollHeight: 2000, scrollTop:0, parentElement: body, scrollTo({top}) {this.scrollTop=top;writes += 1; handlers.get('wheel')?.({type:'wheel'}); } };
   const element = { parentElement: box, isConnected: true, closest: () => null, getBoundingClientRect: () => ({ top: 20, height: 120 }) };
   const root = { querySelectorAll: () => [element] }, sc = { root, status: 'confirmed', conversationId: 'source-A' }, url = 'https://chatgpt.com/c/source-A';
   const context = vm.createContext({
     TLCore: { chatUrl: () => ({ url }), check(ok, code) { if (!ok) throw Error(code); } },
     CFToolkit: { getDomMessageIdCandidates: el => el === element ? ['other-message'] : [] },
-    TLPageScope: { current: () => sc, contains: () => true }, chrome: { runtime: { id: 'test', onMessage: { addListener() {} } } },
+    TLPageScope: { current: () => sc, freeze:()=>sc, assert:()=>{}, contains: () => true }, chrome: { runtime: { id: 'test', onMessage: { addListener() {} } } },
     document: { body, scrollingElement: box }, location: { href: url }, getComputedStyle: () => ({ overflowY: 'auto' }),
-    window, performance: { now: () => 1000 }, setTimeout: fn => fn(), URL
+    window, performance: { now: () => 1000 }, setTimeout,clearTimeout,AbortController,URL
   });
+  vm.runInContext(read('tl-navigation.js'),context);
   vm.runInContext(instrument('tl-tools-page.js', 'globalThis.navTest={jump,setLive(s){live=s;}};'), context);
   const target = { id: 'target-message' }, session = { url, closed: false, jump: 0, messages: [{ id: 'other-message' }, target], status: { textContent: '' } };
   context.navTest.setLive(session);

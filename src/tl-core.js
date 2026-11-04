@@ -5,6 +5,7 @@
 (() => {
  'use strict';
  const VERSION=1, CHAT_HOSTS=new Set(['chatgpt.com','chat.openai.com']), MEDIA_HOSTS=['oaiusercontent.com','oaistatic.com'];
+ const TRANSFER_CHUNK_BYTES=256*1024;
  const enc=new TextEncoder();
  const record=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
  const check=(ok,code)=>{if(!ok)throw new Error(code);};
@@ -206,5 +207,5 @@
  async function hashBlob(blob){const h=new SHA256(),reader=blob.stream().getReader();try{while(true){const r=await reader.read();if(r.done)break;h.update(r.value);}}finally{reader.releaseLock();}return h.hex();}
  function bytesToBase64(bytes){let s='';for(let i=0;i<bytes.length;i+=32768)s+=String.fromCharCode(...bytes.subarray(i,i+32768));return btoa(s);}
  function base64ToBytes(s){check(typeof s==='string'&&s.length<=400000,'CHUNK_TOO_LARGE');const raw=atob(s);return Uint8Array.from(raw,c=>c.charCodeAt(0));}
- globalThis.TLCore=Object.freeze({VERSION,record,check,clone,id,chatUrl,mediaUrl,readOnlyRequest,safeName,scrubText,pointer,visibleMessage,extractAssets,normalizeConversation,persistedSnapshot,selectAssetKeys,lastGeneratedScopeAmbiguous,history,handoff,SHA256,hashBlob,bytesToBase64,base64ToBytes});
+ globalThis.TLCore=Object.freeze({VERSION,TRANSFER_CHUNK_BYTES,record,check,clone,id,chatUrl,mediaUrl,readOnlyRequest,safeName,scrubText,pointer,visibleMessage,extractAssets,normalizeConversation,persistedSnapshot,selectAssetKeys,lastGeneratedScopeAmbiguous,history,handoff,SHA256,hashBlob,bytesToBase64,base64ToBytes});
 })();
