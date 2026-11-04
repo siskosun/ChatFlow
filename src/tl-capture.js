@@ -41,7 +41,7 @@
    if(declared&&!response.headers.get('content-encoding'))C.check(total===declared,'API_JSON_LENGTH_MISMATCH');
    sameSource(run);
    return JSON.parse(await new Blob(chunks).text());
-  }catch(e){await reader?.cancel().catch(()=>{});throw e;}finally{reader?.releaseLock();close();}
+  }catch(e){if(reader)await reader.cancel().catch(()=>{});else await response.body?.cancel().catch(()=>{});throw e;}finally{reader?.releaseLock();close();}
  }
  async function sourceBytes(run,asset,response){
   const mime=(response.headers.get('content-type')||asset.mime).split(';')[0];if(mime==='text/html'&&!/\.html?$/i.test(asset.name))throw new Error('HTML_LOGIN_OR_ERROR_DOCUMENT');
