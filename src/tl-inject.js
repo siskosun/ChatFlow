@@ -73,8 +73,10 @@
     const chip=chips[i],state=chip.getAttribute('data-state')||chip.getAttribute('data-status');
     if(!['ready','uploaded','complete','success'].includes(state)||chip.querySelector('[role="progressbar"],[aria-busy="true"]'))continue;
     // Never accept a substring, truncated display, or combined label as an exact filename.
-    const labels=[chip.getAttribute('data-filename'),chip.getAttribute('title'),chip.textContent].filter(Boolean).map(x=>x.trim());
-    if(labels.some(x=>x===name))matches.push(i);
+    const structured=chip.getAttribute('data-filename');
+    const title=chip.getAttribute('title');
+    const observed=structured||title||chip.textContent;
+    if(typeof observed==='string'&&observed.trim()===name)matches.push(i);
    }
    if(matches.length!==1)return false;
    used.add(matches[0]);
