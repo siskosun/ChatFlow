@@ -30,8 +30,9 @@
  function readOnlyRequest(method='GET'){check(['GET','HEAD'].includes(String(method).toUpperCase()),'WRITE_REQUEST_REJECTED');}
  function safeName(value,fallback='file'){
   let clean=String(value||fallback).normalize('NFC').replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g,'_').replace(/^\.+/,'_').trim().slice(0,180);
+  const reserved=/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(clean);
   clean=clean.replace(/[. ]+$/,'_')||'file';
-  if(/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(clean))clean='_'+clean;
+  if(reserved)clean='_'+clean;
   return clean;
  }
  const sensitiveQueryName=/^(?:sig|signature|token|access_token|key|authorization|x-amz-.+|x-goog-.+)$/i;
