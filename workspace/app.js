@@ -20,7 +20,7 @@
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
  function bytes(n){return n>=1024**3?(n/1024**3).toFixed(2)+' GB':n>=1024**2?(n/1024**2).toFixed(1)+' MB':n>=1024?(n/1024).toFixed(1)+' KB':n+' B';}
- function switchView(v){if(!document.getElementById(v+'-view'))return;view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='archive')guard(refreshArchives);if(v==='handoff')guard(updateSelection);document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
+ function switchView(v){if(!document.getElementById(v+'-view'))return;view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='capture')guard(syncSources);if(v==='archive')guard(refreshArchives);if(v==='handoff')guard(updateSelection);document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
  function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
  function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('prepare').hidden=false;$('prepare').textContent='重新准备历史与文件';status('内容已更改，请重新准备。');}}
  async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
@@ -396,6 +396,17 @@
  // A browser may surface the ChatGPT tab after the workspace first loads.
  // Do not require a manual refresh, and never wipe a user's current selection.
  const syncSources=()=>guard(async()=>{const prior=sourceOptionsSignature;await sources();if(view==='capture'){if(prior!==sourceOptionsSignature)runningSignature=null;await renderRunning();}});
+ // Navigation can change a tab URL without refocusing this panel. Keep the
+ // visible source URLs current while preserving an explicit user selection.
+ let sourceSyncTimer=null;
+ function scheduleSourceSync(){
+  clearTimeout(sourceSyncTimer);
+  sourceSyncTimer=setTimeout(()=>{sourceSyncTimer=null;syncSources();},120);
+ }
+ chrome.tabs.onUpdated.addListener((_tabId,change)=>{
+  if(view==='capture'&&(change.url||change.status==='complete'))scheduleSourceSync();
+ });
+ chrome.tabs.onRemoved.addListener(()=>{if(view==='capture')scheduleSourceSync();});
  setTimeout(syncSources,1200);setTimeout(syncSources,4200);
  window.addEventListener('focus',syncSources);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSources();});

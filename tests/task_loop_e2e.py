@@ -121,9 +121,15 @@ async def main():
     passed('stale_source_tab_identity_rejected_before_task_creation')
     # Optional navigation loads only after the user asks. It finds messages not in the current DOM.
     assert await a.locator('#chatflow-page-tools').count()==0
-    await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click();await w.locator('#source').select_option(str(ta))
+    await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click()
+    # Browser navigation can finish before the extension tabs API has published
+    # the final URL. Verify both API and selector have recovered from B to A.
+    await poll(w,"async x=>{const rows=(await chrome.runtime.sendMessage({type:'tl:sources'})).data;return rows?.some(r=>r.id===x[0]&&r.url===x[1]);}",[ta,URL_A])
+    await poll(w,"x=>{const s=document.querySelector('#source');return [...s.options].some(o=>o.value===String(x[0])&&o.dataset.sourceUrl===x[1]);}",[ta,URL_A])
+    await w.locator('#source').select_option(str(ta))
     selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
-    assert selected=={'id':str(ta),'url':URL_A},selected
+    options=await w.evaluate("()=>[...document.querySelector('#source').options].map(o=>({id:o.value,url:o.dataset.sourceUrl}))")
+    assert selected=={'id':str(ta),'url':URL_A},{'selected':selected,'ta':ta,'tb':tb,'options':options}
     await w.locator('#open-tools').click()
     await w.wait_for_timeout(350)
     print('SIDEPANEL_TOOLS_DIAGNOSTIC',json.dumps({'selection':selected,'status':await w.locator('#status').inner_text(),'toolsPresent':await a.locator('#chatflow-page-tools').count()}),flush=True)

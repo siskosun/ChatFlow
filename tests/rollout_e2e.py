@@ -119,7 +119,12 @@ async def main():
                 await w.locator('#detail input[data-asset-key]').first.check()
                 await w.locator('#detail .actions .primary').first.click();await w.locator('#prepare').click()
                 await poll(w,'()=>!document.querySelector("#handoff-result").hidden')
-                assert '\u63a5\u7eed\u7d22\u5f15' in await w.locator('#staging .staged').first.inner_text()
+                # Wait for all asynchronous Blob reads and rendered file rows, then
+                # verify the exact generated index type and displayed label.
+                await poll(w,"async()=>{const h=(await TLStore.all('handoffs')).at(-1);return h&&document.querySelectorAll('#staging .staged').length===h.files.length;}")
+                index_ui=await w.evaluate("async()=>{const h=(await TLStore.all('handoffs')).at(-1),row=document.querySelector('#staging .staged');return {kind:h.files[0]?.kind,name:h.files[0]?.name,label:row?.innerText||''};}")
+                assert index_ui['kind']=='index' and index_ui['name']=='handoff_index.md',index_ui
+                assert '\u63a5\u7eed\u7d22\u5f15' in index_ui['label'],index_ui
                 async with ctx.expect_page() as target_event:await w.locator('#open-target').click()
                 target=await target_event.value;await target.wait_for_url('https://chatgpt.com/')
                 receipt=await poll(w,"async()=>{const h=(await TLStore.all('handoffs')).at(-1);return h?.state==='upload_unknown'?h:null;}",seconds=25)
