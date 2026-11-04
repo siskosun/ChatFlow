@@ -307,22 +307,31 @@
  async function restoreVerified(blob){
   const E=globalThis.TLEvidence,p=await inspectArchive(blob),archiveSha256=await C.hashBlob(blob);
   const id=await S.importCapture(p.snapshot,p.files,p.blobs,p.state,p.saveScope,p.passages);
-  let subject=null;
+  let subject=null,stage='read';
   try{
    const view=await S.readArchive(id);subject=E.subject(view);
-   C.check(JSON.stringify(C.persistedSnapshot(view.capture.snapshot))===JSON.stringify(C.persistedSnapshot(p.snapshot)),'RESTORE_READBACK_FAILED');
-   C.check(JSON.stringify(E.assetProjection(view.assets))===JSON.stringify(E.assetProjection(p.files)),'RESTORE_READBACK_FAILED');
-   C.check(JSON.stringify(E.passageProjection(view.passages))===JSON.stringify(E.passageProjection(p.passages)),'RESTORE_READBACK_FAILED');
-   for(const [sha,original]of p.blobs){const actual=await S.verifiedBlob(sha);C.check(actual.size===original.size,'RESTORE_READBACK_FAILED');}
+   stage='snapshot';
+   C.check(JSON.stringify(C.persistedSnapshot(view.capture.snapshot))===JSON.stringify(C.persistedSnapshot(p.snapshot)),'RESTORE_SNAPSHOT_READBACK_FAILED');
+   stage='assets';
+   C.check(JSON.stringify(E.assetProjection(view.assets))===JSON.stringify(E.assetProjection(p.files)),'RESTORE_ASSET_READBACK_FAILED');
+   stage='passages';
+   C.check(JSON.stringify(E.passageProjection(view.passages))===JSON.stringify(E.passageProjection(p.passages)),'RESTORE_PASSAGE_READBACK_FAILED');
+   stage='blobs';
+   for(const [sha,original]of p.blobs){const actual=await S.verifiedBlob(sha);C.check(actual.size===original.size,'RESTORE_BLOB_READBACK_FAILED');}
+   stage='receipt';
    const receipt={schema:'chatflow.verification/1',kind:'restore',status:'passed',subject,archiveSha256,
     archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true};
    C.check(await S.recordVerification(id,receipt),'VERIFICATION_SOURCE_CHANGED');
    return {id,verified:true,receipt};
-  }catch{
-   // Import has already committed. Do not tell the user nothing was written.
+  }catch(e){
+   // Import already committed. Report *what* could not be proven, without leaking error text.
+   const codeByStage={read:'RESTORE_DATABASE_READBACK_FAILED',snapshot:'RESTORE_SNAPSHOT_READBACK_FAILED',
+    assets:'RESTORE_ASSET_READBACK_FAILED',passages:'RESTORE_PASSAGE_READBACK_FAILED',
+    blobs:'RESTORE_BLOB_READBACK_FAILED',receipt:'RESTORE_RECEIPT_WRITE_FAILED'};
+   const code=codeByStage[stage]||'RESTORE_READBACK_FAILED';
    if(subject)try{await S.recordVerification(id,{schema:'chatflow.verification/1',kind:'restore',status:'failed',subject,
-    archiveSha256,archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true,code:'RESTORE_READBACK_FAILED'});}catch{/* returned result still exposes failure */}
-   return {id,verified:false,code:'RESTORE_READBACK_FAILED'};
+    archiveSha256,archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true,code});}catch{/* retain original failure stage */}
+   return {id,verified:false,code};
   }
  }
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}
