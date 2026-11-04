@@ -22,7 +22,13 @@ async function freezeSource(msg){
  C.check(Number.isInteger(msg.tabId)&&typeof msg.expectedUrl==='string','SOURCE_LOCK_REQUIRED');
  const expected=P.identify(msg.expectedUrl).identity,tab=await api.tabs.get(msg.tabId),source=P.identify(tab.url).identity;
  C.check(source.origin===expected.origin&&source.conversationId===expected.conversationId,'SOURCE_CONVERSATION_CHANGED');
- let frames;try{frames=await api.scripting.executeScript({target:{tabId:msg.tabId,...(msg.expectedDocumentId?{documentIds:[msg.expectedDocumentId]}:{frameIds:[0]})},func:()=>location.href});}catch{throw new Error('SOURCE_DOCUMENT_CHANGED');}
+ let frames;try{frames=await api.scripting.executeScript({target:{tabId:msg.tabId,...(msg.expectedDocumentId?{documentIds:[msg.expectedDocumentId]}:{frameIds:[0]})},func:()=>location.href});}catch(e){
+  const detail=String(e?.message||'');
+  if(/No tab with id|tab was closed|tab not found/i.test(detail))throw new Error('TAB_CLOSED');
+  if(/documentId|No frame with id|frame was removed/i.test(detail))throw new Error('DOCUMENT_ID_INVALID');
+  if(/Cannot access|Missing host permission|Cannot inject/i.test(detail))throw new Error('INJECT_FAILED');
+  throw new Error('SOURCE_DOCUMENT_CHANGED');
+ }
  const frame=frames?.find(r=>r.frameId===0);C.check(frame?.documentId,'DOCUMENT_ID_UNAVAILABLE');
  if(msg.expectedDocumentId)C.check(frame.documentId===msg.expectedDocumentId,'SOURCE_DOCUMENT_CHANGED');
  const observed=P.identify(frame.result).identity,current=P.identify((await api.tabs.get(msg.tabId)).url).identity;
@@ -220,7 +226,10 @@ async function handle(msg,sender){
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
   if(msg.type==='tl:prepareHandoff')return serializeHandoffWrite(()=>prepareHandoff(msg));
   if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender,msg);
-  if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
+  if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});let windowFocused=false;
+   if(Number.isInteger(h.targetWindowId))try{await api.windows.update(h.targetWindowId,{focused:true});windowFocused=true;}catch{/* The target tab was already activated; window focus is best-effort. */}
+   return{focused:true,windowFocused};
+  }
 
  }
  const run=await sourceRun(msg,sender);
