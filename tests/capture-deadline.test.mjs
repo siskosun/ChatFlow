@@ -14,11 +14,11 @@ async function captureCase({external=false}={}){
  }};
  const fetch=async url=>{
   const u=String(url);
-  if(u.endsWith('/api/auth/session'))return{ok:true,json:async()=>({accessToken:'synthetic-only'})};
-  if(u.endsWith('/backend-api/conversation/capture_deadline_1234'))return{ok:true,json:async()=>conv};
+  if(u.endsWith('/api/auth/session'))return new Response(JSON.stringify({accessToken:'synthetic-only'}),{headers:{'content-type':'application/json'}});
+  if(u.endsWith('/backend-api/conversation/capture_deadline_1234'))return new Response(JSON.stringify(conv),{headers:{'content-type':'application/json'}});
   if(u.includes('/backend-api/files/download/')){
    assetCalls.push(u);now+=external?35000:assetCalls.length===1?50000:20000;
-   return external?{ok:true,json:async()=>({download_url:'https://files.oaiusercontent.com/fake'})}:{ok:false,status:404};
+   return external?new Response(JSON.stringify({download_url:'https://files.oaiusercontent.com/fake'}),{headers:{'content-type':'application/json'}}):{ok:false,status:404};
   }
   throw Error('UNEXPECTED_FETCH_'+u);
  };
@@ -28,7 +28,7 @@ async function captureCase({external=false}={}){
   return{ok:true,data:{}};
  }}};
  const env=vm.createContext({URL,URLSearchParams,AbortController,Response,TextDecoder,TextEncoder,crypto:webcrypto,Date:Clock,fetch,chrome,
-  location:{href:sourceUrl},document:{getElementById:()=>null,querySelectorAll:()=>[]},
+  location:{href:sourceUrl},document:{getElementById:()=>null,querySelectorAll:()=>[]},Blob,
   setTimeout:(fn,ms)=>{timers.push(ms);return timers.length;},clearTimeout:()=>{},setInterval:()=>{throw Error('NO_LIVE_CACHE');},clearInterval:()=>{}});
  for(const name of ['tl-core','tl-provider','tl-capture'])vm.runInContext(read('src/'+name+'.js'),env,{filename:name});
  let ack;listener({type:'tl:capture',nonce:'synthetic-nonce-abcdefghijklmnop',scope:'all',live:false,expectedSource:{origin:'https://chatgpt.com',conversationId:'capture_deadline_1234'}},{id:chrome.runtime.id},r=>{ack=r;});

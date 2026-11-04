@@ -1,54 +1,26 @@
 {
   "Engineering": {
-    "Core task return": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. 188 Node tests and 14 installed-MV3 Task Loop/navigation cases passed; exact routing, restart and copy-only return preserved."
-    },
-    "Two-flow UI and advanced preferences": {
-      "status": "pass",
-      "description": "Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: all jobs green; synthetic Chromium first-run and empty-state checks pass, with single clear primary action."
-    },
-    "Navigation and licensed utilities": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. All 14 Task Loop/navigation cases and retained Node/security checks passed; exact-ID navigation and no automatic source writes confirmed."
-    },
-    "Source locked capture": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. All 11 reliability cases passed with closed synthetic fixtures: A-to-B switch, same-URL reload, unchanged-source control and trusted clipboard tests."
-    },
-    "Recoverable archives": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. All 5 actual IndexedDB archive cases passed: 65 MiB roundtrip, runtime version/no-write checks, downloading/live refusal and stopped partial recovery."
-    },
-    "Task backup capacity and integrity": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. All 9 actual IndexedDB task-storage cases passed: 16 maximum results, 1000 tasks/2000 receipts, migration, atomic failures and duplicate validation."
-    },
-    "Input integrity and performance": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Five trusted clipboard paste cases, 1000 x 32 KiB archive summaries, full task-count library and all 4 Node performance budgets passed."
-    },
-    "Sidebar settings and onboarding": {
-      "status": "pass",
-      "description": "Exact-head CI 41786208837: installed Chromium 320/360/390 preference checkbox geometry passes; first-run onboarding, source-empty and archive-empty browser tests pass. Real human acceptance remains blocked separately."
-    }
+    "Core task return": {"status":"implemented","description":"Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."},
+    "Two-flow UI and advanced preferences": {"status":"pass","description":"Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: all jobs green; synthetic Chromium first-run and empty-state checks pass, with single clear primary action."},
+    "Navigation and licensed utilities": {"status":"implemented","description":"Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."},
+    "Source locked capture": {"status":"implemented","description":"Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."},
+    "Recoverable archives": {"status":"pass","description":"Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. All 5 actual IndexedDB archive cases passed: 65 MiB roundtrip, runtime version/no-write checks, downloading/live refusal and stopped partial recovery."},
+    "Task backup capacity and integrity": {"status":"pass","description":"Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. All 9 actual IndexedDB task-storage cases passed: 16 maximum results, 1000 tasks/2000 receipts, migration, atomic failures and duplicate validation."},
+    "Input integrity and performance": {"status":"pass","description":"Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Five trusted clipboard paste cases, 1000 x 32 KiB archive summaries, full task-count library and all 4 Node performance budgets passed."},
+    "Sidebar settings and onboarding": {"status":"pass","description":"Exact-head CI 41786208837: installed Chromium 320/360/390 preference checkbox geometry passes; first-run onboarding, source-empty and archive-empty browser tests pass. Real human acceptance remains blocked separately."}
   },
   "Validation": {
-    "Regression and real Chromium synthetic QA": {
-      "status": "pass",
-      "description": "Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: verify, windows-baseline and reproducible-build succeeded; retained Node, Chromium MV3, actual IndexedDB and visual suites passed."
-    },
-    "Cloud build reproducibility": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Ubuntu verify, Windows baseline and reproducible-build jobs succeeded; Chrome ZIP, Edge ZIP and SHA256SUMS are byte-identical across platforms."
-    },
-    "Authenticated and independent human acceptance": {
-      "status": "blocked",
-      "description": "Requires authorized real browser and independent human participants; synthetic tests cannot substitute."
-    },
-    "Current-sidebar smoke and visual checks": {
-      "status": "pass",
-      "description": "Exact-head CI 41786208837: 320/360/390 sidebar preference alignment, light/dark 390 screenshots, source-empty and first-archive CTA browser assertions passed."
-    }
+    "Regression and real Chromium synthetic QA": {"status":"implemented","description":"Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."},
+    "Cloud build reproducibility": {"status":"implemented","description":"Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."},
+    "Authenticated and independent human acceptance": {"status":"blocked","description":"Requires authorized real browser and independent human participants; synthetic tests cannot substitute."},
+    "Current-sidebar smoke and visual checks": {"status":"pass","description":"Exact-head CI 41786208837: 320/360/390 sidebar preference alignment, light/dark 390 screenshots, source-empty and first-archive CTA browser assertions passed."}
+  },
+  "Reliability rollout": {
+    "A source and attachment reliability": {"status":"implemented","description":"Source leases, bounded reads and attachment-reference reconciliation implemented; exact-head gates pending."},
+    "B message navigation": {"status":"todo","description":"Bounded accurate virtualized navigation, cancellation and positive controls."},
+    "C backup and restore evidence": {"status":"todo","description":"Separate local save, ZIP validation and verified database restore."},
+    "D per-file handoff state": {"status":"todo","description":"Compatible per-file page evidence; never automatic resend."},
+    "E answer headings": {"status":"todo","description":"Independent source-bound heading increment after B."},
+    "Review engineering fixes": {"status":"todo","description":"Real dependency graph, index migration and bounded observability."}
   }
 }

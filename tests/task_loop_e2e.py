@@ -22,10 +22,10 @@ def model(cid):
   mapping['n'+str(i)]={'parent':'n'+str(i-1) if i else None,'children':['n'+str(i+1)] if i<79 else [],'message':{'id':'m'+str(i),'author':{'role':'user' if i%2==0 else 'assistant'},'content':{'content_type':'text','parts':[message_text(i)]},'metadata':{}}}
  return {'conversation_id':cid,'title':'Same title','current_node':'n79','mapping':mapping}
 HTML='''<!doctype html><html><head><title>Same title</title></head><body>
-<div id="scroll" style="height:420px;overflow:auto;position:relative;width:60vw"><div id="spacer" style="height:8000px"></div></div>
+<div id="scroll" class="thread-scroll-container" style="height:420px;overflow:auto;position:relative;width:60vw"><div id="spacer" style="height:8000px"></div><math><semantics><mi>x</mi><annotation encoding="application/x-tex">x^2 + y^2</annotation></semantics></math></div>
+<div class="thread-scroll-container" style="display:none" data-chatgpt-selection-conversation-id="outgoing-stale"><article data-message-id="m0" data-message-author-role="user">Stale outgoing message</article></div>
 <textarea id="prompt-textarea">existing user draft</textarea><button id="send" onclick="window.sent++">Send</button>
-<math><semantics><mi>x</mi><annotation encoding="application/x-tex">x^2 + y^2</annotation></semantics></math>
-<script>window.sent=0;const sc=document.querySelector('#scroll'),sp=document.querySelector('#spacer');function render(){sp.querySelectorAll('article').forEach(n=>n.remove());const first=Math.max(0,Math.floor(sc.scrollTop/100)-2);for(let i=first;i<Math.min(80,first+9);i++){const e=document.createElement('article');e.dataset.messageId='m'+i;e.dataset.messageAuthorRole=i%2?'assistant':'user';e.style.cssText='position:absolute;left:0;top:'+i*100+'px;height:95px';e.textContent=(i===4||i===64)?'duplicate identical paragraph':'Question number '+i;sp.append(e);}}sc.addEventListener('scroll',render);sc.scrollTop=6200;render();</script></body></html>'''
+<script>window.sent=0;const sc=document.querySelector('#scroll'),sp=document.querySelector('#spacer');sc.setAttribute('data-chatgpt-selection-conversation-id',location.pathname.split('/').pop());function render(){sp.querySelectorAll('article').forEach(n=>n.remove());const first=Math.max(0,Math.floor(sc.scrollTop/100)-2);for(let i=first;i<Math.min(80,first+9);i++){const e=document.createElement('article');e.dataset.messageId='m'+i;e.dataset.messageAuthorRole=i%2?'assistant':'user';e.style.cssText='position:absolute;left:0;top:'+i*100+'px;height:95px';e.textContent=(i===4||i===64)?'duplicate identical paragraph':'Question number '+i;sp.append(e);}}sc.addEventListener('scroll',render);sc.scrollTop=6200;render();</script></body></html>'''
 async def poll(page,expression,arg=None,seconds=20):
  end=asyncio.get_running_loop().time()+seconds
  while asyncio.get_running_loop().time()<end:
@@ -128,12 +128,12 @@ async def main():
     await w.wait_for_timeout(350)
     print('SIDEPANEL_TOOLS_DIAGNOSTIC',json.dumps({'selection':selected,'status':await w.locator('#status').inner_text(),'toolsPresent':await a.locator('#chatflow-page-tools').count()}),flush=True)
     tools=a.locator('#chatflow-page-tools');await tools.wait_for(state='attached');await poll(a,"()=>document.querySelector('#chatflow-page-tools').shadowRoot.textContent.includes('80')")
-    search=tools.locator('input[type=search]');await search.fill('Question number 0');await tools.locator('#list .row button').first.click();await a.locator('[data-message-id="m0"]').wait_for(state='attached')
-    assert await a.locator('[data-message-id="m0"]').evaluate("e=>{const r=e.getBoundingClientRect(),b=document.querySelector('#scroll').getBoundingClientRect();return r.bottom>b.top&&r.top<b.bottom;}")
+    search=tools.locator('input[type=search]');await search.fill('Question number 0');await tools.locator('#list .row button').first.click();await a.locator('#scroll [data-message-id="m0"]').wait_for(state='attached')
+    assert await a.locator('#scroll [data-message-id="m0"]').evaluate("e=>{const r=e.getBoundingClientRect(),b=document.querySelector('#scroll').getBoundingClientRect();return r.bottom>b.top&&r.top<b.bottom;}")
     await search.fill('duplicate identical paragraph');assert await tools.locator('#list .row button').count()==2
-    await tools.get_by_role('button',name='\u4e0a\u4e00\u6761',exact=True).click();await a.locator('[data-message-id="m64"]').wait_for(state='attached')
-    await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await a.locator('[data-message-id="m4"]').wait_for(state='attached')
-    await tools.locator('#list .row button').last.click();await a.locator('[data-message-id="m64"]').wait_for(state='attached')
+    await tools.get_by_role('button',name='\u4e0a\u4e00\u6761',exact=True).click();await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
+    await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await a.locator('#scroll [data-message-id="m4"]').wait_for(state='attached')
+    await tools.locator('#list .row button').last.click();await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
     passed('virtualized_navigation_finds_exact_ids_and_distinguishes_duplicate_text')
     await tools.locator('#list .row input').first.check();await tools.locator('details summary').click();await tools.locator('select').first.select_option('json')
     async with a.expect_download() as downloaded:await tools.get_by_role('button',name='\u5bfc\u51fa\u52fe\u9009\u56de\u5408').click()
