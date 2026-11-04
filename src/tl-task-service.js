@@ -24,18 +24,21 @@
   const before=await api.tabs.get(msg.tabId),identity=C.chatUrl(before.url);
   C.check(typeof msg.expectedUrl==='string'&&identity.url===msg.expectedUrl,'TASK_SOURCE_CHANGED');
   if(msg.type==='tl:openTools'){
-   await api.scripting.executeScript({target:{tabId:msg.tabId},files:['src/tl-core.js','src/tl-provider.js','src/toolkit-port.js','src/tl-tools-page.js']});
+   await api.scripting.executeScript({target:{tabId:msg.tabId},files:['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-tools-page.js']});
    const after=C.chatUrl((await api.tabs.get(msg.tabId)).url);C.check(after.url===identity.url,'TASK_SOURCE_CHANGED');
    const response=await api.tabs.sendMessage(msg.tabId,{type:'tl:showTools',url:identity.url});C.check(response?.ok,'TOOLS_PAGE_CHANGED');
    await api.tabs.update(msg.tabId,{active:true});return{opened:true};
   }
+  await api.scripting.executeScript({target:{tabId:msg.tabId},files:['src/tl-page-scope.js']});
   const read=await api.scripting.executeScript({target:{tabId:msg.tabId},func:()=>{
-   const selection=window.getSelection(),anchor=selection?.anchorNode?.parentElement;
+   const scope=globalThis.TLPageScope?.current(),selection=window.getSelection(),anchor=selection?.anchorNode?.parentElement;
    const message=anchor?.closest('[data-message-id],[data-turn-key],[data-message-author-role]');
    const focus=selection?.focusNode;
-   const same=message&&focus&&message.contains(focus);
+   const safe=!!scope?.root&&scope.status!=='ambiguous'&&globalThis.TLPageScope.contains(scope,anchor)&&globalThis.TLPageScope.contains(scope,focus);
+   const same=safe&&message&&message.contains(focus)&&globalThis.TLPageScope.contains(scope,message);
    const text=same?String(selection).slice(0,20001):'';
-   return{url:location.origin+location.pathname,title:document.title,text,messageId:message?.getAttribute('data-message-id')||null,nodeId:message?.getAttribute('data-node-id')||null};
+   const verified=same&&scope.status==='confirmed';
+   return{url:location.origin+location.pathname,title:document.title,text,messageId:verified?(message.getAttribute('data-message-id')||null):null,nodeId:verified?(message.getAttribute('data-node-id')||null):null,selectionEvidence:verified?'confirmed':same?'page_observed':'unavailable'};
   }});
   const row=read.find(x=>x.frameId===0),data=row?.result;
   C.check(data&&data.url===identity.url,'TASK_SOURCE_CHANGED');
