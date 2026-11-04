@@ -38,6 +38,20 @@ test('existing-source return focuses the exact source without scripting, navigat
 test('closed-source return opens the stored canonical source and ignores external result URLs',async()=>{
  const h=setup({existing:false}),r=await h.handle({type:'tl:taskReturn',taskId:h.task.id,url:URL_B});assert.equal(r.state,'source_opened_not_sent');assert.deepEqual(h.events,[['create',{windowId:9,url:URL_A,active:true}]]);
 });
+test('native side panel returns to exact source without MessageSender.tab',async()=>{
+ const h=setup({existing:false});h.tabs.set(11,{id:11,windowId:9,active:true,url:'https://chatgpt.com/'});
+ const panel={id:'extension',url:'chrome-extension://extension/workspace/index.html'};
+ const result=await h.handle({type:'tl:taskReturn',taskId:h.task.id,windowId:9,activeTabId:11},panel);
+ assert.equal(result.state,'source_opened_not_sent');assert.deepEqual(h.events,[['create',{windowId:9,url:URL_A,active:true}]]);
+});
+test('native side panel rejects mismatched active-window context',async()=>{
+ const h=setup({existing:false});h.tabs.set(11,{id:11,windowId:9,active:true,url:'https://chatgpt.com/'});
+ const panel={id:'extension',url:'chrome-extension://extension/workspace/index.html'};
+ await assert.rejects(h.handle({type:'tl:taskReturn',taskId:h.task.id,windowId:10,activeTabId:11},panel),/WORKSPACE_WINDOW_REQUIRED/);
+ h.tabs.get(11).active=false;
+ await assert.rejects(h.handle({type:'tl:taskReturn',taskId:h.task.id,windowId:9,activeTabId:11},panel),/WORKSPACE_WINDOW_REQUIRED/);
+ assert.equal(h.events.length,0);
+});
 test('missing task and missing workspace window cannot open a destination',async()=>{
  const h=setup();await assert.rejects(h.handle({type:'tl:taskReturn',taskId:'unknown'}),/TASK_NOT_FOUND/);await assert.rejects(h.handle({type:'tl:taskReturn',taskId:h.task.id},{...sender,tab:{}}),/WORKSPACE_WINDOW_REQUIRED/);assert.equal(h.events.length,0);
 });
