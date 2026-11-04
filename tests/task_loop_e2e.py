@@ -33,6 +33,16 @@ async def poll(page,expression,arg=None,seconds=20):
   if value:return value
   await asyncio.sleep(.1)
  raise AssertionError('Resolved condition timed out: '+expression)
+async def positioned(page, message_id):
+ # Mounted does not imply located: require the production success evidence and visible target.
+ await poll(page, """id=>{
+  const host=document.querySelector('#chatflow-page-tools');
+  const status=host?.shadowRoot.querySelector('[role="status"]')?.textContent;
+  const el=document.querySelector('#scroll [data-message-id="'+id+'"]');
+  if(status!=='\u5df2\u6309\u6d88\u606f\u8eab\u4efd\u5b9a\u4f4d\u3002'||!el)return false;
+  const r=el.getBoundingClientRect(),b=document.querySelector('#scroll').getBoundingClientRect();
+  return r.bottom>b.top&&r.top<b.bottom;
+ }""",arg=message_id,seconds=13)
 def passed(name,details=None):REPORT['cases'].append({'name':name,'result':'pass','detail':details});print('PASS',name,flush=True)
 async def main():
  api_down={'value':False};requests=[];errors=[]
@@ -98,7 +108,6 @@ async def main():
      assert await w.locator('#task-match a').get_attribute('href')==t['source']['url'];await w.locator('#task-save-result').click();await w.locator('#task-return-origin').wait_for(state='visible')
     receipts=await w.evaluate('()=>TLTaskStore.results()');assert len(receipts)==2 and all(r['assignment']=='marker_matched' for r in receipts)
     passed('reverse_return_order_uses_exact_marker_not_topic_or_title')
-    # A rejected clipboard write must offer a manual path, not claim that it copied.
     await w.evaluate("Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:async()=>{throw new DOMException('fixture denied','NotAllowedError')}})")
     await w.locator('#task-return-origin').click();await w.locator('#task-open-only').wait_for(state='visible')
     assert await w.locator('#task-status').evaluate("e=>e.classList.contains('error')")
@@ -112,14 +121,11 @@ async def main():
     passed('missing_and_conflicting_markers_require_explicit_manual_assignment')
     for width in [320,360,768,1280]:
      await w.set_viewport_size({'width':width,'height':900});assert await w.evaluate('document.documentElement.scrollWidth<=innerWidth+2');await w.screenshot(path=str(OUT/f'cf03-task-return-{width}.png'),full_page=True)
-    # Actual IndexedDB, not an in-memory replacement. A conflict rolls back all records.
     check=await w.evaluate('''async()=>{const S=TLTaskStore,T=TLTasks,bundle=await S.bundle(),counts=[(await S.list()).length,(await S.results()).length],again=await S.restore(bundle);const changed=structuredClone(bundle);changed.tasks[0].source={...changed.tasks[0].source,conversationId:'conversation_wrong_123456',url:'https://chatgpt.com/c/conversation_wrong_123456'};let error='';try{await S.restore(changed);}catch(e){error=e.message;}return{counts,again,error,after:[(await S.list()).length,(await S.results()).length]};}''')
     assert check['again']=={'tasks':0,'results':0};assert check['error']=='TASK_IMPORT_CONFLICT';assert check['after']==check['counts']
     passed('task_backup_idempotence_and_conflict_atomicity_on_real_indexeddb')
-    # Old source selector must never bind a navigated tab to the newly opened chat.
     await a.goto(URL_B);stale=await w.evaluate("async x=>chrome.runtime.sendMessage({type:'tl:taskSource',tabId:x.id,expectedUrl:x.url})",{'id':ta,'url':URL_A});assert not stale['ok'] and stale['code']=='TASK_SOURCE_CHANGED';await a.goto(URL_A)
     passed('stale_source_tab_identity_rejected_before_task_creation')
-    # Optional navigation loads only after the user asks. It finds messages not in the current DOM.
     assert await a.locator('#chatflow-page-tools').count()==0
     await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click();await w.locator('#source').select_option(str(ta))
     selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
@@ -128,12 +134,12 @@ async def main():
     await w.wait_for_timeout(350)
     print('SIDEPANEL_TOOLS_DIAGNOSTIC',json.dumps({'selection':selected,'status':await w.locator('#status').inner_text(),'toolsPresent':await a.locator('#chatflow-page-tools').count()}),flush=True)
     tools=a.locator('#chatflow-page-tools');await tools.wait_for(state='attached');await poll(a,"()=>document.querySelector('#chatflow-page-tools').shadowRoot.textContent.includes('80')")
-    search=tools.locator('input[type=search]');await search.fill('Question number 0');await tools.locator('#list .row button').first.click();await a.locator('#scroll [data-message-id="m0"]').wait_for(state='attached')
+    search=tools.locator('input[type=search]');await search.fill('Question number 0');await tools.locator('#list .row button').first.click();await positioned(a,'m0')
     assert await a.locator('#scroll [data-message-id="m0"]').evaluate("e=>{const r=e.getBoundingClientRect(),b=document.querySelector('#scroll').getBoundingClientRect();return r.bottom>b.top&&r.top<b.bottom;}")
     await search.fill('duplicate identical paragraph');assert await tools.locator('#list .row button').count()==2
-    await tools.get_by_role('button',name='\u4e0a\u4e00\u6761',exact=True).click();await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
-    await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await a.locator('#scroll [data-message-id="m4"]').wait_for(state='attached')
-    await tools.locator('#list .row button').last.click();await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
+    await tools.get_by_role('button',name='\u4e0a\u4e00\u6761',exact=True).click();await positioned(a,'m64')
+    await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await positioned(a,'m4')
+    await tools.locator('#list .row button').last.click();await positioned(a,'m64')
     passed('virtualized_navigation_finds_exact_ids_and_distinguishes_duplicate_text')
     await tools.locator('#list .row input').first.check();await tools.locator('details summary').click();await tools.locator('select').first.select_option('json')
     async with a.expect_download() as downloaded:await tools.get_by_role('button',name='\u5bfc\u51fa\u52fe\u9009\u56de\u5408').click()

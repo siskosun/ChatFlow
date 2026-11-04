@@ -30,7 +30,7 @@
     const slope = slopes.length ? slopes[Math.floor(slopes.length / 2)] : null;
     const direction = Math.sign(target - nearest.index) || 1;
     const viewport = Math.max(120, height * 0.85);
-    return slope ? (target - nearest.index) * slope : direction * viewport;
+    return slope ? (target - nearest.index) * slope + nearest.top : direction * viewport;
   }
 
   /** The only success evidence is a fresh exact resolve after layout settles. */
@@ -116,7 +116,12 @@
         if (scanned > LIMITS.scanned) return result('scan_limit');
         if (!rows.length) return result('unavailable');
         useScroller(rows[0].el);
-        const geometry = rows.map(row => ({ index: row.index, top: row.el.getBoundingClientRect().top }));
+        const bounds = box.getBoundingClientRect?.() || { top: 0, bottom: box.clientHeight };
+        const center = (bounds.top + bounds.bottom) / 2;
+        const geometry = rows.map(row => {
+          const rect = row.el.getBoundingClientRect();
+          return { index: row.index, top: rect.top + (rect.height ?? (rect.bottom - rect.top)) / 2 - center };
+        });
         const signature = rows.map(row => row.index).join(',') + ':' + box.scrollTop;
         repeated = signature === lastSample ? repeated + 1 : 0; lastSample = signature;
         if (repeated >= 4) return result('unavailable');
