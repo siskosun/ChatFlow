@@ -92,7 +92,13 @@ async function prepareHandoff(msg){
  C.check(branchNodeIds.length>0&&branchNodeIds.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(branchNodeIds).size===branchNodeIds.length&&snapshot.nodes[branchNodeIds[0]].parent===null,'INVALID_HANDOFF_BRANCH_PATH');
  for(let i=1;i<branchNodeIds.length;i++)C.check(snapshot.nodes[branchNodeIds[i]].parent===branchNodeIds[i-1],'INVALID_HANDOFF_BRANCH_PATH');
  snapshot.active=[...branchNodeIds];
- const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,Array.isArray(msg.keys)?msg.keys:[],msg.instructions||'',msg.batchLimit||10),files=[],names=new Set(['handoff_index.md']);
+ const selected=Array.isArray(msg.keys)?msg.keys:[],instructions=msg.instructions||'',batchLimit=msg.batchLimit||10;
+ const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,selected,instructions,batchLimit),files=[],names=new Set(['handoff_index.md']);
+ // Validated identical preparation is idempotent across repeated UI actions.
+ const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex();
+ const prepareFingerprint=new C.SHA256().update(JSON.stringify([c.id,snapshotHash,branchNodeIds,[...new Set(selected)],instructions,batchLimit])).hex();
+ const previous=(await S.all('handoffs')).find(row=>row.state==='prepared'&&row.captureId===c.id&&row.snapshotHash===snapshotHash&&row.prepareFingerprint===prepareFingerprint);
+ if(previous)return previous;
  for(const f of plan.files){
   const base=C.safeName(f.name);let uploadName=base,sequence=2;while(names.has(uploadName.toLowerCase()))uploadName=sequence+++'_'+base;names.add(uploadName.toLowerCase());
   if(f.kind==='asset'){const b=await S.verifiedBlob(f.sha256);files.push({...f,uploadName,size:b.size});}
@@ -102,14 +108,20 @@ async function prepareHandoff(msg){
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
- const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash:new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex(),createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
+ const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash,prepareFingerprint,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
+// A single write queue protects whole-record handoff state transitions from
+// concurrent open, claim, progress and user acknowledgement lost updates.
+let handoffWriteQueue=Promise.resolve();
+function serializeHandoffWrite(task){
+ const result=handoffWriteQueue.then(task);
+ handoffWriteQueue=result.then(()=>{},()=>{});
+ return result;
+}
 // A new tab must not load ChatGPT before it is durably bound to this handoff.
-// Serialize opens as well as claims: repeated UI clicks cannot create duplicate targets.
-let openQueue=Promise.resolve();
 function openHandoff(id,sender,context){
- const operation=openQueue.then(async()=>{
+ return serializeHandoffWrite(async()=>{
   const h=await S.get('handoffs',id);C.check(h?.state==='prepared','HANDOFF_ALREADY_OPENED');
   if(h.snapshotHash){const source=await S.get('captures',h.captureId);C.check(source?.snapshot,'HANDOFF_SOURCE_DELETED');C.check(new C.SHA256().update(JSON.stringify(C.persistedSnapshot(source.snapshot))).hex()===h.snapshotHash,'HANDOFF_SOURCE_CHANGED_REGENERATE');}
   const windowId=await workspaceWindow(context,sender);
@@ -126,24 +138,22 @@ function openHandoff(id,sender,context){
    await S.set('handoffs',{...updated,state:'injection_blocked',lastError:'TARGET_NAVIGATION_UNCONFIRMED'}).catch(()=>{});
    throw new Error('TARGET_NAVIGATION_UNCONFIRMED');
   }
- });openQueue=operation.catch(()=>{});return operation;
+ });
 }
 async function targetHandoff(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');const h=await S.get('handoffs',msg.id);C.check(h&&h.targetTabId===sender.tab.id&&h.targetDocumentId===sender.documentId,'HANDOFF_TARGET_MISMATCH');P.identify(sender.url||sender.tab.url,{target:true}).identity;P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;return h;
 }
-let claimQueue=Promise.resolve();
 async function claim(sender){
- const operation=claimQueue.then(async()=>{
+ return serializeHandoffWrite(async()=>{
   C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');
   const h=(await S.all('handoffs')).find(x=>x.targetTabId===sender.tab.id&&x.state==='target_opened');if(!h)return null;
   P.identify(sender.url||sender.tab.url,{target:true}).identity;
   P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;const attemptId=C.id();await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId,attemptId});
   return{id:h.id,attemptId,prompt:h.prompt,files:h.batches[0].map(i=>({...h.files[i],index:i})),remainingBatches:h.batches.length-1};
- });claimQueue=operation.catch(()=>{});return operation;
+ });
 }
-// All receipts and user attestations share one queue. A late progress report
-// cannot overwrite a terminal receipt or erase a concurrent manual check.
-let receiptQueue=Promise.resolve();
+// All handoff writes share the same queue. A late progress report cannot
+// overwrite a terminal receipt or erase a concurrent manual check.
 async function applyHandoffEvidence(msg,sender){
  const E=globalThis.TLEvidence;
  if(msg.type==='tl:confirmUpload'||msg.type==='tl:confirmFile'){
@@ -178,7 +188,7 @@ async function applyHandoffEvidence(msg,sender){
 }
 async function handle(msg,sender){
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');C.check(trusted(sender),'FOREIGN_EXTENSION');
- if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type)){const job=receiptQueue.then(()=>applyHandoffEvidence(msg,sender));receiptQueue=job.catch(()=>{});return job;}
+ if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type))return serializeHandoffWrite(()=>applyHandoffEvidence(msg,sender));
  const taskResult=await globalThis.TLTaskService?.handle(msg,sender,api);if(taskResult!==undefined)return taskResult;
  const experimentResult=await ChatFlowExperimentService.handle(msg,sender,api,{startCapture});if(experimentResult!==undefined)return experimentResult;
  if(msg.type==='tl:claimHandoff')return claim(sender);
@@ -193,7 +203,7 @@ async function handle(msg,sender){
   if(msg.type==='tl:start')return startCapture(msg);
   if(msg.type==='tl:stop'){await stopCapture(msg.captureId);return{stopped:true};}
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
-  if(msg.type==='tl:prepareHandoff')return prepareHandoff(msg);
+  if(msg.type==='tl:prepareHandoff')return serializeHandoffWrite(()=>prepareHandoff(msg));
   if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender,msg);
   if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
 

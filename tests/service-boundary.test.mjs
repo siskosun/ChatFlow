@@ -6,13 +6,13 @@ import {webcrypto,createHash} from 'node:crypto';
 const core=fs.readFileSync(new URL('../src/tl-core.js',import.meta.url),'utf8');
 const provider=fs.readFileSync(new URL('../src/tl-provider.js',import.meta.url),'utf8');
 const service=fs.readFileSync(new URL('../src/tl-service.js',import.meta.url),'utf8');
-async function harness({navigationFails=false}={}){
+async function harness({navigationFails=false,navigationGate=null}={}){
  const records=new Map([['handoff',{id:'handoff',captureId:'capture',state:'prepared',prompt:'Test',files:[{name:'history.md',size:1,sha256:'a'.repeat(64)}],batches:[[0]],missing:[]}]]),events=[],tabs=new Map(),panelBehaviors=[];
  const store={get:async(name,key)=>structuredClone(records.get(key)),all:async name=>name==='handoffs'?[...records.values()].map(x=>structuredClone(x)):[],set:async(name,value)=>{records.set(value.id,structuredClone(value));events.push('persist:'+value.state);},recover:async()=>{}};
  const event=()=>({addListener(){}});
  const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:event()},storage:{session:{get:async()=>({}),set:async()=>{}}},action:{onClicked:{addListener(){throw Error('Legacy full-page action handler must not be registered');}}},sidePanel:{setPanelBehavior:async options=>{panelBehaviors.push({...options});}},scripting:{executeScript:async()=>{}},permissions:{contains:async()=>true},
   windows:{create:async()=>{throw Error('WINDOW_CREATION_NOT_ALLOWED');},update:async()=>{}},
-  tabs:{onUpdated:event(),onRemoved:event(),create:async options=>{assert.equal(options.url,'about:blank');assert.equal(options.windowId,9);assert.equal(options.active,true);events.push('create-tab');const tab={id:17,windowId:9,url:'about:blank',status:'complete'};tabs.set(17,tab);return tab;},get:async id=>tabs.get(id),query:async()=>[],sendMessage:async()=>{events.push('announce');},update:async(id,options)=>{const h=records.get('handoff');assert.equal(h.targetTabId,id);assert.equal(h.state,'target_opened');events.push('navigate');if(navigationFails)throw Error('network failure');tabs.set(id,{...tabs.get(id),url:options.url,status:'loading'});return tabs.get(id);}}
+  tabs:{onUpdated:event(),onRemoved:event(),create:async options=>{assert.equal(options.url,'about:blank');assert.equal(options.windowId,9);assert.equal(options.active,true);events.push('create-tab');const tab={id:17,windowId:9,url:'about:blank',status:'complete'};tabs.set(17,tab);return tab;},get:async id=>tabs.get(id),query:async()=>[],sendMessage:async()=>{events.push('announce');},update:async(id,options)=>{const h=records.get('handoff');assert.equal(h.targetTabId,id);assert.equal(h.state,'target_opened');events.push('navigate');if(navigationGate)await navigationGate;if(navigationFails)throw Error('network failure');tabs.set(id,{...tabs.get(id),url:options.url,status:'loading'});return tabs.get(id);}}
  };
  const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,ChatFlowExperimentService:{handle:async()=>undefined,recover:async()=>{},onTabUpdated:async()=>{},onTabRemoved:async()=>{},onCaptureFinished:async()=>{}},importScripts(){},structuredClone});
  vm.runInContext(core,context);
@@ -115,4 +115,19 @@ test('unchanged prepared source remains eligible for a user-requested handoff',a
  h.records.get('handoff').snapshotHash=createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
  const result=await h.openHandoff('handoff',workspaceSender);
  assert.equal(result.targetTabId,17);
+});
+
+test('failed navigation cannot clobber a concurrently arriving target claim',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve);
+ const h=await harness({navigationFails:true,navigationGate:gate});
+ const opening=h.openHandoff('handoff',workspaceSender);
+ for(let i=0;i<60&&!h.events.includes('navigate');i++)await new Promise(r=>setTimeout(r,1));
+ assert.ok(h.events.includes('navigate'));
+ const sender={id:'extension',url:'https://chatgpt.com/',tab:{id:17,url:'https://chatgpt.com/'},documentId:'doc-one'};
+ const claiming=h.claim(sender);
+ release();
+ await assert.rejects(opening,/TARGET_NAVIGATION_UNCONFIRMED/);
+ assert.equal(await claiming,null,'a failed opening must never be overwritten by a stale claim');
+ assert.equal(h.records.get('handoff').state,'injection_blocked');
+ assert.equal(h.records.get('handoff').targetDocumentId,null);
 });
