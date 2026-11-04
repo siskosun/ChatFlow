@@ -15,3 +15,8 @@ test('preparation is content-addressed and duplicate actions are dropped',()=>{
  assert.match(app,/function singleFlight\(id,fn\)/);
  assert.match(app,/frozenFingerprint=fingerprint\(\)/);
 });
+
+test('hidden completed prepare remains re-enabled for future revised instructions',()=>{
+ assert.doesNotMatch(app,/if\(id==='prepare'\)\{if\(!control\.hidden\)/);
+ assert.match(app,/if\(id==='prepare'\)\{control\.disabled=!selectedId/);
+});
