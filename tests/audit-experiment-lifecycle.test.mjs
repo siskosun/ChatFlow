@@ -7,7 +7,7 @@ test('experiment prefill is single-flight with old gesture cleanup',()=>{
  assert.match(s,/if\(experimentPreparing\)return/);
  assert.match(s,/experimentGestureCleanup\?\.\(\)/);
  assert.match(s,/lastExperimentAttempt===attempt/);
- assert.match(s,/noticeTimers=new Map/);
+ assert.match(s,/noticeTimers\s*=\s*new Map/);
  assert.match(s,/earlier\.focus\(\{preventScroll:true\}\)/);
 });
 test('branch launch commits one full K-branch revision set or records terminal unknown',()=>{

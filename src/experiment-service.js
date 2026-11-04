@@ -208,7 +208,7 @@
        for(const branch of branchLabels)next=Core.advance(next,{
         branch,expectedRevision:next.revision,
         operationId:'abort_'+id(),attemptId:attemptIds[branch],
-        status:'unknown',phase:'created',
+        status:'unknown',phase:next.branches[branch].attempts.at(-1)?.phase||'created',
         reason:'launch navigation failed; no automatic retry',evidence:{tabId:tabIds[branch]}});
        return next;
       },branchLabels.length);

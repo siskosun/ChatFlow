@@ -297,6 +297,7 @@
   async function list() {
     const ticket=++listTicket,values = await send({type:"FF_LIST"});if(ticket!==listTicket)return;
     const holder = $("ff-list");
+    const focusId=document.activeElement?.dataset?.experimentId||null;
     holder.replaceChildren();
     if (values.length === 0) {
       const empty = document.createElement("p");
@@ -335,6 +336,9 @@
       button.addEventListener("click", () => read(item.id).catch(e=>notice(e.message,true)));
       holder.appendChild(button);
     }
+    // Restore keyboard focus only when the same stable experiment ID survived
+    // the rerender; never restore by title, ordinal or an unrelated row.
+    if(focusId){const target=[...holder.querySelectorAll('button[data-experiment-id]')].find(el=>el.dataset.experimentId===focusId);target?.focus({preventScroll:true});}
   }
   async function refresh() {
     const status = await send({type:"FF_STATUS"});
