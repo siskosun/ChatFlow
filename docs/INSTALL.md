@@ -12,13 +12,17 @@
 1. 真实账号验收在工程开发完成后进行，首次测试建议使用独立 Edge 配置文件。
 2. 打开 `edge://extensions/`，开启“开发人员模式”。
 3. 选择“加载解压缩的扩展”，指向 `chatflow-edge-0.3-candidate.zip` 解压后包含 `manifest.json` 的目录。
-4. 确认扩展名称为 ChatFlow、版本为 0.3。打开一个普通 ChatGPT 对话，点击扩展图标进入工作区。
+4. 确认扩展名称为 ChatFlow、版本为 0.3。打开普通 ChatGPT 对话，点击扩展图标即可在 Edge 原生侧边栏打开 ChatFlow；ChatGPT 页面保持可见。
 
 ## Google Chrome：首次安装
 
 1. 打开 `chrome://extensions/`，开启“开发者模式”。
 2. 选择“加载已解压的扩展程序”，指向 `chatflow-chrome-0.3-candidate.zip` 解压后包含 `manifest.json` 的目录。
-3. 确认名称、版本和图标。打开普通 ChatGPT 对话后进入 ChatFlow。
+3. 确认名称、版本和图标。打开普通 ChatGPT 对话后点击 ChatFlow 图标，Chrome 原生侧边栏会在当前窗口中显示 ChatFlow。
+
+## 侧边栏使用方式
+
+点击浏览器工具栏的 ChatFlow 图标打开侧边栏。侧边栏与 ChatGPT 网页并排显示，不再新建全页面工作区。切换 ChatGPT 标签页时，侧边栏继续保留；保存和任务回传会检查选定的实际来源。接续到新对话会在同一浏览器窗口新建普通 ChatGPT 标签页，不自动发送。需要 Chrome 116+ 或支持原生扩展侧边栏的 Edge 版本。
 
 ## 保留已有数据的更新
 
