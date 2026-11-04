@@ -20,7 +20,29 @@
   try{const response=await fetch(u.href,{method:'GET',credentials:'include',headers,redirect:'error',cache:'no-store',signal:controller.signal});C.check(response.ok,'HTTP_'+response.status);return{response,close:()=>{clearTimeout(timer);if(run.controller===controller)delete run.controller;}};}
   catch(e){clearTimeout(timer);if(run.controller===controller)delete run.controller;throw e;}
  }
- async function json(run,path,token,accountId){const{response,close}=await fetchResponse(run,path,token,accountId);try{return await response.json();}finally{close();}}
+ async function json(run,path,token,accountId){
+  const limit=path==='/api/auth/session'?1024*1024:path.startsWith('/backend-api/conversation/')?32*1024*1024:2*1024*1024;
+  const{response,close}=await fetchResponse(run,path,token,accountId);
+  let reader=null;
+  try{
+   const mime=(response.headers.get('content-type')||'').toLowerCase();
+   C.check(!mime.includes('text/html'),'API_JSON_NOT_JSON');
+   const declared=Number(response.headers.get('content-length')||0);
+   C.check(!declared||declared<=limit,'API_JSON_RESPONSE_TOO_LARGE');
+   C.check(response.body,'API_JSON_BODY_MISSING');
+   reader=response.body.getReader();const chunks=[];let total=0;
+   while(true){
+    sameSource(run);remaining(run);
+    const r=await reader.read();if(r.done)break;
+    total+=r.value.length;
+    C.check(total<=limit,'API_JSON_RESPONSE_TOO_LARGE');
+    chunks.push(r.value);
+   }
+   if(declared&&!response.headers.get('content-encoding'))C.check(total===declared,'API_JSON_LENGTH_MISMATCH');
+   sameSource(run);
+   return JSON.parse(await new Blob(chunks).text());
+  }catch(e){await reader?.cancel().catch(()=>{});throw e;}finally{reader?.releaseLock();close();}
+ }
  async function sourceBytes(run,asset,response){
   const mime=(response.headers.get('content-type')||asset.mime).split(';')[0];if(mime==='text/html'&&!/\.html?$/i.test(asset.name))throw new Error('HTML_LOGIN_OR_ERROR_DOCUMENT');
   await message('tl:assetBegin',{key:asset.key},run.nonce);C.check(response.body,'EMPTY_DOWNLOAD_BODY');const reader=response.body.getReader();let seq=0,total=0;
@@ -57,13 +79,57 @@
   throw new Error('UNSUPPORTED_ASSET_REFERENCE');
  }
  function reconcileVisibleAttachments(model){
-  const known=new Set(model.assets.map(a=>a.name.toLowerCase()));
-  for(const e of document.querySelectorAll('[data-message-author-role] a[download],[data-message-author-role] [data-testid="file-chip"]')){
-   if(!e.getClientRects().length)continue;const raw=e.getAttribute('download')||e.getAttribute('data-filename')||e.textContent||'',name=C.safeName(raw.trim());
-   if(!/\.[a-z0-9]{1,10}$/i.test(name)||known.has(name.toLowerCase()))continue;
-   known.add(name.toLowerCase());model.integrity.state='partial';model.integrity.issues.push({code:'VISIBLE_ATTACHMENT_NOT_IN_API',name});
-   const role=e.closest('[data-message-author-role]')?.getAttribute('data-message-author-role')||'unknown',origin=role==='assistant'?'assistant_generated':role==='user'?'user_uploaded':'unknown';
-   model.assets.push({key:JSON.stringify(['visible-unmatched',name]),messageId:'visible-unmatched',nodeId:'visible-unmatched',name,mime:'application/octet-stream',kind:'upload',origin,authorRole:role,ref:{scheme:'unsupported'},expectedSize:null,state:'unavailable',reason:'VISIBLE_ATTACHMENT_NOT_IN_API'});
+  const sc=TLPageScope.current();
+  if(!sc.root||sc.status==='ambiguous')return;
+  const selector='[data-message-author-role] a[download],[data-message-author-role] [data-testid="file-chip"]';
+  const visible=[...sc.root.querySelectorAll(selector)].filter(e=>TLPageScope.contains(sc,e));
+  if(!visible.length)return;
+  if(sc.status!=='confirmed'){
+   model.integrity.state='partial';
+   model.integrity.issues.push({code:'VISIBLE_ATTACHMENT_SCOPE_UNVERIFIED',count:visible.length});
+   return;
+  }
+  const byMessage=new Map();
+  for(const message of model.messages){
+   byMessage.set(message.id,message);
+   if(message.nodeId)byMessage.set(message.nodeId,message);
+  }
+  const available=new Map(),seen=new Map();
+  for(const asset of model.assets){
+   const key=JSON.stringify([asset.messageId,String(asset.name||'').toLowerCase()]);
+   const list=available.get(key)||[];list.push(asset);available.set(key,list);
+  }
+  for(const e of visible){
+   const raw=e.getAttribute('download')||e.getAttribute('data-filename')||e.textContent||'';
+   const name=C.safeName(raw.trim());
+   if(!/\.[a-z0-9]{1,10}$/i.test(name))continue;
+   const owner=e.closest('[data-message-author-role]')||e.closest('[data-turn-key]');
+   const ids=new Set();
+   for(const n of [owner,owner?.closest('[data-turn-key]')].filter(Boolean)){
+    for(const attr of ['data-message-id','data-node-id','data-turn-key','data-chatgpt-selection-message-id']){
+     const value=n.getAttribute(attr)||n.querySelector('['+attr+']')?.getAttribute(attr);
+     if(value)ids.add(value);
+    }
+   }
+   const matches=[...new Set([...ids].map(id=>byMessage.get(id)).filter(Boolean))];
+   const message=matches.length===1?matches[0]:null;
+   const key=JSON.stringify([message?.id||null,name.toLowerCase()]);
+   const nth=(seen.get(key)||0)+1;seen.set(key,nth);
+   const apiMatches=message?available.get(JSON.stringify([message.id,name.toLowerCase()]))||[]:[];
+   const explicitRef=e.getAttribute('data-file-id')||e.getAttribute('data-attachment-id');
+   const matched=explicitRef?apiMatches.some(a=>a.ref?.fileId===explicitRef):nth<=apiMatches.length;
+   if(matched)continue;
+   const role=owner?.getAttribute('data-message-author-role')||'unknown';
+   const origin=role==='assistant'?'assistant_generated':role==='user'?'user_uploaded':'unknown';
+   const reason=message?'VISIBLE_ATTACHMENT_NOT_IN_API':'VISIBLE_ATTACHMENT_MESSAGE_UNVERIFIED';
+   model.integrity.state='partial';
+   model.integrity.issues.push({code:reason,name,messageId:message?.id||null,occurrence:nth});
+   model.assets.push({
+    key:JSON.stringify(['visible-unmatched',model.source.conversationId,message?.id||null,name,nth]),
+    messageId:message?.id||'visible-unmatched',nodeId:message?.nodeId||'visible-unmatched',
+    name,mime:'application/octet-stream',kind:'upload',origin,authorRole:role,
+    ref:{scheme:'unsupported'},expectedSize:null,state:'unavailable',reason
+   });
   }
  }
  async function cycle(run){
