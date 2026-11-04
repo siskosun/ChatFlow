@@ -24,12 +24,16 @@
  function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
  function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('prepare').hidden=false;$('prepare').textContent='重新准备历史与文件';status('内容已更改，请重新准备。');}}
  async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
+ let sourceRefreshEpoch=0;
  async function sources(){
-  const rows=await call('tl:sources'),selector=$('source'),signature=JSON.stringify(rows.map(r=>[r.id,r.url,r.title]));
+  const epoch=++sourceRefreshEpoch,rows=await call('tl:sources');
+  if(epoch!==sourceRefreshEpoch)return rows;
+  const selector=$('source'),signature=JSON.stringify(rows.map(r=>[r.id,r.url,r.title]));
   if(signature===sourceOptionsSignature)return rows;
-  const old=selector.value||new URL(location.href).searchParams.get('source');
   const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});
-  const preferred=old||String(activeTab?.id||'');
+  if(epoch!==sourceRefreshEpoch)return rows;
+  // Read the latest selection after every wait: refresh must never undo a user choice.
+  const preferred=selector.value||new URL(location.href).searchParams.get('source')||String(activeTab?.id||'');
   sourceOptionsSignature=signature;sourceLookupKey=null;sourceLookupCaptureId=null;
   selector.replaceChildren();
   $('source-empty-help').hidden=rows.length>0;
@@ -62,7 +66,7 @@
    // freezing the displayed source before either asynchronous operation finishes.
    const freeze=call('tl:freezeSource',selection),permission=$('allow-media').checked?chrome.permissions.request({origins:chrome.runtime.getManifest().optional_host_permissions}):Promise.resolve(true);
    const [frozen,allowed]=await Promise.all([freeze,permission]);assertSelection(selection);
-   assertSelection(selection);const existing=await captureForSelectedSource(selection);assertSelection(selection);const request={...selection,expectedConversationId:frozen.expectedConversationId,expectedDocumentId:frozen.expectedDocumentId};
+   const existing=await captureForSelectedSource(selection);assertSelection(selection);const request={...selection,expectedConversationId:frozen.expectedConversationId,expectedDocumentId:frozen.expectedDocumentId};
    if(existing?.id)request.captureId=existing.id;
    const r=await call('tl:start',request);selectedId=r.captureId;sourceLookupCaptureId=r.captureId;selectedKeys.clear();messageLimit=100;
    status(existing?'正在更新档案…':allowed?'正在保存对话…':'正在保存正文；部分附件可能无法取得。');await renderRunning();
@@ -336,7 +340,7 @@
   for(let batch=0;batch<h.batches.length;batch++){
    box.append(node('h3','第 '+(batch+1)+' 批（'+h.batches[batch].length+' 个文件）'));
    for(const i of h.batches[batch]){const f=h.files[i],blob=await S.verifiedBlob(f.sha256),file=new File([blob],f.uploadName||f.name,{type:f.mime});staged.set(i,file);
-    const row=node('div',null,'staged');row.draggable=true;row.append(node('strong',file.name),node('small',bytes(file.size)+' · '+(f.kind==='history'?'历史记录':'原始附件')));
+    const row=node('div',null,'staged');row.draggable=true;row.append(node('strong',file.name),node('small',bytes(file.size)+' · '+(f.kind==='history'?'历史记录':f.kind==='index'?'接续索引':'原始附件')));
     row.addEventListener('dragstart',e=>{try{e.dataTransfer.items.add(file);e.dataTransfer.effectAllowed='copy';}catch{status('此浏览器未允许跨页文件拖拽，请使用下载后手动上传。',true);}});
     row.append(button('下载文件',()=>download(file,file.name)));const evidenceLabel=node('small');evidenceLabel.dataset.fileEvidence=String(i);row.append(evidenceLabel);
     const verify=button('\u6807\u8bb0\u4e3a\u5df2\u4eba\u5de5\u6838\u5bf9',async()=>{C.check(window.confirm('\u786e\u8ba4\u4f60\u5df2\u5728\u76ee\u6807\u9875\u9762\u6838\u5bf9\u8fd9\u4e2a\u6587\u4ef6\uff1f\u8fd9\u4e0d\u4ee3\u8868\u6a21\u578b\u5df2\u8bfb\u53d6\u3002'),'USER_CONFIRMATION_REQUIRED');await call('tl:confirmFile',{id:h.id,index:i,confirmed:true});await renderHandoffState();});verify.dataset.verifyFile=String(i);row.append(verify);box.append(row);
@@ -352,7 +356,11 @@
   const fresh=snapshotMatches&&branchMatches;
   const fileLabels={prepared:'\u672c\u5730\u5b57\u8282\u5df2\u6821\u9a8c\uff0c\u672a\u786e\u8ba4\u4ea4\u7ed9\u7f51\u9875',offered:'\u5df2\u5c1d\u8bd5\u4ea4\u7ed9\u7f51\u9875',page_ready:'\u7f51\u9875\u66fe\u663e\u793a\u5c31\u7eea\uff08\u4ec5\u9875\u9762\u89c2\u5bdf\uff09',unknown:'\u7f51\u9875\u72b6\u6001\u672a\u77e5',user_checked:'\u7528\u6237\u5df2\u6838\u5bf9\uff08\u4e0d\u4ee3\u8868\u5df2\u53d1\u9001\uff09',legacy_unverified:'\u65e7\u8bb0\u5f55\u65e0\u9010\u6587\u4ef6\u8bc1\u636e'};
   for(const label of $('staging').querySelectorAll('[data-file-evidence]')){const index=Number(label.dataset.fileEvidence),proof=TLEvidence.fileReport(h,index);label.textContent=fileLabels[proof.state]+(proof.observedAt?' \u00b7 '+new Date(proof.observedAt).toLocaleString():'');label.dataset.evidenceState=proof.state;}
-  for(const control of $('staging').querySelectorAll('[data-verify-file]'))control.disabled=!fresh||!h.targetTabId||!['upload_unknown','upload_confirmed','draft_prepared','partial_injection','user_verified_upload'].includes(h.state);
+  for(const control of $('staging').querySelectorAll('[data-verify-file]')){
+   const checked=TLEvidence.fileReport(h,Number(control.dataset.verifyFile)).state==='user_checked';
+   control.disabled=checked||!fresh||!h.targetTabId||!['upload_unknown','upload_confirmed','draft_prepared','partial_injection','user_verified_upload'].includes(h.state);
+   control.textContent=checked?'\u5df2\u4eba\u5de5\u6838\u5bf9':'\u6807\u8bb0\u4e3a\u5df2\u4eba\u5de5\u6838\u5bf9';
+  }
 
   const message=(labels[h.state]||h.state)+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
   const ready=h.state==='prepared'&&planFingerprint===fingerprint()&&fresh;

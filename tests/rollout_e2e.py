@@ -119,6 +119,7 @@ async def main():
                 await w.locator('#detail input[data-asset-key]').first.check()
                 await w.locator('#detail .actions .primary').first.click();await w.locator('#prepare').click()
                 await poll(w,'()=>!document.querySelector("#handoff-result").hidden')
+                assert '\u63a5\u7eed\u7d22\u5f15' in await w.locator('#staging .staged').first.inner_text()
                 async with ctx.expect_page() as target_event:await w.locator('#open-target').click()
                 target=await target_event.value;await target.wait_for_url('https://chatgpt.com/')
                 receipt=await poll(w,"async()=>{const h=(await TLStore.all('handoffs')).at(-1);return h?.state==='upload_unknown'?h:null;}",seconds=25)
@@ -132,6 +133,7 @@ async def main():
                 w.once('dialog',lambda d:d.accept())
                 await w.locator('[data-verify-file="1"]').click();await poll(w,"()=>Array.from(document.querySelectorAll('[data-file-evidence]')).some(e=>e.dataset.fileEvidence==='1'&&e.dataset.evidenceState==='user_checked')")
                 assert await target.evaluate('window.uploads===1&&window.sent===0')
+                assert await w.locator('[data-verify-file="1"]').is_disabled()
                 passed('partial_upload_exact_file_evidence_manual_check_and_late_receipt_protection')
                 await target.close()
                 samples=[]
