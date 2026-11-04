@@ -1,3 +1,11 @@
+## 0.3 Sidebar usability and trial onboarding (2026-11-04)
+
+- Fix advanced-feature toggle misalignment in narrow sidebars; add one-line descriptions and inline experiment explanation.
+- Clarify saving for a new ChatGPT conversation, manual return from external assistants, and prerequisite login in an existing source conversation.
+- Replace decorative journey icons with explanatory text; add an action to save the first local archive.
+- Provide a stable main-source developer trial installation, separate from expiring exact-commit GitHub Actions candidates.
+- Run verification on main pushes, preserve historical evidence separately, move unused legacy popup scripts into security test fixtures.
+- Engineering candidate only; no authenticated, first-time-user or assistive-technology acceptance is claimed.
 # Changelog
 
 ## 0.3 - engineering candidate, 2026-11-03
