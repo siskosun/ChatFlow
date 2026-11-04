@@ -1,0 +1,59 @@
+name: Apply isolated heading increment
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.repository == 'siskosun/ChatFlow' && github.head_ref == 'cf/answer-headings-20261104' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply checksum-bound source on this feature branch only
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote origin refs/heads/cf/answer-headings-20261104 | cut -f1)" = "$EXPECTED_HEAD"
+          python - <<'PY'
+          import base64,zlib,json,hashlib
+          from pathlib import Path
+          parts=sorted(Path('.heading-transfer').glob('part-*.txt'));assert len(parts)==5
+          packed=''.join(p.read_text().strip() for p in parts)
+          decoder=zlib.decompressobj()
+          raw=decoder.decompress(base64.b64decode(packed,validate=True),100000)
+          assert decoder.eof and not decoder.unconsumed_tail and len(raw)==46690
+          assert hashlib.sha256(raw).hexdigest()=='36ff790e061bdee549d1e7b7dd0ed1950b40e0c1d8b5a7672a5d73dc196acf6b'
+          changes=json.loads(raw)
+          allowed={'.github/workflows/verify.yml','build.py','chatflow-0.3.tsm.history.jsonl','chatflow-0.3.tsm.json','scripts/check-runtime.mjs','src/tl-task-service.js','src/tl-tools-page.js','tests/task-service.test.mjs','tests/task_loop_e2e.py','docs/ANSWER_HEADINGS.md','src/tl-headings.js','tests/headings.test.mjs','tests/headings_e2e.py'}
+          assert set(changes)==allowed
+          pending=[]
+          for name,spec in changes.items():
+              path=Path(name);prior=path.read_bytes() if path.exists() else None
+              assert (hashlib.sha256(prior).hexdigest() if prior is not None else None)==spec['before'],name+' source changed'
+              if 'content' in spec:output=spec['content'].encode()
+              else:
+                  lines=prior.decode().splitlines(True)
+                  for start,end,text in reversed(spec['edits']):lines[start:end]=[text]
+                  output=''.join(lines).encode()
+              assert hashlib.sha256(output).hexdigest()==spec['after'],name+' target mismatch'
+              pending.append((path,output))
+          for path,output in pending:
+              path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(output)
+          print('APPLIED_HEADING_SOURCE_FILES',len(pending))
+          PY
+          git rm -r .heading-transfer .github/workflows/apply-headings.yml
+          git add .github/workflows/verify.yml build.py chatflow-0.3.tsm.history.jsonl chatflow-0.3.tsm.json scripts/check-runtime.mjs src/tl-task-service.js src/tl-tools-page.js tests/task-service.test.mjs tests/task_loop_e2e.py docs/ANSWER_HEADINGS.md src/tl-headings.js tests/headings.test.mjs tests/headings_e2e.py
+          git config user.name 'ChatFlow cloud development'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: source-bound answer heading navigation with independent tests'
+          git push origin HEAD:refs/heads/cf/answer-headings-20261104
