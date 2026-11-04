@@ -70,6 +70,11 @@ function composer(chips){
 test('upload confirmation cannot confuse a substring or a different composer with a target',()=>{
  const confirmed=injectionHarness();
  assert.equal(confirmed(['report.pdf'],composer([chip('old-report.pdf')])),false);
+ const contradictory=chip('report.pdf');
+ contradictory.getAttribute=k=>k==='data-filename'?'old-report.pdf':k==='data-state'?'ready':null;
+ assert.equal(confirmed(['report.pdf'],composer([contradictory])),false,'structured filename wins over display text');
+ assert.equal(confirmed(['report.pdf'],composer([chip('report.pdf',{attribute:'title'})])),true);
+ assert.equal(confirmed(['report.pdf'],composer([chip('report...',{attribute:'title'})])),false);
  assert.equal(confirmed(['report.pdf'],composer([chip('report.pdf')])),true);
  assert.equal(confirmed(['report.pdf','other.pdf'],composer([chip('report.pdf')])),false);
  assert.equal(confirmed(['report.pdf'],composer([chip('report.pdf'),chip('report.pdf')])),false,'duplicate chip is not unique evidence');
@@ -153,4 +158,42 @@ test('navigation never labels an unidentified DOM node as verified message ident
  const sc={root:{},status:'unverified'};
  const found=context.__resolve({}, {domNode:node,idKnown:false},sc);
  assert.equal(found.confidence,'observed_dom_node');
+});
+
+test('navigation cancels on user wheel and restores temporary event listeners',async()=>{
+ const handlers=new Map();
+ const window={
+  addEventListener(type,handler){handlers.set(type,handler);},
+  removeEventListener(type,handler){if(handlers.get(type)===handler)handlers.delete(type);}
+ };
+ let scrollWrites=0;
+ const body={};
+ const box={clientHeight:500,scrollHeight:2000,parentElement:body,scrollBy(){scrollWrites++;handlers.get('wheel')?.();}};
+ const otherElement={
+  parentElement:box,isConnected:true,
+  getBoundingClientRect:()=>({top:20,height:120})
+ };
+ const root={querySelectorAll:()=>[otherElement]};
+ const area={root,status:'confirmed',conversationId:'source-A'};
+ const url='https://chatgpt.com/c/source-A';
+ const context=vm.createContext({
+  globalThis:null,
+  TLCore:{chatUrl:()=>({url})},
+  CFToolkit:{getDomMessageIdCandidates:e=>e===otherElement?['other-message']:[]},
+  TLPageScope:{current:()=>area,contains:()=>true},
+  chrome:{runtime:{id:'test',onMessage:{addListener(){}}}},
+  document:{body,scrollingElement:box},
+  location:{href:url},
+  getComputedStyle:()=>({overflowY:'auto'}),
+  window,performance:{now:()=>1000},setTimeout:fn=>fn(),
+  URL
+ });
+ context.globalThis=context;
+ vm.runInContext(instrument('tl-tools-page.js','globalThis.__nav={jump,setLive(s){live=s;}};'),context);
+ const target={id:'target-message'},other={id:'other-message'};
+ const s={url,closed:false,jump:0,messages:[other,target],status:{textContent:''}};
+ context.__nav.setLive(s);
+ assert.equal(await context.__nav.jump(s,target),false);
+ assert.equal(scrollWrites,1,'no scrolling after a manual wheel event');
+ assert.equal(handlers.size,0,'all cancellation listeners must be removed');
 });
