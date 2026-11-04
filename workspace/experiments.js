@@ -42,10 +42,12 @@
       resolve(response.data);
     });
   });
+  const errorMessages={FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。',FF_INVALID_PREFERENCE:'裁决选项无效，请重新选择。',FF_INVALID_CONFIDENCE:'置信度无效，请重新选择。',FF_VERDICT_ALREADY_RECORDED:'该实验已经裁决，不能重复提交。',FF_COMPARISON_MAPPING_REQUIRED:'需要先完成对照映射和裁判校准。',EXTENSION_UNAVAILABLE:'扩展后台未响应，请重新打开实验页面。',OPERATION_FAILED:'实验操作未完成，请核对实验状态后重试。'};
+  function readableError(message){const value=String(message||'');if(Object.hasOwn(errorMessages,value))return errorMessages[value];if(/[\u3400-\u9fff]/.test(value)&&value.length<=240)return value;return /^[A-Z][A-Z0-9_]{2,100}$/.test(value)?'实验操作未完成（'+value+'），请检查状态后重试。':'实验操作未完成，请检查输入与实验状态后重试。';}
   function notice(message, error=false) {
     // The in-card live region is the only status. A duplicate body-level toast
     // would obscure a browser viewport and repeat the same text.
-    const el=$("ff-notice");el.textContent=message;el.dataset.error=String(error);
+    const el=$("ff-notice");el.textContent=error?readableError(message):message;el.dataset.error=String(error);
   }
   function bytes() {
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
@@ -447,9 +449,13 @@
     } catch (e) { notice(e.message, true); await read(currentExperiment).catch(()=>{}); }
     finally { button.disabled = false; }
   });
+  $('ff-criteria').addEventListener('input',()=>{$('ff-criteria').setAttribute('aria-invalid','false');});
   $("ff-verdict").addEventListener("click", async event => {
     if (!currentExperiment) return;
-    if($('ff-criteria').value.length>400||$('ff-notes').value.length>4000){notice('内容超过上限，全文已保留。请缩短后提交。',true);return;}
+    const criteria=$('ff-criteria');
+    if(!criteria.value.trim()){criteria.setAttribute('aria-invalid','true');criteria.focus();notice('请填写判断依据。',true);return;}
+    criteria.setAttribute('aria-invalid','false');
+    if(criteria.value.length>400||$('ff-notes').value.length>4000){notice('内容超过上限，全文已保留。请缩短后提交。',true);return;}
     const button = event.target;
     const payload = {type:"FF_VERDICT", experimentId:currentExperiment,
       preference:$("ff-preference").value, criteria:$("ff-criteria").value,

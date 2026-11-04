@@ -1,7 +1,13 @@
 /* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
 importScripts('tl-core.js','tl-evidence.js','tl-diagnostics.js','tl-provider.js','tl-passages.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js','tl-tasks.js','tl-task-store.js','tl-task-service.js');
 const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,api=chrome,runs=new Map();
-function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
+function errorCode(e){
+ if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';
+ if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';
+ const key=String(e?.message||'');
+ const experimentCodes={'criteria required':'FF_CRITERIA_REQUIRED','invalid preference':'FF_INVALID_PREFERENCE','invalid confidence':'FF_INVALID_CONFIDENCE','verdict already recorded':'FF_VERDICT_ALREADY_RECORDED','no comparison mapping assigned yet':'FF_COMPARISON_MAPPING_REQUIRED'};
+ return experimentCodes[key]||(/^[A-Z][A-Z0-9_]{2,100}$/.test(key)?key:'OPERATION_FAILED');
+}
 const trusted=sender=>sender?.id===api.runtime.id;
 function workspace(sender){C.check(trusted(sender)&&String(sender.url||'').startsWith(api.runtime.getURL('workspace/')),'WORKSPACE_ONLY');}
 async function workspaceWindow(msg,sender){
