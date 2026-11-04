@@ -8,15 +8,15 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 import {webcrypto} from 'node:crypto';
 import Core from '../src/experiment-core.js';
 
-function harness(){
+function harness({failCreateAt=0,failNavigateAt=0}={}){
  const records=new Map(),session=new Map(),local=new Map(),tabs=new Map(),created=[],updated=[],sent=[],captureCalls=[];
- let nextTab=20;
+ let nextTab=20,createCount=0,navigateCount=0;const revisions=[];
  const DB={
   async create(row){if(records.has(row.id))throw Error('duplicate');records.set(row.id,structuredClone(row));},
   async createImported(row){if(records.has(row.id))throw Error('duplicate');records.set(row.id,structuredClone(row));},
   async read(id){return structuredClone(records.get(id)||null);},
   async list(){return [...records.values()].map(x=>structuredClone(x));},
-  async update(id,revision,reducer){const before=records.get(id);if(!before)throw Error('not found');assert.equal(before.revision,revision);const after=reducer(structuredClone(before));records.set(id,structuredClone(after));return structuredClone(after);}
+  async update(id,revision,reducer,steps=1){const before=records.get(id);if(!before)throw Error('not found');assert.equal(before.revision,revision);const after=reducer(structuredClone(before));if(after.revision!==before.revision)assert.equal(after.revision,before.revision+steps);revisions.push({id,steps,before:before.revision,after:after.revision});records.set(id,structuredClone(after));return structuredClone(after);}
  };
  const api={
   runtime:{id:'chatflow-test',getURL:p=>'chrome-extension://chatflow-test/'+p},
@@ -25,8 +25,9 @@ function harness(){
    session:{async get(k){if(k==null)return Object.fromEntries(session);return {[k]:session.get(k)};},async set(v){for(const [k,x] of Object.entries(v))session.set(k,x);},async remove(...keys){for(const k of keys.flat())session.delete(k);}}
   },
   tabs:{
-   async create(opts){const id=nextTab++;created.push({id,opts});tabs.set(id,{id,url:'about:blank',documentId:'doc-'+id});return{id};},
-   async update(id,patch){const t=tabs.get(id);Object.assign(t,patch);updated.push({id,patch});return t;},
+   async create(opts){createCount++;if(failCreateAt===createCount)throw Error('CREATE_FAILED');const id=nextTab++;created.push({id,opts});tabs.set(id,{id,url:'about:blank',documentId:'doc-'+id});return{id};},
+   async update(id,patch){if(patch.url&&++navigateCount===failNavigateAt)throw Error('NAVIGATION_FAILED');const t=tabs.get(id);Object.assign(t,patch);updated.push({id,patch});return t;},
+   async remove(id){tabs.delete(id);},
    async get(id){if(!tabs.has(id))throw Error('tab missing');return tabs.get(id);},
    async sendMessage(id,msg){sent.push({id,type:msg.type});return{ok:true};}
   },
@@ -42,7 +43,7 @@ function harness(){
  context.globalThis=context;
  vm.runInContext(fs.readFileSync(path.join(root,'src/experiment-service.js'),'utf8'),context);
  const service=context.ChatFlowExperimentService;
- const pageSender={id:'chatflow-test',url:'chrome-extension://chatflow-test/workspace/experiments.html'};
+ const pageSender={id:'chatflow-test',url:'chrome-extension://chatflow-test/workspace/experiments.html',tab:{id:99,windowId:1,url:'chrome-extension://chatflow-test/workspace/experiments.html'}};
  const startCapture=async(options)=>{captureCalls.push(options);return{captureId:'capture-'+options.tabId};};
  async function msg(type,data={},sender=pageSender){return service.handle({type,...data},sender,api,{startCapture});}
  const sourceSender=tabId=>({id:'chatflow-test',url:'https://chatgpt.com/',tab:{id:tabId,url:'https://chatgpt.com/'},documentId:tabs.get(tabId).documentId});
@@ -61,7 +62,7 @@ function harness(){
   tabs.get(tabId).url=url;
   await service.onTabUpdated(api,tabId,{url});
  }
- return{service,api,DB,records,session,tabs,created,updated,sent,captureCalls,pageSender,msg,sourceSender,prefill,observeSend,navigate};
+ return{service,api,DB,records,session,tabs,created,updated,revisions,sent,captureCalls,pageSender,msg,sourceSender,prefill,observeSend,navigate};
 }
 
 test('ordinary conversation pages without a pending experiment handoff do not raise NOT_NEW_NORMAL_CHAT',async()=>{
@@ -243,4 +244,33 @@ test('matching frozen input from an old conversation cannot count as a newly sen
  const row=await h.DB.read(c.id);
  assert.equal(row.branches.A.status,'unknown');
  assert.equal(row.branches.A.attempts[0].evidence.sendTimestampVerified,false);
+});
+
+test('all K branches are atomically recorded before any navigation, using the source experiment window',async()=>{
+ const h=harness();await h.msg('FF_SET_ENABLED',{enabled:true,ack:'local-only-no-send'});
+ const c=await h.msg('FF_CREATE',{operationId:'create_atomic_guard',branchCount:4,w0:'material',p:'one task'});
+ const launched=await h.msg('FF_LAUNCH',{experimentId:c.id,operationId:'launch_atomic_guard'});
+ assert.equal(launched.branchCount,4);
+ assert.equal(h.revisions.filter(r=>r.steps===4).length,1,'all branches share one transaction');
+ assert.ok(h.created.every(x=>x.opts.windowId===1&&x.opts.active===false));
+});
+test('second tab navigation failure marks all branches unknown and cleans bindings and tabs',async()=>{
+ const h=harness({failNavigateAt:2});await h.msg('FF_SET_ENABLED',{enabled:true,ack:'local-only-no-send'});
+ const c=await h.msg('FF_CREATE',{operationId:'create_nav_failure',branchCount:3,w0:'material',p:'one task'});
+ await assert.rejects(h.msg('FF_LAUNCH',{experimentId:c.id,operationId:'launch_nav_failure'}),/NAVIGATION_FAILED/);
+ const row=await h.DB.read(c.id);
+ assert.equal(row.revision,6,'launch and terminalization each commit one K-operation transaction');
+ assert.ok(Object.values(row.branches).every(b=>b.status==='unknown'));
+ assert.equal(h.tabs.size,0,'failed tabs removed');
+ assert.ok([...h.session.keys()].every(k=>!k.startsWith('chatflow_experiment_bind_')&&!k.startsWith('tl_experiment_handoff_')));
+ assert.equal(h.sent.length,0,'no followup prefill after failure');
+});
+test('tab creation failure leaves experiment unchanged and closes any earlier blank tab',async()=>{
+ const h=harness({failCreateAt:2});await h.msg('FF_SET_ENABLED',{enabled:true,ack:'local-only-no-send'});
+ const c=await h.msg('FF_CREATE',{operationId:'create_tab_failure',branchCount:3,w0:'material',p:'one task'});
+ await assert.rejects(h.msg('FF_LAUNCH',{experimentId:c.id,operationId:'launch_tab_failure'}),/CREATE_FAILED/);
+ const row=await h.DB.read(c.id);
+ assert.equal(row.revision,0);
+ assert.ok(Object.values(row.branches).every(b=>b.attempts.length===0));
+ assert.equal(h.tabs.size,0);
 });
