@@ -98,7 +98,7 @@ function captureHarness(fetcher,scope){
  vm.runInContext(instrument('tl-capture.js','globalThis.__capture={json,reconcileVisibleAttachments,setRun(run){active=run;}};'),context);
  const run={source:identity,stopped:false};
  context.__capture.setRun(run);
- return{hooks:context.__capture,run};
+ return{hooks:context.__capture,run,context};
 }
 test('API JSON rejects declared and streamed oversized session bodies before parsing',async()=>{
  let fetched=0;
@@ -142,6 +142,17 @@ test('unverified DOM attachment scope leaves an issue but invents no file bytes'
  assert.equal(model.integrity.issues[0].code,'VISIBLE_ATTACHMENT_SCOPE_UNVERIFIED');
 });
 
+
+test('ambiguous current conversation records a skipped attachment audit without foreign-file attribution',()=>{
+ const sc={root:null,status:'ambiguous',conversationId:'source-A'};
+ const h=captureHarness(async()=>new Response('{}'),{current:()=>sc,contains:()=>false,isVisible:()=>true});
+ h.context.document.querySelectorAll=()=>[{}];
+ const model={source:{conversationId:'source-A'},messages:[],assets:[],integrity:{state:'valid',issues:[]}};
+ h.hooks.reconcileVisibleAttachments(model);
+ assert.equal(model.assets.length,0);
+ assert.equal(model.integrity.state,'partial');
+ assert.equal(model.integrity.issues[0].code,'VISIBLE_ATTACHMENT_SCOPE_AMBIGUOUS');
+});
 test('navigation never labels an unidentified DOM node as verified message identity',()=>{
  const node={isConnected:true};
  const context=vm.createContext({
