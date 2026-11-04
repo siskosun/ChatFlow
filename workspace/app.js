@@ -32,6 +32,7 @@
   const preferred=old||String(activeTab?.id||'');
   sourceOptionsSignature=signature;sourceLookupKey=null;sourceLookupCaptureId=null;
   selector.replaceChildren();
+  $('source-empty-help').hidden=rows.length>0;
   if(!rows.length){selector.append(new Option('未找到已打开的 ChatGPT 对话',''));$('capture').disabled=true;return rows;}
   for(const r of rows){const option=new Option(r.title||r.url,String(r.id));option.dataset.sourceUrl=r.url;selector.append(option);}
   if(rows.some(r=>String(r.id)===preferred))selector.value=String(preferred);
