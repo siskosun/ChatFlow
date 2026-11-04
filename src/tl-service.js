@@ -4,6 +4,13 @@ const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,ap
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
 const trusted=sender=>sender?.id===api.runtime.id;
 function workspace(sender){C.check(trusted(sender)&&String(sender.url||'').startsWith(api.runtime.getURL('workspace/')),'WORKSPACE_ONLY');}
+async function workspaceWindow(msg,sender){
+ const direct=sender?.tab?.windowId;if(Number.isInteger(direct))return direct;
+ C.check(Number.isInteger(msg?.windowId)&&Number.isInteger(msg?.activeTabId),'WORKSPACE_WINDOW_REQUIRED');
+ const active=await api.tabs.get(msg.activeTabId);
+ C.check(active?.windowId===msg.windowId&&active.active===true,'WORKSPACE_WINDOW_REQUIRED');
+ return msg.windowId;
+}
 const startingTabs=new Set();
 async function freezeSource(msg){
  C.check(Number.isInteger(msg.tabId)&&typeof msg.expectedUrl==='string','SOURCE_LOCK_REQUIRED');
@@ -95,11 +102,11 @@ async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targe
 // A new tab must not load ChatGPT before it is durably bound to this handoff.
 // Serialize opens as well as claims: repeated UI clicks cannot create duplicate targets.
 let openQueue=Promise.resolve();
-function openHandoff(id,sender){
+function openHandoff(id,sender,context){
  const operation=openQueue.then(async()=>{
   const h=await S.get('handoffs',id);C.check(h?.state==='prepared','HANDOFF_ALREADY_OPENED');
   if(h.snapshotHash){const source=await S.get('captures',h.captureId);C.check(source?.snapshot,'HANDOFF_SOURCE_DELETED');C.check(new C.SHA256().update(JSON.stringify(C.persistedSnapshot(source.snapshot))).hex()===h.snapshotHash,'HANDOFF_SOURCE_CHANGED_REGENERATE');}
-  const windowId=sender?.tab?.windowId;C.check(Number.isInteger(windowId),'WORKSPACE_WINDOW_REQUIRED');
+  const windowId=await workspaceWindow(context,sender);
   // Keep the continuation beside the source/workspace in the same Edge window.
   // Bind ownership while the new tab is still blank, then navigate it to ChatGPT.
   const target=await api.tabs.create({windowId,url:'about:blank',active:true});C.check(Number.isInteger(target?.id),'NEW_TAB_FAILED');
@@ -149,7 +156,7 @@ async function handle(msg,sender){
   if(msg.type==='tl:stop'){await stopCapture(msg.captureId);return{stopped:true};}
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
   if(msg.type==='tl:prepareHandoff')return prepareHandoff(msg);
-  if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender);
+  if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender,msg);
   if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
   if(msg.type==='tl:confirmUpload'){const h=await S.get('handoffs',msg.id);C.check(h&&['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state),'HANDOFF_NOT_CONFIRMABLE');C.check(msg.confirmed===true,'USER_CONFIRMATION_REQUIRED');await S.set('handoffs',{...h,state:'user_verified_upload',userVerifiedAt:new Date().toISOString(),note:'User confirmed page attachments; this is not model-read or sent-message evidence.'});return{confirmed:true};}
  }
@@ -175,12 +182,9 @@ async function handleRunMessage(msg,run){
  throw new Error('UNKNOWN_OPERATION');
 }
 api.runtime.onMessage.addListener((msg,sender,respond)=>{if(!msg||typeof msg.type!=='string'||(!msg.type.startsWith('tl:')&&!msg.type.startsWith('FF_')))return false;handle(msg,sender).then(data=>respond({ok:true,data})).catch(e=>respond({ok:false,code:errorCode(e)}));return true;});
-let workspaceOpening=Promise.resolve();
-api.action.onClicked.addListener(tab=>{
- workspaceOpening=workspaceOpening.catch(()=>{}).then(async()=>{
-  const url=api.runtime.getURL('workspace/index.html'),existing=(await api.tabs.query({url:url+'*'}))[0];
-  if(existing){await api.tabs.update(existing.id,{active:true});await api.windows.update(existing.windowId,{focused:true});}else await api.tabs.create({url:url+(tab?.id?'?source='+tab.id:'')});
- });
+// Open the native browser side panel beside ChatGPT, not a workspace tab.
+api.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{
+ console.error('CHATFLOW_SIDEPANEL_SETUP_FAILED');
 });
 api.tabs.onUpdated.addListener((tabId,change,tab)=>{
  ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(()=>{});

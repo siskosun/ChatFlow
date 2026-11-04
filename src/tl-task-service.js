@@ -7,7 +7,13 @@
   C.check(sender?.id===api.runtime.id&&String(sender.url||'').startsWith(api.runtime.getURL('workspace/')),'WORKSPACE_ONLY');
   if(msg.type==='tl:taskReturn'){
    const raw=await TLTaskStore.get(msg.taskId);C.check(raw,'TASK_NOT_FOUND');const task=T.validateTask(raw);
-   const windowId=sender.tab?.windowId;C.check(Number.isInteger(windowId),'WORKSPACE_WINDOW_REQUIRED');
+   let windowId=sender.tab?.windowId;
+   if(!Number.isInteger(windowId)){
+    C.check(Number.isInteger(msg.windowId)&&Number.isInteger(msg.activeTabId),'WORKSPACE_WINDOW_REQUIRED');
+    const active=await api.tabs.get(msg.activeTabId);
+    C.check(active?.windowId===msg.windowId&&active.active===true,'WORKSPACE_WINDOW_REQUIRED');
+    windowId=msg.windowId;
+   }
    // Never accept a return URL from the external result or alter an existing draft.
    const tabs=await api.tabs.query({windowId});
    const existing=tabs.find(tab=>{try{const s=C.chatUrl(tab.url);return s.origin===task.source.origin&&s.conversationId===task.source.conversationId&&s.url===task.source.url;}catch{return false;}});
