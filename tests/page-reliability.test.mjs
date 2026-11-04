@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {webcrypto} from 'node:crypto';
 const read=name=>fs.readFileSync(new URL('../src/'+name,import.meta.url),'utf8');
+function instrument(name,expr){const src=read(name);if(!src.trimEnd().endsWith('})();'))throw Error('INVALID_TEST_INSTRUMENT_TARGET');return src.replace(/\}\)\(\);\s*$/,expr+'\n})();');}
 
 function scopeHarness(){
  class Node {}
@@ -51,7 +51,7 @@ function injectionHarness(){
   setTimeout,clearTimeout,URL,File:class{},DataTransfer:class{}
  });
  ctx.globalThis=ctx;
- vm.runInContext(read('tl-inject.js')+'\nglobalThis.__uploadsConfirmed=uploadsConfirmed;',ctx);
+ vm.runInContext(instrument('tl-inject.js','globalThis.__uploadsConfirmed=uploadsConfirmed;'),ctx);
  return ctx.__uploadsConfirmed;
 }
 function chip(name,{state='ready',visible=true,attribute='data-filename'}={}){
@@ -90,7 +90,7 @@ function captureHarness(fetcher,scope){
   chrome:{runtime:{id:'test',onMessage:{addListener(){}}}}
  });
  context.globalThis=context;
- vm.runInContext(read('tl-capture.js')+'\nglobalThis.__capture={json,reconcileVisibleAttachments,setRun(run){active=run;}};',context);
+ vm.runInContext(instrument('tl-capture.js','globalThis.__capture={json,reconcileVisibleAttachments,setRun(run){active=run;}};'),context);
  const run={source:identity,stopped:false};
  context.__capture.setRun(run);
  return{hooks:context.__capture,run};
@@ -149,7 +149,7 @@ test('navigation never labels an unidentified DOM node as verified message ident
   URL
  });
  context.globalThis=context;
- vm.runInContext(read('tl-tools-page.js')+'\nglobalThis.__resolve=resolve;',context);
+ vm.runInContext(instrument('tl-tools-page.js','globalThis.__resolve=resolve;'),context);
  const sc={root:{},status:'unverified'};
  const found=context.__resolve({}, {domNode:node,idKnown:false},sc);
  assert.equal(found.confidence,'observed_dom_node');
