@@ -34,7 +34,7 @@
    const scope=globalThis.TLPageScope?.current(),selection=window.getSelection(),anchor=selection?.anchorNode?.parentElement;
    const message=anchor?.closest('[data-message-id],[data-turn-key],[data-message-author-role]');
    const focus=selection?.focusNode;
-   const safe=!!scope?.root&&scope.status!=='ambiguous'&&globalThis.TLPageScope.contains(scope,anchor)&&globalThis.TLPageScope.contains(scope,focus);
+   const safe=!!scope?.root&&scope.status==='confirmed'&&globalThis.TLPageScope.contains(scope,anchor)&&globalThis.TLPageScope.contains(scope,focus);
    const same=safe&&message&&message.contains(focus)&&globalThis.TLPageScope.contains(scope,message);
    const text=same?String(selection).slice(0,20001):'';
    const verified=same&&scope.status==='confirmed';
