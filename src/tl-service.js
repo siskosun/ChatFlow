@@ -79,7 +79,7 @@ async function startLockedCapture(msg){
  else await S.set('captures',{id:captureId,title:C.scrubText(tab.title||'读取对话中'),source,snapshot:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),state:'capturing',live:!!msg.live,saveScope:scope});
  const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:frozen.expectedDocumentId,cancelled:false};runs.set(nonce,run);await keepRuns();
  try{const response=await sendToSource(tab.id,{type:'tl:capture',nonce,live:run.live,scope:run.scope,expectedSource:source},run.documentId);C.check(response?.ok,response?.code||'CHATGPT_PAGE_NOT_READY');}
- catch(e){runs.delete(nonce);await keepRuns();const c=await S.get('captures',captureId);await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});throw e;}
+ catch(e){runs.delete(nonce);try{await keepRuns();const c=await S.get('captures',captureId);if(c)await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});}catch{/* preserve the primary failure */}throw e;}
  return{captureId};
 }
 async function stopCapture(captureId){
