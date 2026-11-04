@@ -47,7 +47,10 @@
   function notice(message, error=false) {
     // The in-card live region is the only status. A duplicate body-level toast
     // would obscure a browser viewport and repeat the same text.
-    const el=$("ff-notice");el.textContent=error?readableError(message):message;el.dataset.error=String(error);
+    const el=$("ff-notice"),value=String(error?readableError(message):message||'');
+    clearTimeout(el._chatflowTimer);el.replaceChildren(document.createTextNode(value));el.dataset.error=String(error);
+    if(value&&error){const close=document.createElement('button');close.type='button';close.textContent='关闭提示';close.className='status-dismiss';close.setAttribute('aria-label','关闭当前错误提示');close.addEventListener('click',()=>{el.textContent='';el.dataset.error='false';});el.append(close);}
+    else if(value)el._chatflowTimer=setTimeout(()=>{if(el.textContent===value)el.textContent='';},4500);
   }
   function bytes() {
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);

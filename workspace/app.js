@@ -9,7 +9,12 @@
  Object.assign(errors,{INVALID_CONTEXT_SOURCES:'上下文来源选择无效，请重新选择本地档案。',CONTEXT_SOURCE_NOT_READY:'所选档案尚未准备好，请完成保存或换一份档案。',PASSAGE_SELECTION_REQUIRED:'请先选择要使用的重点片段。',PASSAGE_REANCHOR_SOURCE_MISMATCH:'片段所在对话已经变化，请返回原档案重新定位。',USER_CONFIRMATION_REQUIRED:'请先勾选人工核对确认；这并不代表模型已读取附件。',HANDOFF_NOT_PREPARED:'接续包尚未准备，请先检查历史与文件。',REGENERATE_HANDOFF_AFTER_CHANGES:'接续选项已经变化，请重新准备历史与文件。',EXTENSION_UNAVAILABLE:'扩展后台暂时无响应，请刷新工作区；如仍失败，请重启扩展。',HANDOFF_ALREADY_OPENED:'已经打开此接续包的新聊天，不会重复打开。',NO_VISIBLE_MESSAGES:'当前对话没有可访问的消息，不能生成快照。',SAVE_SCOPE_CHANGED:'保存期间文件范围已更改；未使用过期选择，请重新开始保存。',LIVE_SAVE_MODE_CHANGED:'保存期间实时缓存选项已更改；请重新开始保存。',TAB_CLOSED:'来源标签页已关闭，请重新选择对话。',DOCUMENT_ID_INVALID:'原页面已重载，请重新打开来源对话。',INJECT_FAILED:'无法注入读取脚本，请检查扩展网站权限。',IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS:'本地存储升级被其他 ChatFlow 窗口阻挡；请关闭其他扩展工作区后重试。',STARTUP_FAILED:'扩展启动未完成，请检查存储权限并重新打开工作区。',FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。'});
  function explain(e){const key=String(e?.message||e||'');if(Object.hasOwn(errors,key))return errors[key];if(/^HTTP_\d+$/.test(key))return '远端文件当前不可取得（'+key+'）；不能据此认定文件已永久删除。';return /^[A-Z][A-Z0-9_]{2,100}$/.test(key)?'操作未完成（'+key+'），请检查状态后重试。':'操作未完成，请检查状态或查看工程诊断后重试。';}
  let statusTimeout=null;
- function status(text,error=false){const el=$('status'),value=String(text||'').trim();clearTimeout(statusTimeout);if(el.textContent!==value)el.textContent=value;el.classList.toggle('error',!!error&&!!value);if(value&&!error)statusTimeout=setTimeout(()=>{if(el.textContent===value)el.textContent='';},4500);}
+ function status(text,error=false){
+  const el=$('status'),value=String(text||'').trim();clearTimeout(statusTimeout);
+  el.replaceChildren(document.createTextNode(value));el.classList.toggle('error',!!error&&!!value);
+  if(value&&error){const close=node('button','关闭提示','status-dismiss');close.type='button';close.setAttribute('aria-label','关闭当前错误提示');close.onclick=()=>status('');el.append(close);}
+  else if(value)statusTimeout=setTimeout(()=>{if(el.textContent===value)status('');},4500);
+ }
  function node(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;}
  function button(text,fn,cls){const b=node('button',text,cls);b.type='button';b.addEventListener('click',()=>guard(fn));return b;}
  async function guard(fn){try{return await fn();}catch(e){status(explain(e),true);if(['IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS','STARTUP_FAILED','EXTENSION_UNAVAILABLE'].includes(e?.message))$('retry-workspace').hidden=false;}}
@@ -417,7 +422,15 @@
  setTimeout(syncSources,1200);setTimeout(syncSources,4200);
  window.addEventListener('focus',syncSources);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSources();});
- async function initializeWorkspace(){await S.open();updateScopeUI();await sources();await renderRunning();await refreshArchives();updateContextButton();await quota();await updateSelection();status('');}
- $('retry-workspace').onclick=()=>guard(async()=>{const button=$('retry-workspace');if(button.disabled)return;button.disabled=true;try{await S.open();await call('tl:retryBoot');await initializeWorkspace();button.hidden=true;status('工作区已恢复，可以继续操作。');}finally{button.disabled=false;}});
+ async function initializeWorkspace(){
+  await S.open();updateScopeUI();
+  const failed=[];
+  for(const [label,task] of [['来源对话',sources],['当前采集',renderRunning],['本地档案',refreshArchives],['上下文选项',updateContextButton],['存储配额',quota],['接续来源',updateSelection]]){
+   try{await task();}catch{failed.push(label);}
+  }
+  if(failed.length){$('retry-workspace').hidden=false;status('工作区部分初始化失败（'+failed.join('、')+'），已保留可用数据；可点击重试。',true);return false;}
+  status('');return true;
+ }
+ $('retry-workspace').onclick=()=>guard(async()=>{const button=$('retry-workspace');if(button.disabled)return;button.disabled=true;try{await S.open();await call('tl:retryBoot');const ready=await initializeWorkspace();if(ready){button.hidden=true;status('工作区已恢复，可以继续操作。');}}finally{button.disabled=false;}});
  switchView('home');guard(initializeWorkspace);
 })();

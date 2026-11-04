@@ -8,7 +8,14 @@
  function n(tag,text,attrs={}){const e=document.createElement(tag);if(text!=null)e.textContent=text;for(const[k,v]of Object.entries(attrs)){if(k==='class')e.className=v;else e.setAttribute(k,v);}return e;}
  function button(text,id,fn,cls='quiet'){const e=n('button',text,{type:'button',class:cls,...(id?{id}:{})});if(fn)e.addEventListener('click',()=>safe(fn));return e;}
  function field(label,input){const l=n('label',label,{for:input.id});return[l,input];}
- function say(text,error=false){const e=!$('tasks-view')?.hidden?$('task-status'):!$('settings-view')?.hidden?$('settings-status'):$('status');if(!e)return;e.textContent=text;e.classList.toggle('error',error);}
+ const noticeTimers=new WeakMap();
+ function say(text,error=false){
+  const e=!$('tasks-view')?.hidden?$('task-status'):!$('settings-view')?.hidden?$('settings-status'):$('status');if(!e)return;
+  clearTimeout(noticeTimers.get(e));const message=String(text||'');
+  e.replaceChildren(document.createTextNode(message));e.classList.toggle('error',!!error&&!!message);
+  if(message&&error){const close=n('button','关闭提示',{type:'button',class:'status-dismiss','aria-label':'关闭当前错误提示'});close.addEventListener('click',()=>{e.textContent='';e.classList.remove('error');});e.append(close);}
+  else if(message)noticeTimers.set(e,setTimeout(()=>{if(e.textContent===message)e.textContent='';},4500));
+ }
  function taskError(e){const key=String(e?.message||e||'');if(Object.hasOwn(errors,key))return errors[key];if(/[\u3400-\u9fff]/.test(key)&&key.length<=200)return key;return /^[A-Z][A-Z0-9_]{2,100}$/.test(key)?'任务操作未完成（'+key+'），请重试或检查本地状态。':'任务操作未完成，请检查状态后重试。';}
  async function safe(fn){try{return await fn();}catch(e){say(taskError(e),true);}}
  async function call(type,data={}){const r=await chrome.runtime.sendMessage({type,...data});if(!r?.ok)throw Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
