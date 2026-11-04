@@ -15,7 +15,7 @@ test('branch launch commits one full K-branch revision set or records terminal u
  assert.match(s,/if\(!Number\.isInteger\(windowId\)\)throw new Error\('WORKSPACE_WINDOW_REQUIRED'\)/);
  assert.match(s,/await DB\.update\(row\.id,row\.revision,previous=>/);
  assert.match(s,/branchLabels\.length\)/);
- assert.match(s,/status:'unknown',phase:'created'/);
+ assert.match(s,/status:'unknown',phase:next\.branches\[branch\]\.attempts\.at\(-1\)/);
  assert.match(s,/await api\.tabs\.remove\(tabId\)/);
  assert.match(db,/revisionDelta=1/);
 });
