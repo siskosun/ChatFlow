@@ -171,6 +171,12 @@
   }
   function reconcileVisibleAttachments(model) {
     const scope = globalThis.TLPageScope?.current();
+    if (scope?.status === 'unavailable') {
+      // API identity is independently locked. No DOM container is not proof
+      // that the returned mapping or its files are incomplete.
+      model.domAudit = { state: 'unavailable', reason: 'NO_CONFIRMED_PAGE_CONTAINER' };
+      return;
+    }
     if (!scope?.root || scope.status === 'ambiguous') {
       if (globalThis.TLPageScope) {
         model.integrity.state = 'partial';
@@ -225,7 +231,7 @@
       model.integrity.state = 'partial';
       model.integrity.issues.push({ code: reason, name, messageId: messageOwner?.id || null, occurrence });
       const key = JSON.stringify(['visible-unmatched', model.source.conversationId, messageOwner?.id || null, stableRef]);
-      if (model.assets.some(asset => asset.key === key)) continue; // same explicit reference, not same filename
+      if (model.assets.some(asset => asset.key === key)) continue;
       model.assets.push({ key, messageId: messageOwner?.id || 'visible-unmatched', nodeId: messageOwner?.nodeId || 'visible-unmatched', name,
         mime: 'application/octet-stream', kind: 'upload', origin, authorRole: role,
         ref: { scheme: 'unsupported' }, expectedSize: null, state: 'unavailable', reason });
