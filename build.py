@@ -54,6 +54,8 @@ assert manifest["version"] == "0.3"
 assert manifest["manifest_version"] == 3
 assert "<all_urls>" not in json.dumps(manifest)
 assert manifest["background"]["service_worker"] == "src/tl-service.js"
+assert manifest["side_panel"]["default_path"] == "workspace/index.html"
+assert "sidePanel" in manifest["permissions"] and "default_popup" not in manifest["action"]
 
 try:
     commit = subprocess.check_output(
@@ -115,6 +117,8 @@ for browser in ("chrome", "edge"):
         packaged_manifest = json.loads(z.read("manifest.json"))
         assert packaged_manifest["version"] == "0.3"
         assert "workspace/index.html" in z.namelist()
+        assert packaged_manifest["side_panel"]["default_path"] in z.namelist()
+        assert "sidePanel" in packaged_manifest["permissions"]
         assert "LICENSE" in z.namelist()
         assert "THIRD_PARTY_NOTICES.md" in z.namelist()
         packaged_files = set(z.namelist())
