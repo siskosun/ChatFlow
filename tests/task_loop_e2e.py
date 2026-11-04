@@ -135,7 +135,7 @@ async def main():
     await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await a.locator('#scroll [data-message-id="m4"]').wait_for(state='attached')
     await tools.locator('#list .row button').last.click();await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
     passed('virtualized_navigation_finds_exact_ids_and_distinguishes_duplicate_text')
-    await tools.locator('#list .row input').first.check();await tools.locator('details summary').click();await tools.locator('select').first.select_option('json')
+    await tools.locator('#list .row input').first.check();await tools.locator('summary').filter(has_text='\u5bfc\u51fa\u6240\u9009\u56de\u5408\u4e0e\u516c\u5f0f\u590d\u5236').click();await tools.locator('select').first.select_option('json')
     async with a.expect_download() as downloaded:await tools.get_by_role('button',name='\u5bfc\u51fa\u52fe\u9009\u56de\u5408').click()
     data=json.loads(Path(await (await downloaded.value).path()).read_text());assert data['scope']=='selected_turns_not_full_archive' and data['source']['conversationId']==A;assert data['messages'][0]['id']=='m4'
     await tools.locator('select').last.select_option('x^2 + y^2');await tools.get_by_role('button',name='\u590d\u5236 LaTeX').click()
