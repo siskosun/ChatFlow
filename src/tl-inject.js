@@ -6,7 +6,8 @@
   const C = globalThis.TLCore, P = globalThis.ChatFlowProviders, api = chrome;
   const EDITOR_SELECTOR = '#prompt-textarea[contenteditable="true"],textarea#prompt-textarea,[data-testid="composer-text-input"][contenteditable="true"]';
   const CHIP_SELECTOR = '[data-testid="file-chip"],[data-testid="attachment-chip"],[data-testid="file-upload"],[data-file-id]';
-  let started = false, noticeTimeout = null;
+  let started = false, experimentPreparing = false, lastExperimentAttempt = null, experimentGestureCleanup = null;
+  const noticeTimers = new Map();
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const code = error => /^[A-Z0-9_]{2,100}$/.test(error?.message || '') ? error.message : 'HANDOFF_NOT_CONFIRMED';
   async function send(type, data = {}) {
@@ -14,19 +15,20 @@
     if (!response?.ok) throw new Error(response?.code || 'EXTENSION_UNAVAILABLE');
     return response.data;
   }
-  function notice(text) {
-    let el = document.getElementById('chatflow-handoff-notice');
+  function notice(text, kind='handoff') {
+    const noticeId=kind==='experiment'?'chatflow-experiment-notice':'chatflow-handoff-notice';
+    let el = document.getElementById(noticeId);
     if (!el) {
-      el = document.createElement('div'); el.id = 'chatflow-handoff-notice'; el.setAttribute('role', 'status');
+      el = document.createElement('div'); el.id = noticeId; el.setAttribute('role', 'status');
       el.style.cssText = 'position:fixed;top:10px;right:10px;width:max-content;max-width:min(310px,calc(100vw - 20px));z-index:2147483647;padding:10px 36px 10px 12px;border:1px solid #ccd8e2;border-radius:10px;background:#fff;color:#264259;font:12px/1.5 system-ui;box-shadow:0 4px 16px #142e3422;overflow-wrap:anywhere';
       (document.body || document.documentElement).append(el);
     }
     el.replaceChildren(document.createTextNode(text));
     const close = document.createElement('button'); close.type = 'button'; close.textContent = '×'; close.setAttribute('aria-label', '关闭 ChatFlow 提示');
     close.style.cssText = 'position:absolute;top:4px;right:5px;min-width:24px;height:24px;border:0;background:transparent;color:#456;cursor:pointer';
-    close.addEventListener('click', () => { clearTimeout(noticeTimeout); el.remove(); }); el.append(close);
-    clearTimeout(noticeTimeout);
-    noticeTimeout = setTimeout(() => { el.remove(); noticeTimeout = null; }, text.includes('未确认') || text.includes('手动上传') ? 12000 : 4500);
+    close.addEventListener('click', () => { clearTimeout(noticeTimers.get(noticeId));noticeTimers.delete(noticeId); el.remove(); }); el.append(close);
+    clearTimeout(noticeTimers.get(noticeId));
+    noticeTimers.set(noticeId,setTimeout(() => { el.remove();noticeTimers.delete(noticeId); }, text.includes('未确认') || text.includes('手动上传') ? 12000 : 4500));
   }
   const visible = el => !!el && !el.closest?.('[hidden],[inert],[aria-hidden="true"]') &&
     (el.getClientRects().length > 0 || el.offsetParent !== null);
@@ -75,15 +77,21 @@
     return new File(parts, file.uploadName || file.name, { type: file.mime || 'application/octet-stream' });
   }
   function prefill(el, text) {
-    C.check(!value(el).trim(), 'USER_DRAFT_CHANGED'); el.focus();
+    C.check(!value(el).trim(), 'USER_DRAFT_CHANGED');
+    const earlier=document.activeElement;
+    el.focus();
+    try{
     if (el instanceof HTMLTextAreaElement) {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, text);
       el.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
-      C.check(document.execCommand('insertText', false, text), 'PREFILL_NOT_SUPPORTED');
+      // execCommand is still the established input path for ChatGPT rich editors.
+      // Synthetic InputEvent alone does not insert text; final readback is authoritative.
+      document.execCommand('insertText', false, text);
       el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
     }
     C.check(value(el).replace(/\r/g, '').trim() === text.replace(/\r/g, '').trim(), 'PREFILL_NOT_CONFIRMED');
+    }finally{if(earlier&&earlier!==el&&earlier.isConnected)earlier.focus({preventScroll:true});}
   }
   function observeFiles(names,composer){
     const area=composerArea(composer),unknown=()=>names.map(()=>({state:'unknown',basis:null}));
@@ -106,9 +114,12 @@
   }
   function uploadsConfirmed(names,composer){return names.length>0&&observeFiles(names,composer).every(row=>row.state==='page_ready');}
   function observeManualExperimentSend(handoff, el) {
+    experimentGestureCleanup?.();
     let armed = true;
     function clear() {
       document.removeEventListener('click', onGesture, true); document.removeEventListener('keydown', onGesture, true);
+      globalThis.removeEventListener?.('pagehide',clear);
+      if(experimentGestureCleanup===clear)experimentGestureCleanup=null;
     }
     function matches(event) {
       if (!event.isTrusted || !armed || !el.isConnected || value(el).trim() !== handoff.text.trim()) return false;
@@ -122,9 +133,10 @@
       if (!matches(event)) return;
       armed = false; clear();
       try { await send('tl:experimentSendIntent', { experimentId: handoff.experimentId, branch: handoff.branch, attemptId: handoff.attemptId }); }
-      catch { notice('ChatFlow：无法确认手动发送操作的分支身份。请勿继续采集该分支；不会自动重发。'); }
+      catch { notice('ChatFlow：无法确认手动发送操作的分支身份。请勿继续采集该分支；不会自动重发。','experiment'); }
     }
     document.addEventListener('click', onGesture, true); document.addEventListener('keydown', onGesture, true);
+    experimentGestureCleanup=clear;
     globalThis.addEventListener?.('pagehide', clear, { once: true });
   }
   async function waitForEditor() {
@@ -132,18 +144,25 @@
     throw new Error('COMPOSER_NOT_READY');
   }
   async function prepareExperiment() {
+    if(experimentPreparing)return;
+    experimentPreparing=true;
     let handoff;
-    try { handoff = await send('tl:claimExperimentHandoff'); }
-    catch (error) { notice('ChatFlow：并行分支预填未确认（' + code(error) + '）。请检查目标页；不会自动重试。'); return; }
-    if (!handoff) return;
-    try {
-      notice('ChatFlow：正在核验冻结任务。不会自动发送消息。'); await waitForEditor();
-      const el = preflight(); prefill(el, handoff.text); P.identify(location.href, { target: true }).identity;
-      C.check(value(el).replace(/\r/g, '').trim() === handoff.text.replace(/\r/g, '').trim(), 'PREFILL_NOT_CONFIRMED');
-      await send('tl:experimentPrefillAck', { experimentId: handoff.experimentId, branch: handoff.branch, attemptId: handoff.attemptId });
-      observeManualExperimentSend(handoff, el);
-      notice('ChatFlow：分支 ' + handoff.branch + ' 的冻结任务已逐字预填。请核对后由你手动发送。');
-    } catch (error) { notice('ChatFlow：分支 ' + handoff.branch + ' 预填未确认（' + code(error) + '）。不会自动发送或重试；请回实验页手动重新预填。'); }
+    try{
+      try{handoff=await send('tl:claimExperimentHandoff');}
+      catch(error){notice('ChatFlow：并行分支预填未确认（'+code(error)+'）。请检查目标页；不会自动重试。','experiment');return;}
+      if(!handoff)return;
+      const attempt=[handoff.experimentId,handoff.branch,handoff.attemptId].join(':');
+      if(lastExperimentAttempt===attempt){try{if(value(editor()).trim()===handoff.text.trim())return;}catch{/* next preflight must still verify */}}
+      try{
+        notice('ChatFlow：正在核验冻结任务。不会自动发送消息。','experiment');
+        await waitForEditor();
+        const el=preflight();prefill(el,handoff.text);P.identify(location.href,{target:true}).identity;
+        C.check(value(el).replace(/\r/g,'').trim()===handoff.text.replace(/\r/g,'').trim(),'PREFILL_NOT_CONFIRMED');
+        await send('tl:experimentPrefillAck',{experimentId:handoff.experimentId,branch:handoff.branch,attemptId:handoff.attemptId});
+        observeManualExperimentSend(handoff,el);lastExperimentAttempt=attempt;
+        notice('ChatFlow：分支 '+handoff.branch+' 的冻结任务已逐字预填。请核对后由你手动发送。','experiment');
+      }catch(error){notice('ChatFlow：分支 '+handoff.branch+' 预填未确认（'+code(error)+'）。不会自动发送或重试；请回实验页手动重新预填。','experiment');}
+    }finally{experimentPreparing=false;}
   }
   async function prepare() {
     if(started)return;
