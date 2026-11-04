@@ -59,9 +59,9 @@ jobs:
       - name: Task Loop and navigation synthetic acceptance
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/task_loop_e2e.py
-      - name: Real IndexedDB recoverable large archives and busy capture regression
+      - name: Real IndexedDB archives, version-bound evidence and actual restore readback
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
-        run: xvfb-run -a python tests/archive_reliability_e2e.py
+        run: xvfb-run -a python tests/evidence-browser.py
       - name: Real IndexedDB task backup capacity, migration and summary pagination
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/task_storage_v4.py
