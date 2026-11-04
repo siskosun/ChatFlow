@@ -1,0 +1,12 @@
+from pathlib import Path
+import hashlib,json
+spec=json.loads(r'''{"src/tl-store.js":{"before":"c9a808ef385e9c796b463f501ec8809119bbbee55f634518b8a2f82ea6ca5789","after":"5feffb02dda546b65e77e0c64229e3fb13b5fae045cbbbfa3fb1e22c4c2d0212","edits":[[33,33,"   // The obsolete v2 passage index is replaced by the conversation-bound source index.\n   if (name === 'passages' && store.indexNames.contains('message')) store.deleteIndex('message');\n"]]},"tests/storage_edges.py":{"before":"a4cc5657f7ec0242404314b2e87e999fea2dec1f50bb26a6927742353ba5906b","after":"ac9c1a12833b60386610d5c47976b0a02785fdc7f41d5334e4a1635e8028af54","edits":[[195,197,"            assert migration['version']==5 and {'passages','tasks','taskResults','captureSummaries','taskSummaries','taskResultSummaries','taskImportRows'}.issubset(migration['stores']) and migration['record']['id']=='legacy-v1-record',migration\n            print('PASS indexeddb_v1_to_v5_migration_preserves_existing_records',flush=True)\n"],[198,199,"            assert v2['version']==5 and v2['capture']['id']=='v2-capture' and v2['passage']['text']=='existing original excerpt' and {'tasks','taskResults'}.issubset(v2['stores']),v2\n"],[201,202,"            result['cases']=[{'name':'indexeddb_v1_to_v5_migration_preserves_existing_records','result':'pass'},{'name':'indexeddb_v2_to_v5_preserves_archives_and_passages','result':'pass'}]+await page.evaluate(CASES)\n"]]},"tests/rollout_e2e.py":{"before":"a79739c09e4dd9a43474e43162760165b39b579318017d4cfb1d2da8be0b3e1b","after":"5a1c87599cd759f4b74796f43c25067fd40c5f57144c54249cdc64b41da1bf04","edits":[[83,84,"                    opening.onupgradeneeded=()=>{const db=opening.result;db.createObjectStore('captures',{keyPath:'id'});if(version>=2){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');if(version===2||version===4)p.createIndex('message',['captureId','messageId','nodeId']);}};\n"],[114,114,"                await w.locator('#verification-report [data-evidence=\"restore\"]').wait_for(state='attached')\n"]]}}''')
+for name,item in spec.items():
+    p=Path(name);data=p.read_bytes()
+    assert hashlib.sha256(data).hexdigest()==item['before'],name+' changed'
+    lines=data.decode().splitlines(True)
+    for start,end,value in reversed(item['edits']):lines[start:end]=[value]
+    output=''.join(lines).encode()
+    assert hashlib.sha256(output).hexdigest()==item['after'],name+' mismatch'
+    p.write_bytes(output)
+print('APPLIED_THREE_EXACT_SOURCE_REPAIRS')

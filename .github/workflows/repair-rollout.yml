@@ -1,0 +1,33 @@
+name: Apply three source-locked rollout repairs
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  repair:
+    if: github.repository == 'siskosun/ChatFlow' && github.head_ref == 'cf/complete-rollout-20261104' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply bounded source edits to feature branch only
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote origin refs/heads/cf/complete-rollout-20261104 | cut -f1)" = "$EXPECTED_HEAD"
+          python .ci-repair.py
+          git rm .ci-repair.py .github/workflows/repair-rollout.yml
+          git add src/tl-store.js tests/storage_edges.py tests/rollout_e2e.py
+          git config user.name 'ChatFlow cloud development'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: converge legacy passage indexes and synchronize browser regression assertions'
+          git push origin HEAD:refs/heads/cf/complete-rollout-20261104
