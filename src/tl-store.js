@@ -31,6 +31,8 @@
   for (const [name, [keyPath, indexes]] of Object.entries(schema)) {
    const store = db.objectStoreNames.contains(name) ? tx.objectStore(name) : db.createObjectStore(name, {keyPath});
    C.check(JSON.stringify(store.keyPath) === JSON.stringify(keyPath), 'IDB_SCHEMA_KEY_CONFLICT');
+   // The obsolete v2 passage index is replaced by the conversation-bound source index.
+   if (name === 'passages' && store.indexNames.contains('message')) store.deleteIndex('message');
    for (const [indexName, path, unique = false] of indexes) {
     if (store.indexNames.contains(indexName)) {
      const prior = store.index(indexName);

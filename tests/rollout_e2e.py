@@ -81,7 +81,7 @@ async def main():
                   const signatures=[];
                   for(const version of [1,2,3,4]){
                     const name='rollout-v'+version,opening=indexedDB.open(name,version);
-                    opening.onupgradeneeded=()=>{const db=opening.result;db.createObjectStore('captures',{keyPath:'id'});if(version>=2){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');}};
+                    opening.onupgradeneeded=()=>{const db=opening.result;db.createObjectStore('captures',{keyPath:'id'});if(version>=2){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');if(version===2||version===4)p.createIndex('message',['captureId','messageId','nodeId']);}};
                     const db=await request(opening),names=version>=2?['captures','passages']:['captures'];
                     await new Promise((resolve,reject)=>{const tx=db.transaction(names,'readwrite');tx.objectStore('captures').put({id:'retained',state:'partial',payload:'unchanged'});if(version>=2)tx.objectStore('passages').put({passageId:'p1',captureId:'retained',conversationId:'c',messageId:'m',nodeId:'n',createdAt:42,text:'unchanged'});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
                     const up=await TLStore.open(name);if(up.version!==5)throw Error('INDEX_REPAIR_NOT_APPLIED');
@@ -112,6 +112,7 @@ async def main():
                 await w.locator('.header-actions [data-view="archive"]').click();await w.locator('#refresh').click()
                 row=w.locator('.archive-select-row').filter(has=w.locator('input[data-capture-id="'+evidence['id']+'"]'))
                 await row.locator('button.archive-button').click()
+                await w.locator('#verification-report [data-evidence="restore"]').wait_for(state='attached')
                 assert await w.locator('#verification-report [data-evidence="restore"]').count()==1
                 assert '\u6821\u9a8c\u901a\u8fc7' in await w.locator('[data-evidence="restore"]').inner_text()
                 await w.locator('#detail details').filter(has=w.locator('input[data-asset-key]')).locator('summary').click()
