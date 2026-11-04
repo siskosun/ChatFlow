@@ -79,8 +79,8 @@
   throw new Error('UNSUPPORTED_ASSET_REFERENCE');
  }
  function reconcileVisibleAttachments(model){
-  const sc=TLPageScope.current();
-  if(!sc.root||sc.status==='ambiguous')return;
+  const sc=globalThis.TLPageScope?.current();
+  if(!sc?.root||sc.status==='ambiguous')return;
   const selector='[data-message-author-role] a[download],[data-message-author-role] [data-testid="file-chip"]';
   const visible=[...sc.root.querySelectorAll(selector)].filter(e=>TLPageScope.contains(sc,e));
   if(!visible.length)return;
