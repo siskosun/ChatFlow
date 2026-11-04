@@ -158,23 +158,35 @@ async def main():
             await workspace.wait_for_function('typeof TLStore!=="undefined"&&typeof TLArchive!=="undefined"')
             await wait_async(workspace,'()=>document.querySelector("#source").value===""&&document.querySelector("#capture").disabled')
             assert await workspace.locator('#capture').is_disabled()
+            assert await workspace.locator('#source-empty-help').count()==1
+            assert await workspace.locator('#source-empty-help a').get_attribute('href')=='https://chatgpt.com/'
             passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
             assert await workspace.locator('#home-view .flow-choice').count()==2
             assert await workspace.locator('#home-view').is_visible()
             assert not await workspace.locator('.context-toolbar').is_visible()
             await workspace.locator('#home-view [data-view="capture"]').click()
+            assert await workspace.locator('#source-empty-help').is_visible()
             passed('two_equal_primary_journeys_and_advanced_off_by_default')
+            await workspace.locator('header [data-view="archive"]').click()
+            assert await workspace.locator('#archive-view').is_visible()
+            await workspace.locator('.archive-empty button').wait_for(state='visible')
+            assert '还没有本地档案' in await workspace.locator('.archive-empty').inner_text()
+            await workspace.locator('.archive-empty button').click()
+            assert await workspace.locator('#capture-view').is_visible()
+            passed('empty_archive_offers_save_first_and_routes_to_capture_without_side_effects')
             source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
             assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
             await workspace.bring_to_front()
             await wait_async(workspace,'()=>document.querySelector("#source").value!==""&&!document.querySelector("#capture").disabled',timeout=15000)
+            assert not await workspace.locator('#source-empty-help').is_visible()
             manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
             assert manifest['side_panel']['default_path']=='workspace/index.html' and 'sidePanel' in manifest['permissions'],manifest
             assert 'default_popup' not in manifest['action']
             await wait_async(workspace,"async()=>{const b=await chrome.sidePanel.getPanelBehavior();return b.openPanelOnActionClick===true}",timeout=15000)
             panel=await workspace.evaluate("async()=>chrome.sidePanel.getOptions({})")
             assert panel['path']=='workspace/index.html' and panel['enabled'] is True,panel
-            assert await workspace.locator('.journey-step svg').count()==3
+            assert await workspace.locator('.journey-step').count()==0
+            assert '不会代你发送消息' in await workspace.locator('.journey-note').inner_text()
             assert await workspace.evaluate("""() => {const c=getComputedStyle(document.querySelector('button.quiet'));return c.borderTopStyle==='solid'&&parseFloat(c.borderTopWidth)>=1;}""")
             assert await workspace.locator('#status').inner_text()==''  # No persistent startup banner.
             passed('native_sidebar_entry_and_unified_visual_controls_without_startup_notice')

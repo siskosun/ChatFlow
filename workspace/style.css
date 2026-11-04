@@ -148,7 +148,19 @@ footer:has(#download-status:empty){display:none}#download-status{display:block;p
 #task-status{margin:0 0 14px;padding:12px;background:var(--tint);border-radius:10px;overflow-wrap:anywhere}#task-status:empty{display:none}#task-status.error{color:var(--bad);background:var(--error-bg)}
 .match-preview{padding:12px 0;overflow-wrap:anywhere}.match-preview:empty{display:none}.match-preview p{margin:6px 0}.match-preview small{display:block;color:var(--muted)}#task-manual{border-top:1px solid var(--line);padding:10px 0}#task-manual label{display:block;margin:10px 0}.check{display:flex!important;gap:10px;align-items:flex-start}
 .recent-tasks{margin:26px 0}.recent-tasks>summary{font-size:14px;font-weight:650;min-height:44px;cursor:pointer}.task-row{padding:16px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.task-row strong{display:block;font-size:14px}.task-row small{display:block;color:var(--muted);font-size:12px;margin:6px 0}.task-row .actions button{font-size:13px}.task-row details{margin-top:10px}.task-row details button{display:block;margin:8px 0}
-.preference-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}.preference-row:last-child{border:none}.preference-row input{width:20px;height:20px;flex:none}.tools-entry{margin-top:14px;font-size:13px}
+/* Override the direct-child task-card label rule; otherwise rows revert to block,
+   bold titles with inline checkboxes and overlap in narrow native side panels. */
+.task-card > label.preference-row{
+ display:grid;grid-template-columns:minmax(0,1fr) 22px;align-items:center;gap:14px;
+ min-width:0;width:100%;margin:0;padding:16px 0;
+ border-bottom:1px solid var(--line);cursor:pointer;font-size:14px;font-weight:400;
+}
+.task-card > label.preference-row:last-child{border-bottom:0}
+.preference-copy{display:block;min-width:0}
+.preference-title{display:block;font-size:14px;line-height:1.45;font-weight:620;overflow-wrap:anywhere}
+.preference-hint{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.55;font-weight:400;overflow-wrap:anywhere}
+.preference-row input[type=checkbox]{justify-self:end;align-self:center;width:20px;height:20px;margin:0;accent-color:var(--accent)}
+.tools-entry{margin-top:14px;font-size:13px}
 body:not(.feature-context) .context-toolbar,body:not(.feature-context) .archive-select-row>input{display:none!important}body:not(.feature-context) .archive-select-row{grid-template-columns:minmax(0,1fr)}
 body:not(.feature-experiments) #open-experiments,body:not(.feature-live) label:has(#live),body:not(.feature-live) #live-hint,body:not(.feature-diagnostics) #persist,body:not(.feature-diagnostics) #quota,body:not(.feature-passages) .passage-section,body:not(.feature-passages) .passage-save,body:not(.feature-passages) #archive-branch,body:not(.feature-passages) label[for=archive-branch],body:not(.feature-tools) #open-tools{display:none!important}
 button,.file-button{min-height:44px}.task-row button{min-height:44px}#task-return .primary{margin-top:12px}
@@ -159,7 +171,7 @@ button,.file-button{min-height:44px}.task-row button{min-height:44px}#task-retur
 
 /* 0.3 reliability pass: outcome first, one primary action, full input retained. */
 .home-intro{padding:40px 0 22px}.home-intro h1{margin:0}.flow-choice{min-height:196px;padding:26px;gap:10px}.flow-choice>.muted{flex:none}.flow-arrow{margin-top:14px;font-weight:650}
-#capture-view[data-saved=true] .journey{display:none}#capture-view[data-saved=true] .intro{padding-bottom:22px}
+ #capture-view[data-saved=true] .journey-note{display:none}#capture-view[data-saved=true] .intro{padding-bottom:22px}
 #capture-view #running{margin:14px 0 18px;padding:12px 0;border-top:1px solid var(--line)}#capture-view #running.empty:empty{display:none}#capture-view[data-saved=true] #running{font-weight:620;color:var(--ink)}
 #capture-view[data-saved=true] .capture-secondary{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:12px}#capture-view[data-saved=true] .capture-secondary button{width:auto;min-height:42px;font-size:13px}
 #task-envelope-box{padding-top:0;border-top:0;margin-top:14px}#task-copy-again{display:flex;margin:12px auto}.task-outcome{color:var(--ok);font-weight:650;margin:12px 0 6px}
@@ -176,4 +188,30 @@ button,.file-button{min-height:44px}.task-row button{min-height:44px}#task-retur
  .archive-layout aside{max-height:40vh;overflow:auto}
  .archive-layout article{overflow-wrap:anywhere}
  .home-intro{padding:22px 0 14px}
+}
+
+/* First-run information stays secondary to the two entry actions. */
+.home-lead{margin:12px 0 0;font-size:14px;line-height:1.7;color:var(--muted)}
+.first-run{margin:24px 0 0;padding:17px 18px;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius)}
+.first-run h2{font-size:14px;font-weight:690;margin:0 0 9px}
+.first-run ol{margin:0 0 12px;padding-left:22px;font-size:13px;line-height:1.85;color:var(--muted)}
+.first-run li{padding-left:3px;overflow-wrap:anywhere}
+.chatgpt-link,.experiment-explainer a{display:inline-flex;color:var(--accent);font-size:13px;text-underline-offset:3px}
+.chatgpt-link{min-height:36px;align-items:center;font-weight:620}
+.journey-note,.task-explainer{font-size:13px;line-height:1.65;color:var(--muted);margin:6px 0 18px;overflow-wrap:anywhere}
+.task-explainer{padding:10px 12px;margin:0 0 14px;background:var(--tint);border-radius:10px;color:var(--ink)}
+.experiment-explainer{padding:0 14px;margin-top:12px}
+.experiment-explainer .hint{padding:0 0 4px}
+.experiment-explainer a{margin:0 0 14px}
+.archive-empty{padding:22px 15px;text-align:center}
+.archive-empty p{color:var(--muted);font-size:13px;line-height:1.6}
+.archive-empty button{margin-top:10px}
+.archive-layout:has(.archive-empty){grid-template-columns:minmax(0,1fr)}
+@media(max-width:520px){
+ .home-intro h1{font-size:26px}
+ .flow-choice{padding:18px 19px;min-height:142px;gap:8px}
+ .flow-choice strong{font-size:20px}
+ .flow-choice>.muted{font-size:13px;line-height:1.55}
+ .first-run{padding:15px 16px;margin-top:18px}
+ .task-card > label.preference-row{padding:14px 0;gap:12px}
 }

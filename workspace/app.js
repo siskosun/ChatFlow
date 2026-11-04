@@ -32,6 +32,7 @@
   const preferred=old||String(activeTab?.id||'');
   sourceOptionsSignature=signature;sourceLookupKey=null;sourceLookupCaptureId=null;
   selector.replaceChildren();
+  $('source-empty-help').hidden=rows.length>0;
   if(!rows.length){selector.append(new Option('未找到已打开的 ChatGPT 对话',''));$('capture').disabled=true;return rows;}
   for(const r of rows){const option=new Option(r.title||r.url,String(r.id));option.dataset.sourceUrl=r.url;selector.append(option);}
   if(rows.some(r=>String(r.id)===preferred))selector.value=String(preferred);
@@ -126,7 +127,11 @@
    const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.hasSnapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.dataset.captureId=c.id;check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
    const b=button('',()=>choose(c.id),'archive-button');b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||c.state)+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
   if(archiveCursor)list.append(button('加载更多档案',()=>refreshArchives(true),'archive-more'));
-  if(!list.children.length)list.append(node('p','没有匹配的本地档案。','empty'));updateContextButton();
+  if(!list.children.length){
+   if(q)list.append(node('p','没有匹配的本地档案，请调整关键词。','empty'));
+   else{const empty=node('div',null,'archive-empty');empty.append(node('strong','还没有本地档案'),node('p','先保存一段已打开的 ChatGPT 对话，就能在这里搜索、备份和接续。'),button('去保存第一份',()=>{switchView('capture');$('source').focus();},'primary'));list.append(empty);}
+  }
+  $('detail').hidden=!page.items.length&&!append;updateContextButton();
  }
  function updateContextButton(){$('build-context').disabled=contextSelectedIds.size===0||$('context-query').value.length>500;$('build-context').textContent=contextSelectedIds.size?'创建上下文包（'+contextSelectedIds.size+'）':'创建上下文包';}
  async function buildContextPackage(){

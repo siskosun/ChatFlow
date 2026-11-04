@@ -5,7 +5,7 @@
 - 所有正式开发、提交、构建和自动化测试在 GitHub 云端执行。不要调用用户电脑的 Remote Desktop、PowerShell、本地工作目录或本地运行凭据。
 - 使用当前功能分支与聚焦 PR。不得直推 main、自动合并、创建正式 Release 或提交商店。
 - 所有者要求的路线：纯浏览器扩展；上游锁定 ChatGPT Markdown Export v0.6.59，接续交互参考 MoveChat。不得改回旧研线课题/证据库路线或添加本地常驻服务。
-- 原计划与 UX 来源：siskosun/ChatFlow 的 PR #84、DESIGN.md 及双层界面使用反馈。对功能范围的最新明确用户要求优先，不把旧实现当硬约束。
+- 现行产品与 UX 约束见 README.md、docs/UI_0.3.md 和 docs/PLAN.md；PR #3 是已合并的历史基线，不再引用不存在的 PR #84 或根目录 DESIGN.md。最新明确用户要求优先。
 - 开始和恢复任务时核对当前分支 SHA、PR、源码及准确提交的 CI；不能只依赖聊天历史中的“已通过”。当前不存在自动化真实账号验收。
 
 ## 产品安全不变量

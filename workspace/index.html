@@ -14,16 +14,11 @@
 
   <section id="capture-view" class="view" hidden>
     <button type="button" class="back quiet" data-view="home">‹ 首页</button><div class="intro"><h1 id="capture-heading">保存这段对话</h1></div>
-    <div class="journey" aria-label="操作流程：保存、整理、接续">
-      <span class="journey-step current"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0-4-4m4 4 4-4M5 17v3h14v-3"/></svg><span>保存</span></span>
-      <span class="journey-connector" aria-hidden="true"></span>
-      <span class="journey-step"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M8 6V4h8v2M8 11h8M8 15h5"/></svg><span>整理</span></span>
-      <span class="journey-connector" aria-hidden="true"></span>
-      <span class="journey-step"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 2-2zM10 11h7m0 0-3-3m3 3-3 3"/></svg><span>接续</span></span>
-    </div>
+    <p class="journey-note">先保存已有对话，核对历史与文件，再打开新聊天自行发送。这里不会代你发送消息。</p>
     <div class="task-card">
       <label for="source">来源对话</label>
       <div class="source-row"><select id="source"><option value="">正在查找已打开的 ChatGPT 对话</option></select><button id="refresh-source" type="button" class="quiet">刷新</button></div>
+      <p id="source-empty-help" class="hint source-empty-help" hidden>请先在普通标签页登录 ChatGPT，打开一段已有对话。<a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">去打开 ChatGPT</a></p>
       <label for="asset-scope">文件范围</label>
       <select id="asset-scope">
         <option value="all">全部文件</option>

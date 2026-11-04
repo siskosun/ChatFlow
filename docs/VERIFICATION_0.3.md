@@ -1,10 +1,12 @@
+> **历史工程验证记录。** 仅保留 2026-11-03 的准确 SHA 与当时的测试结论，不代表最新 main。PR #3 已于 2026-11-04 合并；最新代码应按 [main](https://github.com/siskosun/ChatFlow/tree/main) 和 [main CI](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain) 的提交 SHA 核对。真实账号及独立真人验收仍未执行。
+
 # ChatFlow 0.3 工程验证记录
 
 ## 验证范围与版本
 
 本记录对应运行代码提交 `b59fc3da1383ecdf29ea3416b05f847c4431217d`，验证日期为 2026-11-03。
 
-- [源码 PR #3](https://github.com/siskosun/ChatFlow/pull/3)：保持 Draft，未合并、未创建正式 Release。
+- [源码 PR #3](https://github.com/siskosun/ChatFlow/pull/3)：当时保持 Draft；已于 2026-11-04 合并，但仍未创建正式 Release。
 - [完整 GitHub Actions 运行 41675992976](https://github.com/siskosun/ChatFlow/actions/runs/41675992976)：Ubuntu 验证、Windows 基线、跨平台产物比较三个 job 全部成功。
 - Node `v22.23.4`；实际 Chromium `141.0.7390.37`；Ubuntu 24.04 / Playwright 1.56.0。
 - 浏览器测试安装真实 MV3 扩展，使用实际 IndexedDB 和合成页面、合成正文与附件。没有使用真实账号或真实用户资料。

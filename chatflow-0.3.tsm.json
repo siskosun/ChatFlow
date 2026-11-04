@@ -6,7 +6,7 @@
     },
     "Two-flow UI and advanced preferences": {
       "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Prototype preceded implementation. 42 installed-extension visual/contrast checks and the unchanged-source primary-action control passed. Independent human comprehension remains separately blocked."
+      "description": "Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: all jobs green; synthetic Chromium first-run and empty-state checks pass, with single clear primary action."
     },
     "Navigation and licensed utilities": {
       "status": "pass",
@@ -27,12 +27,16 @@
     "Input integrity and performance": {
       "status": "pass",
       "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Five trusted clipboard paste cases, 1000 x 32 KiB archive summaries, full task-count library and all 4 Node performance budgets passed."
+    },
+    "Sidebar settings and onboarding": {
+      "status": "pass",
+      "description": "Exact-head CI 41786208837: installed Chromium 320/360/390 preference checkbox geometry passes; first-run onboarding, source-empty and archive-empty browser tests pass. Real human acceptance remains blocked separately."
     }
   },
   "Validation": {
     "Regression and real Chromium synthetic QA": {
       "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. 188 Node tests, 104 installed-MV3 functional/storage cases, 42 visual/contrast checks and 4 performance budgets passed. Chromium 141.0.7390.37 with actual IndexedDB; synthetic content only."
+      "description": "Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: verify, windows-baseline and reproducible-build succeeded; retained Node, Chromium MV3, actual IndexedDB and visual suites passed."
     },
     "Cloud build reproducibility": {
       "status": "pass",
@@ -41,6 +45,10 @@
     "Authenticated and independent human acceptance": {
       "status": "blocked",
       "description": "Requires authorized real browser and independent human participants; synthetic tests cannot substitute."
+    },
+    "Current-sidebar smoke and visual checks": {
+      "status": "pass",
+      "description": "Exact-head CI 41786208837: 320/360/390 sidebar preference alignment, light/dark 390 screenshots, source-empty and first-archive CTA browser assertions passed."
     }
   }
 }

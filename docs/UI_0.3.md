@@ -18,7 +18,7 @@ must not be used as a quantitative acceptance criterion.
 
 ## Implemented interaction contract
 
-Home has two equal entries: Continue Conversation and Task Return. Each chosen
+Home has two equal entries: Save and Continue in New Chat (保存并接到新对话) and Task Return (任务回传). The first explicitly opens a different conversation after local capture; the second copies text to an external assistant manually, without any Agent API or automatic Send. Each chosen
 workflow has one primary next action. Archives and complex configuration remain
 secondary; context assembly, experiments, live caching, passage editing and
 diagnostics are off in the default presentation and enabled explicitly.
@@ -40,6 +40,8 @@ modifies the host sidebar or source text, cancels on route changes and closes
 with Escape. Source API failure is labelled as loaded-DOM-only coverage.
 Messages outside the viewport are located by exact message IDs through bounded
 scrolling; failure never redirects to approximate text.
+
+The home and empty-source states explain Chrome 116+/supported Edge, non-incognito mode, logged-in ChatGPT, and the need for an already-existing conversation. No archive offers a first-save next action. Advanced settings show a stable right-hand toggle column and explanatory hints, including a link to experiment documentation.
 
 ## Visual contract
 

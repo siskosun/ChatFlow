@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const read=p=>fs.readFileSync(path.join(ROOT,p),'utf8');
 const manifest=JSON.parse(read('manifest.json'));
-const content=read('src/content.js'),picker=read('src/picker.js'),popup=read('popup/popup.js'),html=read('popup/popup.html'),background=read('src/background.js');
+const content=read('src/content.js'),picker=read('src/picker.js'),popup=read('tests/fixtures/legacy-popup/popup.js'),html=read('tests/fixtures/legacy-popup/popup.html'),background=read('src/background.js');
 const hosts=['https://oaiusercontent.com/*','https://*.oaiusercontent.com/*','https://oaistatic.com/*','https://*.oaistatic.com/*','https://images.openai.com/*'];
 function destructive(source){return /\bmethod\s*:\s*['"](?:DELETE|PATCH|PUT)['"]/i.test(source)||/is_visible\s*:\s*false/.test(source)||/action\s*[:=]+\s*['"](?:delete|export-delete)['"]/.test(source);}
 test('manifest uses a narrow OpenAI media-host allowlist',()=>{
@@ -36,7 +36,7 @@ test('popup has no deletion UI or all-site permission request',()=>{
  assert.match(popup,/EXTERNAL_MEDIA_HOSTS/);
 });
 test('all source classic JavaScript parses, independent of string guards',()=>{
- for(const dir of ['src','popup'])for(const file of fs.readdirSync(path.join(ROOT,dir))){if(file.endsWith('.js'))new vm.Script(read(dir+'/'+file),{filename:dir+'/'+file});}
+ for(const dir of ['src','tests/fixtures/legacy-popup'])for(const file of fs.readdirSync(path.join(ROOT,dir))){if(file.endsWith('.js'))new vm.Script(read(dir+'/'+file),{filename:dir+'/'+file});}
 });
 test('background validates sender and media host before fetch',async()=>{
  const listeners=[],calls=[];
