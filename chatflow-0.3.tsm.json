@@ -5,8 +5,8 @@
       "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. 188 Node tests and 14 installed-MV3 Task Loop/navigation cases passed; exact routing, restart and copy-only return preserved."
     },
     "Two-flow UI and advanced preferences": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Prototype preceded implementation. 42 installed-extension visual/contrast checks and the unchanged-source primary-action control passed. Independent human comprehension remains separately blocked."
+      "status": "implemented",
+      "description": "Sidebar layout, onboarding labels and help changed in PR #4; exact-head CI verification pending."
     },
     "Navigation and licensed utilities": {
       "status": "pass",
@@ -27,12 +27,16 @@
     "Input integrity and performance": {
       "status": "pass",
       "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Five trusted clipboard paste cases, 1000 x 32 KiB archive summaries, full task-count library and all 4 Node performance budgets passed."
+    },
+    "Sidebar settings and onboarding": {
+      "status": "implemented",
+      "description": "Fixed preference layout and copy, first-run prerequisites and empty archive CTA in PR #4; browser QA pending."
     }
   },
   "Validation": {
     "Regression and real Chromium synthetic QA": {
-      "status": "pass",
-      "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. 188 Node tests, 104 installed-MV3 functional/storage cases, 42 visual/contrast checks and 4 performance budgets passed. Chromium 141.0.7390.37 with actual IndexedDB; synthetic content only."
+      "status": "implemented",
+      "description": "UI and file move affect regression harness, awaiting PR #4 all CI jobs."
     },
     "Cloud build reproducibility": {
       "status": "pass",
@@ -41,6 +45,10 @@
     "Authenticated and independent human acceptance": {
       "status": "blocked",
       "description": "Requires authorized real browser and independent human participants; synthetic tests cannot substitute."
+    },
+    "Current-sidebar smoke and visual checks": {
+      "status": "implemented",
+      "description": "PR #4 includes 320/360/390 sidebar geometric assertions, awaiting exact-commit Chrome/Edge CI."
     }
   }
 }
