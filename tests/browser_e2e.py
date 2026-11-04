@@ -158,6 +158,8 @@ async def main():
             await workspace.wait_for_function('typeof TLStore!=="undefined"&&typeof TLArchive!=="undefined"')
             await wait_async(workspace,'()=>document.querySelector("#source").value===""&&document.querySelector("#capture").disabled')
             assert await workspace.locator('#capture').is_disabled()
+            assert await workspace.locator('#source-empty-help').is_visible()
+            assert await workspace.locator('#source-empty-help a').get_attribute('href')=='https://chatgpt.com/'
             passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
             assert await workspace.locator('#home-view .flow-choice').count()==2
             assert await workspace.locator('#home-view').is_visible()
@@ -168,6 +170,7 @@ async def main():
             assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
             await workspace.bring_to_front()
             await wait_async(workspace,'()=>document.querySelector("#source").value!==""&&!document.querySelector("#capture").disabled',timeout=15000)
+            assert not await workspace.locator('#source-empty-help').is_visible()
             manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
             assert manifest['side_panel']['default_path']=='workspace/index.html' and 'sidePanel' in manifest['permissions'],manifest
             assert 'default_popup' not in manifest['action']
