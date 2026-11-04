@@ -103,11 +103,12 @@
  async function refreshTasks(append=false){
   if(!append)choicesFresh=false;
   const epoch=++taskPageEpoch,page=await S.listPage({limit:25,cursor:append?taskCursor:null});if(epoch!==taskPageEpoch)return;
-  const list=$('task-list');taskCursor=page.nextCursor;list.querySelector('.task-more')?.remove();if(!append)list.replaceChildren();
+  const list=$('task-list'),priorFocus=document.activeElement,focusedTask=priorFocus?.closest?.('[data-task-id]')?.getAttribute('data-task-id'),focusedAction=priorFocus?.getAttribute?.('data-task-action');
+  taskCursor=page.nextCursor;list.querySelector('.task-more')?.remove();if(!append)list.replaceChildren();
   for(const t of page.items){
    const count=t.resultCount,row=n('div',null,{class:'task-row','data-task-id':t.id});row.append(n('strong',t.preview.slice(0,65)),n('small',(t.source.title||'ChatGPT')+' · '+t.source.conversationId.slice(-8)+' · '+t.code+' · '+(count?count+' 份结果':'待回传')));
    const actions=n('div',null,{class:'actions'});
-   actions.append(button('复制任务',null,async()=>{const full=await S.get(t.id);if(!full)throw Error('TASK_NOT_FOUND');prompt.value=T.envelope(full);promptBox.hidden=false;create.hidden=true;mode('compose');const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}),button('回传结果',null,async()=>{mode('return');await refreshChoices();manualSource.value=t.id;confirmBox.checked=false;resultText.focus();await updateMatch();}),button('删除',null,async()=>{if(!confirm('删除本地任务及结果？原对话不受影响。'))return;await S.remove(t.id);prepared=null;await refreshTasks();await updateMatch();}));row.append(actions);
+   actions.append(button('复制任务',null,async()=>{const full=await S.get(t.id);if(!full)throw Error('TASK_NOT_FOUND');prompt.value=T.envelope(full);promptBox.hidden=false;create.hidden=true;mode('compose');const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}),button('回传结果',null,async()=>{mode('return');await refreshChoices();manualSource.value=t.id;confirmBox.checked=false;resultText.focus();await updateMatch();}),button('删除',null,async()=>{if(!confirm('删除本地任务及结果？原对话不受影响。'))return;await S.remove(t.id);prepared=null;await refreshTasks();await updateMatch();}));for(const [index,name]of ['copy','return','delete'].entries())actions.children[index]?.setAttribute('data-task-action',name);row.append(actions);
    if(count){
     const d=n('details'),body=n('div',null,{class:'task-result-list'});d.append(n('summary','查看 '+count+' 份结果'),body);let cursor=null,loading=false,loaded=false;
     async function loadResults(more=false){if(loading)return;loading=true;try{const result=await S.resultPage(t.id,{limit:25,cursor:more?cursor:null});if(!row.isConnected)return;cursor=result.nextCursor;body.querySelector('.result-more')?.remove();if(!more)body.replaceChildren();for(const r of result.items)body.append(button(new Date(r.createdAt).toLocaleString()+' · '+(r.assignment==='manual_assigned'?'人工关联':'标记匹配'),null,()=>openSavedResult(r.id,t.id)));if(cursor)body.append(button('加载更多结果',null,()=>loadResults(true),'quiet result-more'));loaded=true;}finally{loading=false;}}
@@ -117,6 +118,11 @@
   }
   if(taskCursor)list.append(button('加载更多任务','task-load-more',()=>refreshTasks(true),'quiet task-more'));
   if(!list.children.length)list.append(n('p','还没有任务。',{class:'muted'}));
+  if(focusedTask&&focusedAction){
+   const row=[...list.querySelectorAll('[data-task-id]')].find(el=>el.getAttribute('data-task-id')===focusedTask);
+   const target=row?.querySelector('[data-task-action="'+focusedAction+'"]');
+   if(target&&!target.disabled)target.focus({preventScroll:true});
+  }
  }
  function showSource(task,label){const t=T.validateTask(task);preview.append(n('strong',label),n('p',(t.source.title||'ChatGPT')+' · '+t.source.conversationId.slice(-8)),n('small',t.text.slice(0,180)),n('a','查看来源对话',{href:t.source.url,title:t.source.url,target:'_blank',rel:'noopener noreferrer'}));}
  async function updateMatch(){const epoch=++matchEpoch;prepared=null;save.hidden=false;returnAction.hidden=true;openOnly.hidden=true;save.disabled=true;const value=resultText.value;if(!inputWithinLimit(resultText,resultCount,T.LIMITS.result)){preview.textContent='';manual.hidden=true;return;}const m=await S.match(value);if(epoch!==matchEpoch||value!==resultText.value)return;preview.replaceChildren();manual.hidden=m.state==='matched';
