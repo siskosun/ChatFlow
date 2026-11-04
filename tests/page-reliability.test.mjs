@@ -189,7 +189,7 @@ test('navigation cancels on user wheel and restores temporary event listeners',a
  const url='https://chatgpt.com/c/source-A';
  const context=vm.createContext({
   globalThis:null,
-  TLCore:{chatUrl:()=>({url})},
+  TLCore:{chatUrl:()=>({url}),check:(ok,code)=>{if(!ok)throw Error(code);}},
   CFToolkit:{getDomMessageIdCandidates:e=>e===otherElement?['other-message']:[]},
   TLPageScope:{current:()=>area,contains:()=>true},
   chrome:{runtime:{id:'test',onMessage:{addListener(){}}}},
