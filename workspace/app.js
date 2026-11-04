@@ -12,7 +12,7 @@
  function status(text,error=false){const el=$('status'),value=String(text||'').trim();clearTimeout(statusTimeout);if(el.textContent!==value)el.textContent=value;el.classList.toggle('error',!!error&&!!value);if(value&&!error)statusTimeout=setTimeout(()=>{if(el.textContent===value)el.textContent='';},4500);}
  function node(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;}
  function button(text,fn,cls){const b=node('button',text,cls);b.type='button';b.addEventListener('click',()=>guard(fn));return b;}
- async function guard(fn){try{return await fn();}catch(e){status(explain(e),true);}}
+ async function guard(fn){try{return await fn();}catch(e){status(explain(e),true);if(['IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS','STARTUP_FAILED','EXTENSION_UNAVAILABLE'].includes(e?.message))$('retry-workspace').hidden=false;}}
  async function call(type,data={}){const r=await chrome.runtime.sendMessage({type,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
  async function currentWorkspaceWindow(){
   const tabs=await chrome.tabs.query({active:true,currentWindow:true});
@@ -417,5 +417,7 @@
  setTimeout(syncSources,1200);setTimeout(syncSources,4200);
  window.addEventListener('focus',syncSources);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSources();});
- guard(async()=>{await S.open();updateScopeUI();await sources();await renderRunning();await refreshArchives();updateContextButton();await quota();await updateSelection();status('');});
+ async function initializeWorkspace(){await S.open();updateScopeUI();await sources();await renderRunning();await refreshArchives();updateContextButton();await quota();await updateSelection();status('');}
+ $('retry-workspace').onclick=()=>guard(async()=>{const button=$('retry-workspace');if(button.disabled)return;button.disabled=true;try{await S.open();await call('tl:retryBoot');await initializeWorkspace();button.hidden=true;status('工作区已恢复，可以继续操作。');}finally{button.disabled=false;}});
+ guard(initializeWorkspace);
 })();

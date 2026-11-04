@@ -6,11 +6,11 @@ import {webcrypto,createHash} from 'node:crypto';
 const core=fs.readFileSync(new URL('../src/tl-core.js',import.meta.url),'utf8');
 const provider=fs.readFileSync(new URL('../src/tl-provider.js',import.meta.url),'utf8');
 const service=fs.readFileSync(new URL('../src/tl-service.js',import.meta.url),'utf8');
-async function harness({navigationFails=false,navigationGate=null}={}){
+async function harness({navigationFails=false,navigationGate=null,bootFailures=0}={}){
  const records=new Map([['handoff',{id:'handoff',captureId:'capture',state:'prepared',prompt:'Test',files:[{name:'history.md',size:1,sha256:'a'.repeat(64)}],batches:[[0]],missing:[]}]]),events=[],tabs=new Map(),panelBehaviors=[];
  const store={get:async(name,key)=>structuredClone(records.get(key)),all:async name=>name==='handoffs'?[...records.values()].map(x=>structuredClone(x)):[],set:async(name,value)=>{records.set(value.id,structuredClone(value));events.push('persist:'+value.state);},recover:async()=>{}};
  const event=()=>({addListener(){}});
- const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:event()},storage:{session:{get:async()=>({}),set:async()=>{}}},action:{onClicked:{addListener(){throw Error('Legacy full-page action handler must not be registered');}}},sidePanel:{setPanelBehavior:async options=>{panelBehaviors.push({...options});}},scripting:{executeScript:async()=>{}},permissions:{contains:async()=>true},
+ const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:event()},storage:{session:{get:async()=>{if(bootFailures-->0)throw Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS');return{};},set:async()=>{}}},action:{onClicked:{addListener(){throw Error('Legacy full-page action handler must not be registered');}}},sidePanel:{setPanelBehavior:async options=>{panelBehaviors.push({...options});}},scripting:{executeScript:async()=>{}},permissions:{contains:async()=>true},
   windows:{create:async()=>{throw Error('WINDOW_CREATION_NOT_ALLOWED');},update:async()=>{}},
   tabs:{onUpdated:event(),onRemoved:event(),create:async options=>{assert.equal(options.url,'about:blank');assert.equal(options.windowId,9);assert.equal(options.active,true);events.push('create-tab');const tab={id:17,windowId:9,url:'about:blank',status:'complete'};tabs.set(17,tab);return tab;},get:async id=>tabs.get(id),query:async()=>[],sendMessage:async()=>{events.push('announce');},update:async(id,options)=>{const h=records.get('handoff');assert.equal(h.targetTabId,id);assert.equal(h.state,'target_opened');events.push('navigate');if(navigationGate)await navigationGate;if(navigationFails)throw Error('network failure');tabs.set(id,{...tabs.get(id),url:options.url,status:'loading'});return tabs.get(id);}}
  };
@@ -130,4 +130,14 @@ test('failed navigation cannot clobber a concurrently arriving target claim',asy
  assert.equal(await claiming,null,'a failed opening must never be overwritten by a stale claim');
  assert.equal(h.records.get('handoff').state,'injection_blocked');
  assert.equal(h.records.get('handoff').targetDocumentId,null);
+});
+
+test('trusted workspace explicitly retries a transient failed startup without replaying user operations',async()=>{
+ const h=await harness({bootFailures:1});
+ await assert.rejects(h.handle({type:'tl:sources'},workspaceSender),/IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS/);
+ const [one,two]=await Promise.all([h.handle({type:'tl:retryBoot'},workspaceSender),h.handle({type:'tl:retryBoot'},workspaceSender)]);
+ assert.equal(one.ready,true);assert.equal(two.ready,true);
+ assert.deepEqual(await h.handle({type:'tl:sources'},workspaceSender),[]);
+ await assert.rejects(h.handle({type:'tl:retryBoot'},{id:'other',url:workspaceSender.url}),/FOREIGN_EXTENSION/);
+ await assert.rejects(h.handle({type:'tl:retryBoot'},{id:'extension',url:'https://chatgpt.com/'}),/WORKSPACE_ONLY/);
 });

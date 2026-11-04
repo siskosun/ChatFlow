@@ -30,12 +30,25 @@ async function freezeSource(msg){
  return{tabId:msg.tabId,source:expected,expectedUrl:expected.url,expectedConversationId:expected.conversationId,expectedDocumentId:frame.documentId};
 }
 async function keepRuns(){await api.storage.session.set({tlRuns:[...runs.values()].map(({controller,pending,...r})=>r)});}
-let bootError=null;
-const boot=(async()=>{
+let bootError=null,boot=null;
+async function initializeWorker(){
  const old=(await api.storage.session.get('tlRuns')).tlRuns||[];
  for(const r of old){const c=await S.get('captures',r.captureId);if(c)await S.set('captures',{...c,state:c.state==='capturing'?'interrupted':c.state,live:false,lastError:'WORKER_RESTARTED_RETRY_EXPLICITLY'});}
  await S.recover([]);await ChatFlowExperimentService.recover(api,S);await api.storage.session.set({tlRuns:[]});
-})().catch(e=>{bootError=errorCode(e);});
+}
+function startBoot(){
+ bootError=null;
+ const job=initializeWorker().catch(e=>{bootError=errorCode(e);});
+ boot=job;return job;
+}
+startBoot();
+// A retry is an explicit trusted-workspace action, never a silent automatic replay.
+async function retryBoot(){
+ const observed=boot;await observed;
+ if(boot===observed&&bootError)startBoot();
+ await boot;C.check(!bootError,bootError||'STARTUP_FAILED');
+ return{ready:true};
+}
 async function sourceRun(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id),'SOURCE_TAB_REQUIRED');const run=runs.get(msg.nonce);C.check(run&&!run.cancelled&&run.tabId===sender.tab.id,'CAPTURE_SESSION_NOT_FOUND');
  // The content script may have been injected at a blank new-chat URL and then
@@ -187,7 +200,9 @@ async function applyHandoffEvidence(msg,sender){
  await S.set('handoffs',updated);return updated;
 }
 async function handle(msg,sender){
- await boot;C.check(!bootError,bootError||'STARTUP_FAILED');C.check(trusted(sender),'FOREIGN_EXTENSION');
+ C.check(trusted(sender),'FOREIGN_EXTENSION');
+ if(msg.type==='tl:retryBoot'){workspace(sender);return retryBoot();}
+ await boot;C.check(!bootError,bootError||'STARTUP_FAILED');
  if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type))return serializeHandoffWrite(()=>applyHandoffEvidence(msg,sender));
  const taskResult=await globalThis.TLTaskService?.handle(msg,sender,api);if(taskResult!==undefined)return taskResult;
  const experimentResult=await ChatFlowExperimentService.handle(msg,sender,api,{startCapture});if(experimentResult!==undefined)return experimentResult;
