@@ -169,11 +169,15 @@ async def main():
             await workspace.bring_to_front()
             await wait_async(workspace,'()=>document.querySelector("#source").value!==""&&!document.querySelector("#capture").disabled',timeout=15000)
             manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
-            assert 'side_panel' not in manifest and 'sidePanel' not in manifest['permissions'],manifest
+            assert manifest['side_panel']['default_path']=='workspace/index.html' and 'sidePanel' in manifest['permissions'],manifest
+            assert 'default_popup' not in manifest['action']
+            await wait_async(workspace,"async()=>{const b=await chrome.sidePanel.getPanelBehavior();return b.openPanelOnActionClick===true}",timeout=15000)
+            panel=await workspace.evaluate("async()=>chrome.sidePanel.getOptions({})")
+            assert panel['path']=='workspace/index.html' and panel['enabled'] is True,panel
             assert await workspace.locator('.journey-step svg').count()==3
             assert await workspace.evaluate("""() => {const c=getComputedStyle(document.querySelector('button.quiet'));return c.borderTopStyle==='solid'&&parseFloat(c.borderTopWidth)>=1;}""")
             assert await workspace.locator('#status').inner_text()==''  # No persistent startup banner.
-            passed('standalone_entry_and_unified_visual_controls_without_startup_notice')
+            passed('native_sidebar_entry_and_unified_visual_controls_without_startup_notice')
             # User-perspective acceptance: one obvious action, plain-language hierarchy, no tab maze.
             assert await workspace.locator('nav').count()==0
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
