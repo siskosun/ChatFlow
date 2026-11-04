@@ -170,7 +170,7 @@ test('navigation cancels on user wheel and restores temporary event listeners',a
  const body={};
  const box={clientHeight:500,scrollHeight:2000,parentElement:body,scrollBy(){scrollWrites++;handlers.get('wheel')?.();}};
  const otherElement={
-  parentElement:box,isConnected:true,
+  parentElement:box,isConnected:true,closest:()=>null,
   getBoundingClientRect:()=>({top:20,height:120})
  };
  const root={querySelectorAll:()=>[otherElement]};
