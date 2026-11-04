@@ -17,13 +17,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply checksum-bound source on this feature branch only
+      - name: Apply checksum-bound non-workflow source only
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -eu
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git ls-remote origin refs/heads/cf/answer-headings-20261104 | cut -f1)" = "$EXPECTED_HEAD"
+          test -d .heading-transfer || exit 0
           python - <<'PY'
           import base64,zlib,json,hashlib
           from pathlib import Path
@@ -38,6 +39,8 @@ jobs:
           assert set(changes)==allowed
           pending=[]
           for name,spec in changes.items():
+              # Workflow changes require the separately authorized connector, not this job's token.
+              if name=='.github/workflows/verify.yml':continue
               path=Path(name);prior=path.read_bytes() if path.exists() else None
               assert (hashlib.sha256(prior).hexdigest() if prior is not None else None)==spec['before'],name+' source changed'
               if 'content' in spec:output=spec['content'].encode()
@@ -51,8 +54,8 @@ jobs:
               path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(output)
           print('APPLIED_HEADING_SOURCE_FILES',len(pending))
           PY
-          git rm -r .heading-transfer .github/workflows/apply-headings.yml
-          git add .github/workflows/verify.yml build.py chatflow-0.3.tsm.history.jsonl chatflow-0.3.tsm.json scripts/check-runtime.mjs src/tl-task-service.js src/tl-tools-page.js tests/task-service.test.mjs tests/task_loop_e2e.py docs/ANSWER_HEADINGS.md src/tl-headings.js tests/headings.test.mjs tests/headings_e2e.py
+          git rm -r .heading-transfer
+          git add build.py chatflow-0.3.tsm.history.jsonl chatflow-0.3.tsm.json scripts/check-runtime.mjs src/tl-task-service.js src/tl-tools-page.js tests/task-service.test.mjs tests/task_loop_e2e.py docs/ANSWER_HEADINGS.md src/tl-headings.js tests/headings.test.mjs tests/headings_e2e.py
           git config user.name 'ChatFlow cloud development'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'feat: source-bound answer heading navigation with independent tests'
