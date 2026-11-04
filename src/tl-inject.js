@@ -61,16 +61,27 @@
   else{C.check(document.execCommand('insertText',false,text),'PREFILL_NOT_SUPPORTED');e.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:text}));}
   C.check(value(e).replace(/\r/g,'').trim()===text.replace(/\r/g,'').trim(),'PREFILL_NOT_CONFIRMED');
  }
- function uploadsConfirmed(names){
-  const chips=[...document.querySelectorAll('[data-testid="file-chip"],[data-testid="attachment-chip"],[data-testid="file-upload"],[data-file-id]')].filter(visible),used=new Set();
-  for(const name of names){const found=chips.findIndex((chip,i)=>{
-   if(used.has(i))return false;
-   const text=(chip.getAttribute('title')||'')+' '+(chip.getAttribute('data-filename')||'')+' '+(chip.textContent||'');
-   const state=chip.getAttribute('data-state')||chip.getAttribute('data-status');
-   return text.includes(name)&&['ready','uploaded','complete','success'].includes(state)&&!chip.querySelector('[role="progressbar"],[aria-busy="true"]');
-  });if(found<0)return false;used.add(found);}
-  return names.length>0;
+ function uploadsConfirmed(names,composer){
+  // Only the selected composer owns upload evidence. A chip elsewhere on the SPA is not a receipt.
+  const area=composer.closest('form')||composer.closest('[data-testid="composer"]')||composer.parentElement;
+  if(!area||!area.isConnected||!names.length)return false;
+  const chips=[...area.querySelectorAll('[data-testid="file-chip"],[data-testid="attachment-chip"],[data-testid="file-upload"],[data-file-id]')].filter(visible),used=new Set();
+  for(const name of names){
+   const matches=[];
+   for(let i=0;i<chips.length;i++){
+    if(used.has(i))continue;
+    const chip=chips[i],state=chip.getAttribute('data-state')||chip.getAttribute('data-status');
+    if(!['ready','uploaded','complete','success'].includes(state)||chip.querySelector('[role="progressbar"],[aria-busy="true"]'))continue;
+    // Never accept a substring, truncated display, or combined label as an exact filename.
+    const labels=[chip.getAttribute('data-filename'),chip.getAttribute('title'),chip.textContent].filter(Boolean).map(x=>x.trim());
+    if(labels.some(x=>x===name))matches.push(i);
+   }
+   if(matches.length!==1)return false;
+   used.add(matches[0]);
+  }
+  return true;
  }
+
  function observeManualExperimentSend(h,e){
   let armed=true;
   function matches(event){
@@ -127,7 +138,7 @@
    }
    input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));injected=true;
    let confirmed=false;
-   for(let i=0;i<32;i++){await sleep(250);P.identify(location.href,{target:true}).identity;if(uploadsConfirmed(files.map(f=>f.name))){confirmed=true;break;}}
+   for(let i=0;i<32;i++){await sleep(250);P.identify(location.href,{target:true}).identity;if(uploadsConfirmed(files.map(f=>f.name),e)){confirmed=true;break;}}
    await send('tl:handoffStatus',{id:h.id,state:confirmed?'upload_confirmed':'upload_unknown'});
    notice((confirmed?'ChatFlow：网页已确认首批附件上传。':'ChatFlow：已尝试附加首批文件，但上传结果尚未确认，请检查网页。')+'请核对后手动发送。'+(h.remainingBatches?'另有 '+h.remainingBatches+' 批文件，请从档案页下载并手动补充。':''));
   }catch(e){
