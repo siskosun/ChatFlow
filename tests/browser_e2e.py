@@ -174,7 +174,8 @@ async def main():
             await wait_async(workspace,"async()=>{const b=await chrome.sidePanel.getPanelBehavior();return b.openPanelOnActionClick===true}",timeout=15000)
             panel=await workspace.evaluate("async()=>chrome.sidePanel.getOptions({})")
             assert panel['path']=='workspace/index.html' and panel['enabled'] is True,panel
-            assert await workspace.locator('.journey-step svg').count()==3
+            assert await workspace.locator('.journey-step').count()==0
+            assert '不会代你发送消息' in await workspace.locator('.journey-note').inner_text()
             assert await workspace.evaluate("""() => {const c=getComputedStyle(document.querySelector('button.quiet'));return c.borderTopStyle==='solid'&&parseFloat(c.borderTopWidth)>=1;}""")
             assert await workspace.locator('#status').inner_text()==''  # No persistent startup banner.
             passed('native_sidebar_entry_and_unified_visual_controls_without_startup_notice')

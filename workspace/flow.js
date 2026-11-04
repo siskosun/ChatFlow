@@ -20,10 +20,15 @@
  const defaults={context:false,experiments:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
- intro.append(n('h1','继续手上的工作'));
+ intro.append(n('h1','把工作带到下一段对话'));
+ intro.append(n('p','保存并整理已有对话后，再在新的 ChatGPT 聊天中继续。接续内容不会自动发送。',{class:'home-lead'}));
  const choices=n('div',null,{class:'flow-choices'});
- for(const [view,title,description,action]of[['capture','继续对话','保存历史和文件','保存并继续 →'],['tasks','任务回传','交出任务，带回结果','交出任务或回传 →']]){const b=n('button',null,{type:'button','data-view':view,class:'flow-choice'});b.append(n('strong',title),n('span',description,{class:'muted'}),n('span',action,{class:'flow-arrow'}));choices.append(b);}
- home.append(intro,choices);main.insertBefore(home,$('capture-view'));
+ for(const [view,title,description,action]of[['capture','保存并接到新对话','保存历史与已取得的文件，再打开新聊天。由你核对并发送。','开始保存 →'],['tasks','任务回传','复制任务给外部助手；收到答复后粘贴结果并返回来源。','交出或回传 →']]){const b=n('button',null,{type:'button','data-view':view,class:'flow-choice'});b.append(n('strong',title),n('span',description,{class:'muted'}),n('span',action,{class:'flow-arrow'}));choices.append(b);}
+ const setup=n('section',null,{class:'first-run',id:'first-run-prereqs','aria-label':'开始前确认'});
+ setup.append(n('h2','开始前确认'));
+ const prerequisites=n('ol');for(const item of ['使用 Chrome 116+ 或支持侧边栏的 Edge，且不是无痕窗口。','已在浏览器标签页登录 ChatGPT。','打开一段已有的 ChatGPT 对话；空白新聊天无法保存。'])prerequisites.append(n('li',item));setup.append(prerequisites);
+ const openChat=n('a','去打开 ChatGPT',{class:'chatgpt-link',href:'https://chatgpt.com/',target:'_blank',rel:'noopener noreferrer'});setup.append(openChat);
+ home.append(intro,choices,setup,n('p','工程试用候选 · 资料保存在此浏览器 · 不会代你发送消息',{class:'home-footnote'}));main.insertBefore(home,$('capture-view'));
  const taskView=n('section',null,{id:'tasks-view',class:'view',hidden:''}),head=n('div',null,{class:'view-heading'});
  head.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','任务回传'));
  const taskStatus=n('p',null,{id:'task-status',role:'status','aria-live':'polite'});
@@ -33,12 +38,12 @@
  modes.append(button('交出任务','task-mode-compose',()=>mode('compose')),button('回传结果','task-mode-return',()=>mode('return')));
  const compose=n('div',null,{id:'task-compose',class:'task-card'}),source=n('select',null,{id:'task-source'}),text=n('textarea',null,{id:'task-text',rows:5,'aria-describedby':'task-text-count',placeholder:'例如：检查这段 SQL 的连接条件。'}),sourceActions=n('div',null,{class:'actions source-actions'}),taskCount=n('p',null,{id:'task-text-count',class:'input-count',role:'status'});
  sourceActions.append(button('刷新对话','task-refresh-source',refreshSources),button('使用原对话中的选文','task-use-selection',async()=>{const v=await readSource();if(v.selectionTooLong)throw Error('选文超过20,000个字符，请缩短后再选；当前草稿已保留。');if(!v.selection)throw Error('请先在原对话的单条消息中选择文字。');if(text.value&&!confirm('替换当前任务草稿？'))return;text.value=v.selection;invalidateCreation();}));
- const prompt=n('textarea',null,{id:'task-envelope',rows:6,readonly:'','aria-label':'带标记的任务文本'}),promptBox=n('div',null,{id:'task-envelope-box',hidden:''}),promptDetails=n('details',null,{class:'advanced compact'}),promptState=n('p','任务已保存到浏览器',{class:'task-outcome',id:'task-copy-state'});promptDetails.append(n('summary','查看任务文本'),prompt);promptBox.append(promptState,n('p','粘贴给 Agent；完成后回到这里。',{class:'hint'}),button('回传结果','task-next-return',()=>{mode('return');resultText.focus();},'primary full'),button('再次复制任务','task-copy-again',()=>copy(prompt.value,prompt)),promptDetails);
+ const prompt=n('textarea',null,{id:'task-envelope',rows:6,readonly:'','aria-label':'带标记的任务文本'}),promptBox=n('div',null,{id:'task-envelope-box',hidden:''}),promptDetails=n('details',null,{class:'advanced compact'}),promptState=n('p','任务已保存到浏览器',{class:'task-outcome',id:'task-copy-state'});promptDetails.append(n('summary','查看任务文本'),prompt);promptBox.append(promptState,n('p','将任务文本复制给你选择的外部助手；完成后回到这里粘贴答复。扩展不会替你发送。',{class:'hint'}),button('回传结果','task-next-return',()=>{mode('return');resultText.focus();},'primary full'),button('再次复制任务','task-copy-again',()=>copy(prompt.value,prompt)),promptDetails);
  const create=button('复制任务','task-create',async()=>{
   if(creating)return;if(!inputWithinLimit(text,taskCount,T.LIMITS.task))throw Error('TASK_TEXT_LIMIT');creating=true;create.disabled=true;const epoch=createEpoch;try{const capturedText=text.value,selectedTab=source.value,v=await readSource();if(createEpoch!==epoch||text.value!==capturedText||source.value!==selectedTab)throw Error('TASK_SOURCE_CHANGED');const saved=await S.create(v.source,capturedText);await refreshTasks();if(createEpoch!==epoch||text.value!==capturedText||source.value!==selectedTab)throw Error('TASK_SOURCE_CHANGED');created=saved;prompt.value=T.envelope(saved);promptBox.hidden=false;create.hidden=true;const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}finally{creating=false;updateCreateState();}
  },'primary full');
- compose.append(...field('来源对话',source),sourceActions,...field('要交给 Agent 的任务',text),taskCount,create,promptBox);
- const ret=n('div',null,{id:'task-return',class:'task-card',hidden:''}),resultText=n('textarea',null,{id:'task-result-text',rows:7,'aria-describedby':'task-result-count',placeholder:'粘贴 Agent 的回复，包括任务标记。'}),preview=n('div',null,{id:'task-match',class:'match-preview',role:'status'}),resultCount=n('p',null,{id:'task-result-count',class:'input-count',role:'status'});
+ compose.append(n('p','本功能只复制带来源标记的文本，不连接外部助手，也不自动发送。',{class:'task-explainer'}),...field('来源对话',source),sourceActions,...field('要交给外部助手的任务',text),taskCount,create,promptBox);
+ const ret=n('div',null,{id:'task-return',class:'task-card',hidden:''}),resultText=n('textarea',null,{id:'task-result-text',rows:7,'aria-describedby':'task-result-count',placeholder:'粘贴外部助手的回复，包括任务标记。'}),preview=n('div',null,{id:'task-match',class:'match-preview',role:'status'}),resultCount=n('p',null,{id:'task-result-count',class:'input-count',role:'status'});
  const manual=n('div',null,{id:'task-manual',hidden:''}),manualSource=n('select',null,{id:'task-manual-source'}),confirmBox=n('input',null,{id:'task-manual-confirm',type:'checkbox'}),confirmLabel=n('label',null,{class:'check'});confirmLabel.append(confirmBox,n('span','我已核对，关联到所选任务'));
  manual.append(...field('人工选择原任务',manualSource),confirmLabel);
  const save=button('保存结果','task-save-result',async()=>{
@@ -59,7 +64,7 @@
   if(!copied){openOnly.hidden=false;return;}await call('tl:taskReturn',{taskId:r.taskId,...await currentWorkspaceWindow()});say('已复制并打开来源对话；请自行粘贴、核对和发送。');
  },'primary full');returnAction.hidden=true;
  const openOnly=button('只打开原对话','task-open-only',async()=>{if(!prepared)throw Error('TASK_NOT_FOUND');await call('tl:taskReturn',{taskId:prepared.taskId,...await currentWorkspaceWindow()});});openOnly.hidden=true;
- ret.append(...field('Agent 的结果',resultText),resultCount,preview,manual,save,returnAction,openOnly,n('p','返回后自行粘贴并发送。',{class:'hint'}));
+ ret.append(...field('外部助手的结果',resultText),resultCount,preview,manual,save,returnAction,openOnly,n('p','返回后自行粘贴并发送。',{class:'hint'}));
  const recent=n('details',null,{class:'recent-tasks',open:''});recent.append(n('summary','最近的任务'),n('div',null,{id:'task-list',class:'list'}));taskView.append(head,taskStatus,modes,compose,ret,recent);main.append(taskView);mode('compose');
  async function readSource(){const tabId=Number(source.value);if(!tabId)throw Error('请选择一个已打开的 ChatGPT 对话。');return call('tl:taskSource',{tabId,expectedUrl:source.selectedOptions[0]?.dataset.sourceUrl});}
  function inputWithinLimit(input,count,limit){const length=input.value.length,over=length>limit;input.setAttribute('aria-invalid',String(over));count.classList.toggle('error',over);count.textContent=over?'已输入 '+length.toLocaleString()+' / '+limit.toLocaleString()+' 字符；内容已完整保留，请缩短后再试。':length?length.toLocaleString()+' / '+limit.toLocaleString()+' 字符':'';return !over&&!!input.value.trim();}
@@ -112,9 +117,22 @@
  resultText.addEventListener('input',()=>{invalidateSavedResultOpen();taskStatus.textContent='';confirmBox.checked=false;safe(updateMatch);});manualSource.addEventListener('change',()=>{invalidateSavedResultOpen();taskStatus.textContent='';confirmBox.checked=false;safe(updateMatch);});confirmBox.addEventListener('change',()=>{invalidateSavedResultOpen();safe(updateMatch);});
  const settings=n('section',null,{id:'settings-view',class:'view',hidden:''}),sh=n('div',null,{class:'view-heading'});sh.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','高级功能'));settings.append(sh);
  const settingsBox=n('div',null,{class:'task-card'});
- for(const[key,label]of Object.entries({context:'组合多份档案',experiments:'并行对照实验',live:'实时缓存当前对话',diagnostics:'存储与文件诊断',passages:'重点片段与分支',tools:'对话搜索与时间轴'})){
-  const input=n('input',null,{type:'checkbox',id:'pref-'+key}),l=n('label',null,{class:'preference-row'});l.append(n('span',label),input);settingsBox.append(l);input.addEventListener('change',()=>safe(async()=>{prefs[key]=input.checked;await chrome.storage.local.set({cfPreferences:prefs});applyPreferences();}));
+ const featureRows=[
+  ['context','组合多份档案','从选中的本地档案生成来源清楚的上下文包。'],
+  ['experiments','并行对照实验','同一任务对照 2–4 个新聊天；逐个由你手动发送。'],
+  ['live','实时缓存当前对话','只有对指定对话主动开启后才追踪新生成文件。'],
+  ['diagnostics','存储与文件诊断','显示本地占用情况并申请持久化存储。'],
+  ['passages','重点片段与分支','保存关键原文，查看可访问分支及定位状态。'],
+  ['tools','对话搜索与时间轴','按需在选定的 ChatGPT 标签页打开搜索工具。']
+ ];
+ for(const[key,title,description]of featureRows){
+  const input=n('input',null,{type:'checkbox',id:'pref-'+key}),l=n('label',null,{class:'preference-row'}),copy=n('span',null,{class:'preference-copy'});
+  copy.append(n('span',title,{class:'preference-title'}),n('small',description,{class:'preference-hint'}));
+  l.append(copy,input);settingsBox.append(l);input.addEventListener('change',()=>safe(async()=>{prefs[key]=input.checked;await chrome.storage.local.set({cfPreferences:prefs});applyPreferences();}));
  }
+ const experimentInfo=n('details',null,{class:'advanced compact experiment-explainer'});
+ experimentInfo.append(n('summary','并行实验怎样工作？'),n('p','对每个新聊天使用同一份材料；你需自行点击发送，扩展不会自动重试。',{class:'hint'}),n('a','查看并行实验说明',{href:'https://github.com/siskosun/ChatFlow/blob/main/docs/EXPERIMENTS.md',target:'_blank',rel:'noopener noreferrer'}));
+ settingsBox.after(experimentInfo);
  const backup=n('details',null,{class:'advanced'});backup.append(n('summary','任务备份与恢复'));
  const backupButton=button('下载任务备份','task-backup',async()=>{backupButton.disabled=true;try{say('正在校验并生成任务备份…');const blob=await S.exportBackup(),url=URL.createObjectURL(blob),a=n('a',null,{href:url,download:'chatflow-tasks.jsonl'});a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);say('已发起备份下载，请在浏览器中核对。');}finally{backupButton.disabled=false;}});backup.append(backupButton);
  const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复失败：'+e.message),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,backup,settingsStatus);main.append(settings);
