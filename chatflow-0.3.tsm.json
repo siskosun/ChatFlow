@@ -5,8 +5,8 @@
       "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. 188 Node tests and 14 installed-MV3 Task Loop/navigation cases passed; exact routing, restart and copy-only return preserved."
     },
     "Two-flow UI and advanced preferences": {
-      "status": "implemented",
-      "description": "Sidebar layout, onboarding labels and help changed in PR #4; exact-head CI verification pending."
+      "status": "pass",
+      "description": "Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: all jobs green; synthetic Chromium first-run and empty-state checks pass, with single clear primary action."
     },
     "Navigation and licensed utilities": {
       "status": "pass",
@@ -29,14 +29,14 @@
       "description": "Validated at b59fc3da1383ecdf29ea3416b05f847c4431217d, GitHub Actions 41675992976. Five trusted clipboard paste cases, 1000 x 32 KiB archive summaries, full task-count library and all 4 Node performance budgets passed."
     },
     "Sidebar settings and onboarding": {
-      "status": "implemented",
-      "description": "Fixed preference layout and copy, first-run prerequisites and empty archive CTA in PR #4; browser QA pending."
+      "status": "pass",
+      "description": "Exact-head CI 41786208837: installed Chromium 320/360/390 preference checkbox geometry passes; first-run onboarding, source-empty and archive-empty browser tests pass. Real human acceptance remains blocked separately."
     }
   },
   "Validation": {
     "Regression and real Chromium synthetic QA": {
-      "status": "implemented",
-      "description": "UI and file move affect regression harness, awaiting PR #4 all CI jobs."
+      "status": "pass",
+      "description": "Exact-head GitHub Actions 41786208837 at e7bdbef699038bc07ce6307ff9920416696528fb: verify, windows-baseline and reproducible-build succeeded; retained Node, Chromium MV3, actual IndexedDB and visual suites passed."
     },
     "Cloud build reproducibility": {
       "status": "pass",
@@ -47,8 +47,8 @@
       "description": "Requires authorized real browser and independent human participants; synthetic tests cannot substitute."
     },
     "Current-sidebar smoke and visual checks": {
-      "status": "implemented",
-      "description": "PR #4 includes 320/360/390 sidebar geometric assertions, awaiting exact-commit Chrome/Edge CI."
+      "status": "pass",
+      "description": "Exact-head CI 41786208837: 320/360/390 sidebar preference alignment, light/dark 390 screenshots, source-empty and first-archive CTA browser assertions passed."
     }
   }
 }
