@@ -38,7 +38,8 @@ test('cancel after a scroll performs no later write and restores overflow-anchor
 });
 test('source replacement aborts before a late frame can certify a target',async()=>{
  const f=navFixture(),options=f.options(0);options.wait=async()=>{f.stop();};
- await assert.rejects(f.N.navigate(options),/PAGE_SCOPE_CHANGED/);assert.equal(f.style.get('overflow-anchor'),'auto');
+ const result=await f.N.navigate(options);
+ assert.equal(result.state,'cancelled');assert.equal(f.style.get('overflow-anchor'),'auto');
 });
 test('missing targets and expired budgets do not become matched messages',async()=>{
  const f=navFixture(),options=f.options(0);options.resolve=()=>null;options.wait=async()=>f.advance(6001);
@@ -74,4 +75,12 @@ test('diagnostics retain no raw error text or URLs and stay within 50 records',a
  for(let i=0;i<55;i++)await ctx.TLDiagnostics.record('capture-stop',new TypeError('PRIVATE_TOKEN https://private.example body'));
  const result=await ctx.TLDiagnostics.list();assert.equal(result.rows.length,50);assert.ok(!JSON.stringify(result).includes('PRIVATE_TOKEN'));assert.ok(!JSON.stringify(result).includes('private.example'));
  await ctx.TLDiagnostics.record('private-user-data',new Error());assert.equal((await ctx.TLDiagnostics.list()).rows.length,50);
+});
+
+test('unexpected DOM errors return explicit not-found state without an unhandled rejection',async()=>{
+ const f=navFixture(),o=f.options(0);
+ o.resolve=()=>{throw Error('DOM_IS_REMOUNTING');};
+ const result=await f.N.navigate(o);
+ assert.equal(result.state,'not_found');assert.equal(result.reason,'NAVIGATION_UNCONFIRMED');
+ assert.equal(f.style.get('overflow-anchor'),'auto');
 });
