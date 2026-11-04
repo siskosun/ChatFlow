@@ -1,20 +1,26 @@
 # ChatFlow
 
-ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.3 聚焦 ChatGPT 对话保存、附件真实字节保全、本地档案恢复，以及向新的普通 ChatGPT 对话安全接续。0.3 仅有 ChatGPT 生产适配器；其他平台不宣称支持。
+**0.3 工程试用候选 · 本地优先 · 尚未通过真实账号及独立真人验收。** ChatFlow 是 Chrome/Edge 原生侧边栏扩展，可在本地保存 ChatGPT 对话与实际取得的文件，并由用户把材料接到新的聊天。扩展不会自动发送消息或向外部助手发起请求。当前只适配 ChatGPT。
+
+## 立即试用：无需 Release
+
+1. 打开 [main 源码](https://github.com/siskosun/ChatFlow/tree/main)，选择 **Code → Download ZIP**，解压后找到**根目录**的 `manifest.json`。也可 `git clone`。
+2. Edge 打开 `edge://extensions/`（Chrome 用 `chrome://extensions/`），开启开发人员模式，点击**加载解压缩的扩展**，选择上述根目录。
+3. 在普通窗口（非无痕）打开并登录 ChatGPT，进入一段**已有对话**，点击 ChatFlow 图标打开侧边栏。
+4. 查看 [main 提交 SHA](https://github.com/siskosun/ChatFlow/commits/main) 和 [main CI](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain)。直接加载源码没有 `BUILD_INFO.json`，属于开发者试用，不等于已打包的可复现候选 ZIP。
+
+需要带构建信息的 ZIP：从同一 SHA 的成功 Actions 运行中下载 `chatflow-candidate-<SHA>`，再解压其中的 Edge 或 Chrome ZIP。**Actions artifact 会过期，没有永久下载链接；正式 Release 尚未创建。** [完整安装与安全更新说明](docs/INSTALL.md)。
 
 ## 两项主功能
 
-**继续到新对话**：保存所选对话及可取得的文件，核对本地档案，再准备历史和文件带到新聊天。
+**保存并接到新对话**：保存已有对话与取得的附件，在本地核对后准备接续文件，打开新的普通 ChatGPT 标签页。由用户自行上传、核对与发送。
 
-**任务回传**：从当前对话复制一个带来源标记的小任务，接收结果后保存，复制结果并回到原对话。不需要 GitHub 或 Agent API。
+**任务回传**：为外部助手生成带来源标记的任务文本；由用户复制给外部助手，收到结果后粘贴回来。扩展只做本地保存与返回来源，不代发。
 
-上下文包、重点片段、并行实验等放在高级功能中，按需启用。对话搜索、问题导航、所选回合导出和 LaTeX 复制按需加载。参见[任务回传](docs/TASK_LOOP.md)与[界面说明](docs/UI_0.3.md)。
-
-当前是工程候选。[PR #3](https://github.com/siskosun/ChatFlow/pull/3) 的最新提交与对应 CI 是源码验证入口；历史 0.2 验收不能代表新实现已通过。真实登录、独立用户和真人辅助技术验收安排在开发完成之后。
-
+上下文包、重点片段和并行实验等放在高级功能中，按需启用。对话搜索、问题导航与 LaTeX 复制按需加载。参见 [任务回传](docs/TASK_LOOP.md) 和 [界面说明](docs/UI_0.3.md)。
 ## 核心流程
 
-1. **打开侧边栏并保存对话**：在 ChatGPT 标签页点击 ChatFlow 扩展图标，原生侧边栏与 ChatGPT 并排显示；选择来源对话及文件范围后保存。无需单独的 ChatFlow 工作区标签页。
+1. **打开侧边栏并保存对话**：在普通窗口登录 ChatGPT，打开一段已有对话，点击 ChatFlow 图标，在侧边栏确认来源、文件范围并保存。
 2. **我的档案**：查找档案、检查消息/分支/附件完整性、导出或恢复 ZIP。
 3. **继续到新对话**：选择需要的原始附件，生成接续包并在当前浏览器窗口打开新的普通聊天标签页。ChatFlow 只预填和附加文件，永不自动发送。
 4. **创建上下文包**：从多份档案中筛选所选分支/全部可访问分支、完整消息或重点片段与关键词，按预算完整分段，输出来源清单和可选原始附件。档案详情中的“继续到新对话”也沿用所选分支，并记录来源哈希。
@@ -33,7 +39,7 @@ ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.3 聚焦
 
 ## 开发状态
 
-**版本：0.3 工程候选。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[0.3 工程验证](docs/VERIFICATION_0.3.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
+**版本：0.3 工程试用候选（未正式发布）。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[0.3 工程验证](docs/VERIFICATION_0.3.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
 
 ## 构建
 
@@ -51,4 +57,4 @@ ChatFlow 是一款本地优先的 AI 工作连续性浏览器扩展。0.3 聚焦
 
 普通保存锁定所选对话和页面文档。异步等待中切换对话会停止该次保存，不把新页面归给旧来源。详细规则见[档案格式](docs/ARCHIVE_FORMAT.md)、[任务格式](docs/TASK_LOOP.md)与[性能预算](docs/PERFORMANCE.md)。
 
-本版本仍为工程候选：真实已登录 ChatGPT、真实文件、5 名独立用户与辅助技术验收未完成。
+本版本仍为工程候选：真实已登录 ChatGPT、真实文件、5 名独立用户与辅助技术验收未完成。旧弹窗导出器已归档为测试样本，不属于当前插件入口；参见 [历史边界](docs/LEGACY_BOUNDARY.md)。
