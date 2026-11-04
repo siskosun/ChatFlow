@@ -32,3 +32,8 @@ test('task and experiment rows use stable IDs rather than titles or ordinals',()
  assert.match(experiments,/const focusId=document.activeElement\?\.dataset\?\.experimentId/);
  assert.match(experiments,/el.dataset.experimentId===focusId/);
 });
+
+test('message and passage focus never moves to another source archive',()=>{
+ assert.match(src,/host\.dataset\.captureId===captureId\?preserveIdentityFocus\(host\)/);
+ assert.match(src,/host\.dataset\.captureId=captureId;restoreFocus\(\)/);
+});
