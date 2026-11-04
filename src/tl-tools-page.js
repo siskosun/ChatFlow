@@ -31,12 +31,15 @@
   }
   function nodes(sc = scope()) {
     if (!sc.root) return [];
-    const found = sc.root.querySelectorAll('[data-message-author-role],article[data-turn-key],[data-message-id]');
+    const found = sc.root.querySelectorAll('[data-message-author-role],article[data-turn-key],[data-message-id],[data-chatgpt-selection-message-id],[data-chatgpt-search-message-ids]');
     C.check(found.length <= 4096, 'TOOLS_DOM_SCAN_LIMIT');
     return [...found].filter(el => S.contains(sc, el) && !el.closest('#chatflow-page-tools'));
   }
   function messageRole(el) {
-    return el.getAttribute('data-message-author-role') || el.querySelector('[data-message-author-role]')?.getAttribute('data-message-author-role');
+    const direct=node=>node.getAttribute('data-message-author-role')||(node.matches?.('[data-user-message-bubble]')?'user':node.matches?.('[data-markdown-text-style="assistant-message"]')?'assistant':null);
+    const own=direct(el);if(own)return own;
+    const children=el.querySelectorAll('[data-message-author-role],[data-user-message-bubble],[data-markdown-text-style="assistant-message"]');
+    const roles=new Set([...children].map(direct).filter(Boolean));return roles.size===1?[...roles][0]:null;
   }
   function resolve(session, message, sc) {
     if (!sc.root || sc.status === 'ambiguous') return null;
@@ -51,7 +54,8 @@
       K.getDomMessageIdCandidates(el).some(id => ids.has(id)));
     const inner = found.filter(el => !found.some(other => other !== el && el.contains(other)));
     if (inner.length !== 1) return null;
-    return { el: inner[0], confidence: sc.status === 'confirmed' ? 'verified_message_id' : 'observed_dom_node' };
+    const plural=(inner[0].getAttribute('data-chatgpt-search-message-ids')||'').trim().split(/\s+/).filter(Boolean);
+    return { el: inner[0], confidence: sc.status === 'confirmed' && plural.length<=1 ? 'verified_message_id' : 'observed_dom_node' };
   }
   function scroller(el) {
     for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
@@ -61,55 +65,39 @@
     return document.scrollingElement;
   }
   async function jump(session, message) {
-    const token = ++session.jump, initial = scope();
+    const token = ++session.jump;
+    session.navigationController?.abort();
+    if (session.navigationPromise) await session.navigationPromise;
+    ensure(session);
+    if (token !== session.jump) return false;
+    const controller = new AbortController(); session.navigationController = controller;
+    const initial = S.freeze();
     if (!initial.root || initial.status === 'ambiguous') {
-      session.status.textContent = '当前对话的页面范围无法确认，已停止定位。'; return false;
+      session.status.textContent = '\u5f53\u524d\u5bf9\u8bdd\u7684\u9875\u9762\u8303\u56f4\u65e0\u6cd5\u786e\u8ba4\uff0c\u5df2\u505c\u6b62\u5b9a\u4f4d\u3002'; return false;
     }
-    const lease = S.freeze?.();
-    session.status.textContent = '正在定位原消息…';
     const byId = new Map();
-    session.messages.forEach((item, index) => { byId.set(item.id, index); if (item.nodeId) byId.set(item.nodeId, index); });
-    let cancelled = false;
-    const cancel = () => { cancelled = true; };
-    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
-    for (const event of events) window.addEventListener(event, cancel, { capture: true, passive: true });
-    const started = performance.now();
+    session.messages.forEach((item,index)=>{byId.set(item.id,index);if(item.nodeId)byId.set(item.nodeId,index);});
+    const cancel=event=>{
+      if (event.type==='keydown' && !['Escape','PageUp','PageDown','Home','End','ArrowUp','ArrowDown',' '].includes(event.key)) return;
+      controller.abort();
+    };
+    const events=['wheel','touchstart','pointerdown','keydown'];
+    for(const event of events)window.addEventListener(event,cancel,{capture:true,passive:true});
+    session.status.textContent='\u6b63\u5728\u5b9a\u4f4d\u539f\u6d88\u606f\u2026';
+    const work=globalThis.TLNavigation.navigate({
+      resolve:()=>resolve(session,message,scope()),
+      mounted:()=>nodes().map(el=>({el,index:K.getDomMessageIdCandidates(el).map(id=>byId.get(id)).find(index=>index!==undefined)})).filter(row=>row.index!==undefined),
+      scrollContainer:scroller,targetIndex:session.messages.indexOf(message),total:session.messages.length,signal:controller.signal,
+      assertCurrent:()=>{ensure(session);S.assert(initial);C.check(token===session.jump,'TOOLS_REQUEST_SUPERSEDED');}
+    });
+    session.navigationPromise=work.then(()=>{},()=>{});
     try {
-      for (let attempt = 0; attempt < 24 && performance.now() - started < 8000; attempt += 1) {
-        ensure(session);
-        if (token !== session.jump || cancelled) {
-          if (current(session) && token === session.jump) session.status.textContent = '已取消定位。';
-          return false;
-        }
-        const sc = scope();
-        if (sc.root !== initial.root || sc.status === 'ambiguous' || (lease && !S.unchanged(lease))) {
-          session.status.textContent = '对话内容容器已变化，已停止定位。'; return false;
-        }
-        const exact = resolve(session, message, sc);
-        if (exact) {
-          exact.el.scrollIntoView({ block: 'center', behavior: 'instant' });
-          if (token !== session.jump || cancelled || !S.contains(scope(), exact.el)) return false;
-          session.status.textContent = exact.confidence === 'verified_message_id' ? '已按消息身份定位。' :
-            '仅定位到本次读取的页面节点；原消息身份尚未核验。';
-          return true;
-        }
-        const mounted = nodes(sc).map(el => ({ el, index: K.getDomMessageIdCandidates(el).map(id => byId.get(id)).find(i => i !== undefined) }))
-          .filter(item => item.index !== undefined);
-        const target = session.messages.indexOf(message);
-        if (!mounted.length) break;
-        const nearest = mounted.reduce((a, b) => Math.abs(a.index - target) <= Math.abs(b.index - target) ? a : b);
-        const box = scroller(nearest.el);
-        if (!box || box.clientHeight < 1) break;
-        let orientation = 1;
-        const first = mounted[0], other = mounted.find(item => item.index !== first.index &&
-          Math.abs(item.el.getBoundingClientRect().top - first.el.getBoundingClientRect().top) > 2);
-        if (other) orientation = Math.sign((other.index - first.index) * (other.el.getBoundingClientRect().top - first.el.getBoundingClientRect().top));
-        box.scrollBy({ top: Math.sign(target - nearest.index) * orientation * Math.max(120, box.clientHeight * 0.85), behavior: 'instant' });
-        await new Promise(resolve => setTimeout(resolve, 240));
-      }
-      if (current(session) && token === session.jump) session.status.textContent = '页面未挂载目标消息；未跳转到相似文本。可手动滚动后重试。';
-      return false;
-    } finally { for (const event of events) window.removeEventListener(event, cancel, true); }
+      const result=await work;session.navigationResult=result;
+      if(!current(session)||token!==session.jump)return false;
+      const labels={matched:'\u5df2\u6309\u6d88\u606f\u8eab\u4efd\u5b9a\u4f4d\u3002',observed:'\u4ec5\u5b9a\u4f4d\u5230\u672c\u6b21\u8bfb\u53d6\u7684\u9875\u9762\u8282\u70b9\uff1b\u539f\u6d88\u606f\u8eab\u4efd\u5c1a\u672a\u6838\u9a8c\u3002',cancelled:'\u5df2\u53d6\u6d88\u5b9a\u4f4d\u3002',timeout:'\u5b9a\u4f4d\u8d85\u65f6\uff0c\u672a\u62a5\u544a\u6210\u529f\u3002',not_found:'\u672a\u627e\u5230\u53ef\u786e\u8ba4\u7684\u76ee\u6807\uff0c\u672a\u8df3\u8f6c\u5230\u76f8\u4f3c\u6587\u672c\u3002'};
+      session.status.textContent=labels[result.state];
+      return result.state==='matched'||result.state==='observed';
+    } finally {for(const event of events)window.removeEventListener(event,cancel,true);}
   }
   async function json(session, path, request) {
     ensure(session); C.check(session.request === request, 'TOOLS_REQUEST_SUPERSEDED');

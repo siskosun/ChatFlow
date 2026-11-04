@@ -53,6 +53,7 @@
       ],
       "js": [
         "src/tl-core.js",
+        "src/tl-evidence.js",
         "src/tl-provider.js",
         "src/tl-page-scope.js",
         "src/tl-capture.js",

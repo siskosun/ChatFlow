@@ -29,7 +29,7 @@ CASES=r'''async()=>{
  const opening=indexedDB.open('chatflow-task-v3-fixture',3);
  opening.onupgradeneeded=()=>{const d=opening.result,a=d.createObjectStore('tasks',{keyPath:'id'});a.createIndex('code','code',{unique:true});const b=d.createObjectStore('taskResults',{keyPath:'id'});b.createIndex('task','taskId');b.createIndex('content',['taskId','textHash'],{unique:true});};
  const oldDb=await read(opening);await rawTx(['tasks','taskResults'],'readwrite',s=>{s.tasks.add(oldTask);s.taskResults.add(oldReceipt);},oldDb);oldDb.close();
- const migrated=await TLStore.open('chatflow-task-v3-fixture');check(migrated.version===4,'Wrong upgraded DB version');
+ const migrated=await TLStore.open('chatflow-task-v3-fixture');check(migrated.version===TLStore.DB_VERSION,'Wrong upgraded DB version');
  const proof=await rawTx(['tasks','taskResults','taskSummaries','taskResultSummaries'],'readonly',async s=>({task:await read(s.tasks.get(oldTask.id)),result:await read(s.taskResults.get(oldReceipt.id)),summary:await read(s.taskSummaries.get(oldTask.id)),resultSummary:await read(s.taskResultSummaries.get(oldReceipt.id))}),migrated);
  check(JSON.stringify(proof.task)===JSON.stringify(oldTask)&&JSON.stringify(proof.result)===JSON.stringify(oldReceipt),'Migration changed original records');check(proof.summary.resultCount===1&&proof.summary.text===undefined&&proof.resultSummary.text===undefined,'Migration summaries lost count or copied full body');
  report.push({name:'v3_to_v4_preserves_task_and_receipt_with_body_free_summaries',result:'pass'});

@@ -34,10 +34,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Runtime syntax and actual dependency contracts
+        run: npm run check
       - name: Build deterministic candidate packages
         run: python build.py
       - name: Node regression and security checks
-        run: python -c "import glob,subprocess; subprocess.run(['node','--test']+sorted(glob.glob('tests/*.test.mjs')),check=True)"
+        run: npm test
       - name: Representative algorithm performance budgets
         run: node tests/performance.mjs
       - name: Python test syntax preflight
@@ -68,6 +70,9 @@ jobs:
       - name: Source changes, trusted paste and representative archive library
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/reliability_e2e.py
+      - name: Installed MV3 rollout navigation, evidence and schema upgrades
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/rollout_e2e.py
       - name: Responsive light and dark interface contrast
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/ui_visual_e2e.py
@@ -104,10 +109,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Runtime syntax and actual dependency contracts
+        run: npm run check
       - name: Build and check packages
         run: python build.py
       - name: Node regression and security checks
-        run: python -c "import glob,subprocess; subprocess.run(['node','--test']+sorted(glob.glob('tests/*.test.mjs')),check=True)"
+        run: npm test
       - name: Windows build bytes for cross-platform comparison
         if: success()
         uses: actions/upload-artifact@v4

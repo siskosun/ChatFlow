@@ -1,0 +1,16 @@
+{
+  "name": "chatflow-engineering",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Development checks only; extension has no npm runtime dependencies.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node scripts/check-runtime.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:performance": "node tests/performance.mjs",
+    "build": "python build.py"
+  }
+}

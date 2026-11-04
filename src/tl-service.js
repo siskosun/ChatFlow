@@ -1,5 +1,5 @@
 /* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
-importScripts('tl-core.js','tl-provider.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js','tl-tasks.js','tl-task-store.js','tl-task-service.js');
+importScripts('tl-core.js','tl-evidence.js','tl-diagnostics.js','tl-provider.js','tl-passages.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js','tl-tasks.js','tl-task-store.js','tl-task-service.js');
 const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,api=chrome,runs=new Map();
 function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
 const trusted=sender=>sender?.id===api.runtime.id;
@@ -75,7 +75,7 @@ async function externalDownload(run,msg){
   const r=await fetch(target.href,{method:'GET',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',cache:'no-store',signal:controller.signal});C.check(r.ok,'HTTP_'+r.status);C.check(r.body,'NO_DOWNLOAD_BODY');
   const estimate=await navigator.storage.estimate(),declared=Number(r.headers.get('content-length')||0);if(estimate.quota&&declared)C.check(declared<Math.max(0,estimate.quota-(estimate.usage||0)),'LOCAL_STORAGE_FULL');
   await S.beginAsset(run.captureId,msg.key);const reader=r.body.getReader();let seq=0,total=0;
-  try{while(true){C.check(!run.cancelled&&runs.has(run.nonce),'CANCELLED_BY_USER');C.check(Date.now()<deadlineAt,'ASSET_DOWNLOAD_TIMEOUT');const x=await reader.read();if(x.done)break;for(let i=0;i<x.value.length;i+=262144){const part=x.value.subarray(i,i+262144);await S.chunk(run.captureId,msg.key,seq++,part);total+=part.length;}}}catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}
+  try{while(true){C.check(!run.cancelled&&runs.has(run.nonce),'CANCELLED_BY_USER');C.check(Date.now()<deadlineAt,'ASSET_DOWNLOAD_TIMEOUT');const x=await reader.read();if(x.done)break;for(let i=0;i<x.value.length;i+=C.TRANSFER_CHUNK_BYTES){const part=x.value.subarray(i,i+C.TRANSFER_CHUNK_BYTES);await S.chunk(run.captureId,msg.key,seq++,part);total+=part.length;}}}catch(e){await reader.cancel().catch(()=>{});throw e;}finally{reader.releaseLock();}
   C.check(Date.now()<deadlineAt,'ASSET_DOWNLOAD_TIMEOUT');if(declared&&!r.headers.get('content-encoding'))C.check(total===declared,'DOWNLOAD_SIZE_MISMATCH');return await S.finishAsset(run.captureId,msg.key,r.headers.get('content-type'));
  }catch(e){await S.failAsset(run.captureId,msg.key,errorCode(e));throw e;}finally{clearTimeout(timer);delete run.controller;}
 }
@@ -96,7 +96,7 @@ async function prepareHandoff(msg){
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
- const h={id:C.id(),captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash:new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex(),createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
+ const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash:new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex(),createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
 // A new tab must not load ChatGPT before it is durably bound to this handoff.
@@ -131,22 +131,54 @@ async function claim(sender){
   C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');
   const h=(await S.all('handoffs')).find(x=>x.targetTabId===sender.tab.id&&x.state==='target_opened');if(!h)return null;
   P.identify(sender.url||sender.tab.url,{target:true}).identity;
-  P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId});
-  return{id:h.id,prompt:h.prompt,files:h.batches[0].map(i=>({...h.files[i],index:i})),remainingBatches:h.batches.length-1};
+  P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;const attemptId=C.id();await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId,attemptId});
+  return{id:h.id,attemptId,prompt:h.prompt,files:h.batches[0].map(i=>({...h.files[i],index:i})),remainingBatches:h.batches.length-1};
  });claimQueue=operation.catch(()=>{});return operation;
+}
+// All receipts and user attestations share one queue. A late progress report
+// cannot overwrite a terminal receipt or erase a concurrent manual check.
+let receiptQueue=Promise.resolve();
+async function applyHandoffEvidence(msg,sender){
+ const E=globalThis.TLEvidence;
+ if(msg.type==='tl:confirmUpload'||msg.type==='tl:confirmFile'){
+  workspace(sender);
+  const h=await S.get('handoffs',msg.id);C.check(h&&h.targetTabId,'HANDOFF_NOT_CONFIRMABLE');
+  const source=await S.get('captures',h.captureId);
+  C.check(source?.snapshot&&new C.SHA256().update(JSON.stringify(C.persistedSnapshot(source.snapshot))).hex()===h.snapshotHash,'HANDOFF_SOURCE_CHANGED');
+  C.check(msg.confirmed===true,'USER_CONFIRMATION_REQUIRED');
+  C.check(['upload_unknown','upload_confirmed','draft_prepared','partial_injection','user_verified_upload'].includes(h.state),'HANDOFF_NOT_CONFIRMABLE');
+  const indices=msg.type==='tl:confirmUpload'?h.batches[0]:[msg.index];
+  C.check(indices.every(i=>Number.isInteger(i)&&i>=0&&i<h.files.length),'INVALID_FILE_EVIDENCE_INDEX');
+  const checks=[...new Set([...(h.userFileChecks||[]),...indices])].sort((a,b)=>a-b);
+  await S.set('handoffs',{...h,userFileChecks:checks,state:msg.type==='tl:confirmUpload'?'user_verified_upload':h.state,
+   userVerifiedAt:new Date().toISOString(),note:'User attestation only; not provider receipt, model reading or message sending.'});
+  return {confirmed:true};
+ }
+ const h=await targetHandoff(msg,sender);C.check(h.state==='claimed','HANDOFF_ALREADY_FINISHED');
+ let evidence=null;
+ if(h.evidenceVersion===1){
+  C.check(typeof h.attemptId==='string'&&msg.attemptId===h.attemptId,'HANDOFF_ATTEMPT_MISMATCH');
+  evidence=E.validateFileEvidence(h,msg.files);
+ }
+ const terminal=msg.type==='tl:handoffStatus';
+ if(terminal){
+  C.check(['draft_prepared','upload_confirmed','upload_unknown','injection_blocked','partial_injection'].includes(msg.state),'INVALID_HANDOFF_STATE');
+  if(msg.state==='upload_confirmed'&&evidence)C.check(evidence.every(row=>row.state==='page_ready'),'UNPROVEN_UPLOAD_SUCCESS');
+ }
+ const code=/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:null;
+ const updated={...h,...(evidence?{fileEvidence:evidence}:{}),state:terminal?msg.state:h.state,
+  lastError:code,reportedAt:new Date().toISOString()};
+ await S.set('handoffs',updated);return updated;
 }
 async function handle(msg,sender){
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');C.check(trusted(sender),'FOREIGN_EXTENSION');
+ if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type)){const job=receiptQueue.then(()=>applyHandoffEvidence(msg,sender));receiptQueue=job.catch(()=>{});return job;}
  const taskResult=await globalThis.TLTaskService?.handle(msg,sender,api);if(taskResult!==undefined)return taskResult;
  const experimentResult=await ChatFlowExperimentService.handle(msg,sender,api,{startCapture});if(experimentResult!==undefined)return experimentResult;
  if(msg.type==='tl:claimHandoff')return claim(sender);
  if(msg.type==='tl:handoffChunk'){
   const h=await targetHandoff(msg,sender);C.check(h.state==='claimed'&&h.batches[0].includes(msg.index),'HANDOFF_NOT_READABLE');const f=h.files[msg.index],row=await S.get('files',f.sha256);C.check(row?.blob&&row.blob.size===f.size,'LOCAL_FILE_MISSING');C.check(Number.isSafeInteger(msg.offset)&&msg.offset>=0&&msg.offset<row.blob.size,'INVALID_FILE_OFFSET');
-  const b=new Uint8Array(await row.blob.slice(msg.offset,msg.offset+262144).arrayBuffer());return{data:C.bytesToBase64(b),total:row.blob.size};
- }
- if(msg.type==='tl:handoffStatus'){
-  const h=await targetHandoff(msg,sender);C.check(h.state==='claimed','HANDOFF_ALREADY_FINISHED');C.check(['draft_prepared','upload_confirmed','upload_unknown','injection_blocked','partial_injection'].includes(msg.state),'INVALID_HANDOFF_STATE');
-  const code=/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:null,updated={...h,state:msg.state,lastError:code,reportedAt:new Date().toISOString()};await S.set('handoffs',updated);return updated;
+  const b=new Uint8Array(await row.blob.slice(msg.offset,msg.offset+C.TRANSFER_CHUNK_BYTES).arrayBuffer());return{data:C.bytesToBase64(b),total:row.blob.size};
  }
  if(['tl:sources','tl:freezeSource','tl:start','tl:stop','tl:sessions','tl:prepareHandoff','tl:openHandoff','tl:confirmUpload','tl:focusTarget'].includes(msg.type)){
   workspace(sender);
@@ -158,7 +190,7 @@ async function handle(msg,sender){
   if(msg.type==='tl:prepareHandoff')return prepareHandoff(msg);
   if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender,msg);
   if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
-  if(msg.type==='tl:confirmUpload'){const h=await S.get('handoffs',msg.id);C.check(h&&['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state),'HANDOFF_NOT_CONFIRMABLE');C.check(msg.confirmed===true,'USER_CONFIRMATION_REQUIRED');await S.set('handoffs',{...h,state:'user_verified_upload',userVerifiedAt:new Date().toISOString(),note:'User confirmed page attachments; this is not model-read or sent-message evidence.'});return{confirmed:true};}
+
  }
  const run=await sourceRun(msg,sender);
  // Serialize writes for this run. A stop marks the run cancelled immediately,
@@ -184,11 +216,11 @@ async function handleRunMessage(msg,run){
 api.runtime.onMessage.addListener((msg,sender,respond)=>{if(!msg||typeof msg.type!=='string'||(!msg.type.startsWith('tl:')&&!msg.type.startsWith('FF_')))return false;handle(msg,sender).then(data=>respond({ok:true,data})).catch(e=>respond({ok:false,code:errorCode(e)}));return true;});
 // Open the native browser side panel beside ChatGPT, not a workspace tab.
 api.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{
- console.error('CHATFLOW_SIDEPANEL_SETUP_FAILED');
+ TLDiagnostics.record('sidepanel-setup',new Error('SIDEPANEL_SETUP_FAILED'));
 });
 api.tabs.onUpdated.addListener((tabId,change,tab)=>{
- ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(()=>{});
- if(change.status==='complete')announce(tabId).catch(()=>{});
- if(change.url)for(const r of runs.values())if(r.tabId===tabId){let same=false;try{const now=P.identify(tab.url).identity;same=now.conversationId===r.source.conversationId&&now.origin===r.source.origin;}catch{}if(!same)stopCapture(r.captureId).catch(()=>{});}
+ ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(e=>TLDiagnostics.record('experiment-tab-update',e));
+ if(change.status==='complete')announce(tabId).catch(e=>TLDiagnostics.record('handoff-announce',e));
+ if(change.url)for(const r of runs.values())if(r.tabId===tabId){let same=false;try{const now=P.identify(tab.url).identity;same=now.conversationId===r.source.conversationId&&now.origin===r.source.origin;}catch{}if(!same)stopCapture(r.captureId).catch(e=>TLDiagnostics.record('capture-stop',e));}
 });
-api.tabs.onRemoved.addListener(tabId=>{for(const r of runs.values())if(r.tabId===tabId)stopCapture(r.captureId).catch(()=>{});ChatFlowExperimentService.onTabRemoved(tabId,api).catch(()=>{});});
+api.tabs.onRemoved.addListener(tabId=>{for(const r of runs.values())if(r.tabId===tabId)stopCapture(r.captureId).catch(e=>TLDiagnostics.record('capture-stop',e));ChatFlowExperimentService.onTabRemoved(tabId,api).catch(e=>TLDiagnostics.record('experiment-tab-close',e));});

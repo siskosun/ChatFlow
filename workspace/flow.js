@@ -116,6 +116,10 @@
  }
  resultText.addEventListener('input',()=>{invalidateSavedResultOpen();taskStatus.textContent='';confirmBox.checked=false;safe(updateMatch);});manualSource.addEventListener('change',()=>{invalidateSavedResultOpen();taskStatus.textContent='';confirmBox.checked=false;safe(updateMatch);});confirmBox.addEventListener('change',()=>{invalidateSavedResultOpen();safe(updateMatch);});
  const settings=n('section',null,{id:'settings-view',class:'view',hidden:''}),sh=n('div',null,{class:'view-heading'});sh.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','高级功能'));settings.append(sh);
+ const diagnosticDetails=n('details',null,{class:'advanced'}),diagnosticOutput=n('pre',null,{id:'diagnostic-codes'});
+ diagnosticDetails.append(n('summary','\u5de5\u7a0b\u8bca\u65ad\uff08\u4e0d\u542b\u5bf9\u8bdd\u539f\u6587\uff09'),button('\u8bfb\u53d6\u672c\u5730\u9519\u8bef\u7c7b\u578b','read-diagnostics',async()=>{diagnosticOutput.textContent=JSON.stringify(await TLDiagnostics.list(),null,2);}),diagnosticOutput);
+ settings.append(diagnosticDetails);
+
  const settingsBox=n('div',null,{class:'task-card'});
  const featureRows=[
   ['context','组合多份档案','从选中的本地档案生成来源清楚的上下文包。'],

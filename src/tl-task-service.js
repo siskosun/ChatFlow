@@ -28,7 +28,7 @@
     C.check(typeof msg.expectedUrl === 'string' && identity.url === msg.expectedUrl, 'TASK_SOURCE_CHANGED');
     if (msg.type === 'tl:openTools') {
       const injected = await api.scripting.executeScript({ target: { tabId: msg.tabId },
-        files: ['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-tools-page.js'] });
+        files: ['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-navigation.js','src/tl-tools-page.js'] });
       const documentId = injected.find(row => row.frameId === 0)?.documentId;
       C.check(documentId, 'SOURCE_DOCUMENT_CHANGED');
       C.check(C.chatUrl((await api.tabs.get(msg.tabId)).url).url === identity.url, 'TASK_SOURCE_CHANGED');

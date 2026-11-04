@@ -51,9 +51,9 @@
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
     const size = ChatFlowExperimentCore.byteLength(value);
     $("ff-bytes").textContent = "最终发送文本：" + size.toLocaleString() +
-      " / 24,000 UTF-8 字节" + (size>24000?" · 超限；全文已保留，请缩短后继续。":"");
-    for(const id of inputs)$(id).setAttribute('aria-invalid',String(size>24000));
-    $("ff-save").disabled = createBusy || size > 24000 || !$("ff-p").value.trim();
+      " / 24,000 UTF-8 字节" + (size>ChatFlowExperimentCore.MAX_BYTES?" · 超限；全文已保留，请缩短后继续。":"");
+    for(const id of inputs)$(id).setAttribute('aria-invalid',String(size>ChatFlowExperimentCore.MAX_BYTES));
+    $("ff-save").disabled = createBusy || size > ChatFlowExperimentCore.MAX_BYTES || !$("ff-p").value.trim();
   }
   let currentExperiment = null,currentData=null,readTicket=0,listTicket=0;
   const verdictDrafts=new Map();
@@ -126,15 +126,12 @@
     }
     return box;
   }
-  function renderAdoptControl(label, value, decision, replyText) {
+  function renderCaptureNote(label, value, decision) {
     const holder = document.createElement("div");
     holder.className = "line";
     const branch = decision.mapping[label];
     const attempt = value.branches[branch] && value.branches[branch].attempts.at(-1);
-    const reply = replyText || "";
     const evidence = attempt && attempt.evidence;
-    const status = document.createElement("span");
-    status.className = "subtle";
     const note = document.createElement("span");
     note.className = "subtle";
     note.textContent = evidence?.captureRunId ? "回复已保存在本地实验记录中。" : "此分支尚无可追溯的采集回复。";
@@ -243,10 +240,8 @@
       const body = document.createElement("pre");
       body.textContent = replyOf(label);
       col.appendChild(head); col.appendChild(body);
-      // S1b: per-branch adoption into the evidence store. The reply becomes
-      // the source fragment bound to this attempt's conversation; duplicate
-      // adoptions replay instead of creating twins.
-      col.appendChild(renderAdoptControl(label, value, decision, replyOf(label)));
+      // Show capture provenance; this does not adopt or transmit the response.
+      col.appendChild(renderCaptureNote(label, value, decision));
       columns.appendChild(col);
     }
     const v = decision.verdict;

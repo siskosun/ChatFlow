@@ -193,13 +193,13 @@ async def main():
             await page.goto('chrome-extension://'+extension+'/workspace/index.html')
             await page.wait_for_function('typeof TLStore!=="undefined"')
             migration=await page.evaluate("""async()=>{const db=await TLStore.open('chatflow-migration-test'),record=await new Promise((resolve,reject)=>{const tx=db.transaction('captures','readonly'),r=tx.objectStore('captures').get('legacy-v1-record');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});return{version:db.version,stores:Array.from(db.objectStoreNames),record};}""")
-            assert migration['version']==4 and {'passages','tasks','taskResults','captureSummaries','taskSummaries','taskResultSummaries','taskImportRows'}.issubset(migration['stores']) and migration['record']['id']=='legacy-v1-record',migration
-            print('PASS indexeddb_v1_to_v4_migration_preserves_existing_records',flush=True)
+            assert migration['version']==5 and {'passages','tasks','taskResults','captureSummaries','taskSummaries','taskResultSummaries','taskImportRows'}.issubset(migration['stores']) and migration['record']['id']=='legacy-v1-record',migration
+            print('PASS indexeddb_v1_to_v5_migration_preserves_existing_records',flush=True)
             v2=await page.evaluate("""async()=>{const db=await TLStore.open('chatflow-v2-migration-test');const tx=db.transaction(['captures','passages'],'readonly'),read=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const capture=await read(tx.objectStore('captures').get('v2-capture')),passage=await read(tx.objectStore('passages').get('v2-passage'));return{version:db.version,capture,passage,stores:Array.from(db.objectStoreNames)};}""")
-            assert v2['version']==4 and v2['capture']['id']=='v2-capture' and v2['passage']['text']=='existing original excerpt' and {'tasks','taskResults'}.issubset(v2['stores']),v2
+            assert v2['version']==5 and v2['capture']['id']=='v2-capture' and v2['passage']['text']=='existing original excerpt' and {'tasks','taskResults'}.issubset(v2['stores']),v2
             ready=await page.evaluate('chrome.runtime.sendMessage({type:"tl:sessions"})')
             assert ready['ok'],ready
-            result['cases']=[{'name':'indexeddb_v1_to_v4_migration_preserves_existing_records','result':'pass'},{'name':'indexeddb_v2_to_v4_preserves_archives_and_passages','result':'pass'}]+await page.evaluate(CASES)
+            result['cases']=[{'name':'indexeddb_v1_to_v5_migration_preserves_existing_records','result':'pass'},{'name':'indexeddb_v2_to_v5_preserves_archives_and_passages','result':'pass'}]+await page.evaluate(CASES)
             result['status']='pass'
             for case in result['cases']:print('PASS',case['name'],flush=True)
         except Exception as e:
