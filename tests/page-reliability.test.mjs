@@ -158,8 +158,9 @@ test('navigation cancels on user wheel and restores temporary event listeners', 
     CFToolkit: { getDomMessageIdCandidates: el => el === element ? ['other-message'] : [] },
     TLPageScope: { current: () => sc, contains: () => true }, chrome: { runtime: { id: 'test', onMessage: { addListener() {} } } },
     document: { body, scrollingElement: box }, location: { href: url }, getComputedStyle: () => ({ overflowY: 'auto' }),
-    window, performance: { now: () => 1000 }, setTimeout: fn => fn(), URL
+    AbortController, window, performance: { now: () => 1000 }, setTimeout: fn => fn(), URL
   });
+  vm.runInContext(read('tl-navigation.js'), context);
   vm.runInContext(instrument('tl-tools-page.js', 'globalThis.navTest={jump,setLive(s){live=s;}};'), context);
   const target = { id: 'target-message' }, session = { url, closed: false, jump: 0, messages: [{ id: 'other-message' }, target], status: { textContent: '' } };
   context.navTest.setLive(session);

@@ -61,56 +61,49 @@
     return document.scrollingElement;
   }
   async function jump(session, message) {
-    const token = ++session.jump, initial = scope();
+    session.navigationController?.abort();
+    const controller = new AbortController(); session.navigationController = controller;
+    const token = ++session.jump, initial = scope(), lease = S.freeze?.();
     if (!initial.root || initial.status === 'ambiguous') {
       session.status.textContent = '当前对话的页面范围无法确认，已停止定位。'; return false;
     }
-    const lease = S.freeze?.();
     session.status.textContent = '正在定位原消息…';
     const byId = new Map();
     session.messages.forEach((item, index) => { byId.set(item.id, index); if (item.nodeId) byId.set(item.nodeId, index); });
-    let cancelled = false;
-    const cancel = () => { cancelled = true; };
-    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
-    for (const event of events) window.addEventListener(event, cancel, { capture: true, passive: true });
-    const started = performance.now();
-    try {
-      for (let attempt = 0; attempt < 24 && performance.now() - started < 8000; attempt += 1) {
+    const outcome = await globalThis.TLNavigation.run({
+      signal: controller.signal, targetIndex: session.messages.indexOf(message),
+      assertCurrent() {
         ensure(session);
-        if (token !== session.jump || cancelled) {
-          if (current(session) && token === session.jump) session.status.textContent = '已取消定位。';
-          return false;
-        }
+        C.check(token === session.jump, 'TOOLS_REQUEST_SUPERSEDED');
         const sc = scope();
-        if (sc.root !== initial.root || sc.status === 'ambiguous' || (lease && !S.unchanged(lease))) {
-          session.status.textContent = '对话内容容器已变化，已停止定位。'; return false;
+        C.check(sc.root === initial.root && sc.status !== 'ambiguous' && (!lease || S.unchanged(lease)), 'PAGE_SCOPE_CHANGED');
+      },
+      resolve: () => resolve(session, message, scope()), scroller,
+      sample() {
+        const mounted = nodes(), seen = new Set(), rows = [];
+        for (const el of mounted) {
+          const index = K.getDomMessageIdCandidates(el).map(id => byId.get(id)).find(i => i !== undefined);
+          if (index === undefined || seen.has(index)) continue;
+          seen.add(index); rows.push({ el, index });
         }
-        const exact = resolve(session, message, sc);
-        if (exact) {
-          exact.el.scrollIntoView({ block: 'center', behavior: 'instant' });
-          if (token !== session.jump || cancelled || !S.contains(scope(), exact.el)) return false;
-          session.status.textContent = exact.confidence === 'verified_message_id' ? '已按消息身份定位。' :
-            '仅定位到本次读取的页面节点；原消息身份尚未核验。';
-          return true;
-        }
-        const mounted = nodes(sc).map(el => ({ el, index: K.getDomMessageIdCandidates(el).map(id => byId.get(id)).find(i => i !== undefined) }))
-          .filter(item => item.index !== undefined);
-        const target = session.messages.indexOf(message);
-        if (!mounted.length) break;
-        const nearest = mounted.reduce((a, b) => Math.abs(a.index - target) <= Math.abs(b.index - target) ? a : b);
-        const box = scroller(nearest.el);
-        if (!box || box.clientHeight < 1) break;
-        let orientation = 1;
-        const first = mounted[0], other = mounted.find(item => item.index !== first.index &&
-          Math.abs(item.el.getBoundingClientRect().top - first.el.getBoundingClientRect().top) > 2);
-        if (other) orientation = Math.sign((other.index - first.index) * (other.el.getBoundingClientRect().top - first.el.getBoundingClientRect().top));
-        box.scrollBy({ top: Math.sign(target - nearest.index) * orientation * Math.max(120, box.clientHeight * 0.85), behavior: 'instant' });
-        await new Promise(resolve => setTimeout(resolve, 240));
+        return { rows, scanned: mounted.length };
       }
-      if (current(session) && token === session.jump) session.status.textContent = '页面未挂载目标消息；未跳转到相似文本。可手动滚动后重试。';
-      return false;
-    } finally { for (const event of events) window.removeEventListener(event, cancel, true); }
+    });
+    if (!current(session) || token !== session.jump) return false;
+    session.lastNavigation = { ...outcome, element: undefined };
+    const labels = {
+      located: '已按消息身份定位。',
+      observed: '仅定位到本次读取的页面节点；原消息身份尚未核验。',
+      cancelled: '已取消定位。',
+      source_changed: '来源已变化，已停止定位。',
+      timeout: '定位超时，未确认目标消息。',
+      layout_unstable: '页面布局尚未稳定，未确认定位成功。',
+      scan_limit: '达到安全扫描上限，已停止定位。'
+    };
+    session.status.textContent = labels[outcome.status] || '页面未挂载目标消息；未跳转到相似文字。';
+    return outcome.status === 'located' || outcome.status === 'observed';
   }
+
   async function json(session, path, request) {
     ensure(session); C.check(session.request === request, 'TOOLS_REQUEST_SUPERSEDED');
     const url = globalThis.ChatFlowProviders.get('chatgpt').readEndpoint(path, C.chatUrl(session.url));
