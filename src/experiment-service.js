@@ -12,7 +12,7 @@
  async function enabled(api){const x=await api.storage.local.get(ENABLED);return x[ENABLED]===true;}
  async function binding(api,tabId){const x=await api.storage.session.get(BIND+tabId);return x[BIND+tabId]||null;}
  async function saveBinding(api,tabId,value){await api.storage.session.set({[BIND+tabId]:value});}
- async function clearBinding(api,tabId){await api.storage.session.remove(BIND+tabId,HANDOFF+tabId);}
+ async function clearBinding(api,tabId){await api.storage.session.remove([BIND+tabId,HANDOFF+tabId]);}
  async function advance(bind,event){
   const row=await DB.read(bind.experimentId);if(!row)return null;
   const attempt=row.branches[bind.branch]?.attempts.find(a=>a.id===bind.attemptId);
@@ -158,24 +158,68 @@
   if(type==='FF_LAUNCH')return serial(async()=>{
    if(!validId(msg.operationId))throw new Error('EXPLICIT_LAUNCH_OPERATION_REQUIRED');
    let row=await DB.read(msg.experimentId);if(!row)throw new Error('EXPERIMENT_NOT_FOUND');await Core.verifyFrozen(row.frozen);
-   const tabIds={},attemptIds={};
-   for(const branch of Object.keys(row.branches)){
+   const branchLabels=Object.keys(row.branches);
+   for(const branch of branchLabels){
     const current=row.branches[branch],last=current.attempts.at(-1);
     if(last?.status==='pending')throw new Error('BRANCH_STILL_PENDING:'+branch);
     if(current.status==='done')throw new Error('COMPLETED_BRANCH_IMMUTABLE:'+branch);
    }
-   for(const branch of Object.keys(row.branches)){
-    const tab=await api.tabs.create({active:false});
-    const attemptId='att_'+id(),bind={experimentId:row.id,branch,attemptId,operationId:msg.operationId,tabId:tab.id,createdAt:Date.now()};
-    await saveBinding(api,tab.id,bind);await api.storage.session.set({[HANDOFF+tab.id]:{text:row.frozen.text,experimentId:row.id,branch}});
-    await api.tabs.update(tab.id,{url:'https://chatgpt.com/'});
-    tabIds[branch]=tab.id;attemptIds[branch]=attemptId;
-    row=await DB.update(row.id,row.revision,r=>Core.advance(r,{branch,expectedRevision:r.revision,
-     operationId:msg.operationId+'_'+branch,attemptId,status:'pending',phase:'created',
-     reason:'new inactive ChatGPT tab; manual send required',evidence:{tabId:tab.id}}));
+   // Each experiment page is a real extension tab; never place branches in an
+   // unrelated active window, and never create/open a hidden fallback session.
+   const windowId=sender?.tab?.windowId;
+   if(!Number.isInteger(windowId))throw new Error('WORKSPACE_WINDOW_REQUIRED');
+   const created=[],tabIds={},attemptIds={};let committed=false;
+   try{
+    // Reserve and bind every target before opening any ChatGPT destination.
+    for(const branch of branchLabels){
+     const tab=await api.tabs.create({active:false,windowId});
+     created.push(tab.id);
+     const attemptId='att_'+id(),bind={experimentId:row.id,branch,attemptId,operationId:msg.operationId,tabId:tab.id,createdAt:Date.now()};
+     await saveBinding(api,tab.id,bind);
+     await api.storage.session.set({[HANDOFF+tab.id]:{text:row.frozen.text,experimentId:row.id,branch}});
+     tabIds[branch]=tab.id;attemptIds[branch]=attemptId;
+    }
+    // One IndexedDB transaction commits all branches or none. Each branch
+    // retains its own signed operation history and expected revision.
+    row=await DB.update(row.id,row.revision,previous=>{
+     let next=previous;
+     for(const branch of branchLabels){
+      next=Core.advance(next,{branch,expectedRevision:next.revision,
+       operationId:msg.operationId+'_'+branch,attemptId:attemptIds[branch],
+       status:'pending',phase:'created',
+       manualNewAttempt:['failed','unknown'].includes(next.branches[branch].status),
+       reason:'new inactive ChatGPT tab; manual send required',evidence:{tabId:tabIds[branch]}});
+     }
+     return next;
+    },branchLabels.length);
+    committed=true;
+    for(const tabId of created)await api.tabs.update(tabId,{url:'https://chatgpt.com/'});
+    for(const tabId of created)await sendReady(api,tabId);
+    return{tabIds,attemptIds,revision:row.revision,branchCount:branchLabels.length};
+   }catch(error){
+    if(committed){
+     // A browser operation is not an IndexedDB transaction. After a failed
+     // navigation, mark every affected attempt unknown rather than leaving
+     // a misleading partially pending run.
+     try{
+      const latest=await DB.read(row.id);
+      await DB.update(latest.id,latest.revision,previous=>{
+       let next=previous;
+       for(const branch of branchLabels)next=Core.advance(next,{
+        branch,expectedRevision:next.revision,
+        operationId:'abort_'+id(),attemptId:attemptIds[branch],
+        status:'unknown',phase:'created',
+        reason:'launch navigation failed; no automatic retry',evidence:{tabId:tabIds[branch]}});
+       return next;
+      },branchLabels.length);
+     }catch{/* Retain the original launch error; uncertain states require review. */}
+    }
+    for(const tabId of created){
+     try{await clearBinding(api,tabId);}catch{/* a stale key does not authorize replay */}
+     try{await api.tabs.remove(tabId);}catch{/* tab may have already closed */}
+    }
+    throw error;
    }
-   for(const tabId of Object.values(tabIds))await sendReady(api,tabId);
-   return{tabIds,attemptIds,revision:row.revision,branchCount:Object.keys(row.branches).length};
   });
   if(type==='FF_REPREFILL')return serial(async()=>{
    if(!validId(msg.operationId))throw new Error('EXPLICIT_REPREFILL_OPERATION_REQUIRED');
