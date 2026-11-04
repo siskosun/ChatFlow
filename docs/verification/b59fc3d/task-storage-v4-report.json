@@ -1,0 +1,52 @@
+{
+  "scope": "actual_chromium_indexeddb_synthetic_task_storage_v4",
+  "status": "pass",
+  "cases": [
+    {
+      "name": "v3_to_v4_preserves_task_and_receipt_with_body_free_summaries",
+      "result": "pass"
+    },
+    {
+      "name": "legacy_v1_json_backup_remains_importable",
+      "result": "pass"
+    },
+    {
+      "name": "real_export_restore_16_maximum_results_above_4mib_preserves_bytes",
+      "result": "pass",
+      "backupBytes": 4200227
+    },
+    {
+      "name": "duplicate_save_and_restore_refuse_damaged_existing_receipt",
+      "result": "pass"
+    },
+    {
+      "name": "same_utf8_hash_with_different_utf16_text_is_rejected_without_loss",
+      "result": "pass"
+    },
+    {
+      "name": "bad_footer_and_late_live_conflict_leave_no_partial_data",
+      "result": "pass"
+    },
+    {
+      "name": "import_cleanup_respects_active_lock_and_clears_abandoned_stage",
+      "result": "pass"
+    },
+    {
+      "name": "1000_tasks_2000_receipts_roundtrip_and_paginate_without_body_reads",
+      "result": "pass",
+      "backupBytes": 11328633,
+      "restoreMs": 3295,
+      "firstPageMs": 4.199999999982538,
+      "pageP95Ms": 4.399999999994179,
+      "budget": {
+        "coldPageMs": 1500,
+        "p95PageMs": 500,
+        "restoreMs": 60000
+      }
+    },
+    {
+      "name": "result_capacity_failure_preserves_existing_2000_receipts",
+      "result": "pass"
+    }
+  ]
+}

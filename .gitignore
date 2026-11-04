@@ -1,0 +1,11 @@
+# Local ChatGPT exports: never commit conversation data.
+conversations/
+
+# Generated export folders and local build output.
+exports/
+__pycache__/
+
+# Reproducible packages and synthetic CI evidence are workflow artifacts.
+dist/
+test-results/
+

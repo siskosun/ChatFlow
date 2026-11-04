@@ -1,0 +1,77 @@
+{
+  "scope": "synthetic_chromium_mv3_task_loop",
+  "cases": [
+    {
+      "name": "equal_home_journeys_and_five_responsive_viewports",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "advanced_features_opt_in_persist_without_disabling_safety",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "same_title_same_text_tasks_bound_to_distinct_sources_without_capture",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "reverse_return_order_uses_exact_marker_not_topic_or_title",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "clipboard_denial_keeps_selectable_result_and_return_never_sends_or_overwrites",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "missing_and_conflicting_markers_require_explicit_manual_assignment",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "task_backup_idempotence_and_conflict_atomicity_on_real_indexeddb",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "stale_source_tab_identity_rejected_before_task_creation",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "virtualized_navigation_finds_exact_ids_and_distinguishes_duplicate_text",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "ported_selected_turn_export_preserves_source_and_latex_is_user_triggered",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "API_failure_is_labelled_loaded_only_not_complete_history",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "navigation_closes_and_cancels_on_source_route_change",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "browser_restart_preserves_task_and_result_identity",
+      "result": "pass",
+      "detail": null
+    },
+    {
+      "name": "no_page_errors_source_write_requests_or_automatic_send",
+      "result": "pass",
+      "detail": null
+    }
+  ],
+  "errors": [],
+  "page_errors": []
+}

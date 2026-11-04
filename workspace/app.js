@@ -1,0 +1,371 @@
+/* ChatFlow workspace: all user content is rendered with textContent, never HTML. */
+(() => {
+ 'use strict';
+ const C=TLCore,S=TLStore,A=TLArchive,$=id=>document.getElementById(id);
+ let selectedId=null,selectedKeys=new Set(),contextSelectedIds=new Set(),contextSelectedPassageIds=new Set(),branchSelections=new Map(),reanchorPassageId=null,handoffId=null,planFingerprint=null,staged=new Map(),view='home',refreshing=false,messageLimit=100,detailEpoch=0,sourceLookupKey=null,sourceLookupCaptureId=null,sourceOptionsSignature=null,runningSignature=null,runningEpoch=0,downloadStatusNonce=0;
+ const labels={ready:'可访问快照已保存',partial:'部分保存',capturing:'保存中',interrupted:'已中断',error:'保存失败',cancelled:'已取消',saved:'文件已保存',excluded:'按保存范围跳过',unavailable:'未取得文件字节',discovered:'待下载',downloading:'下载中',corrupt:'本地校验失败',prepared:'接续包已生成',target_opened:'新聊天标签页已打开',claimed:'准备草稿与文件中',draft_prepared:'草稿已预填',upload_confirmed:'网页确认首批上传',upload_unknown:'首批上传结果未知',injection_blocked:'自动注入已停止',partial_injection:'注入未完整确认',user_verified_upload:'用户已核对首批上传'};
+ const errors={SOURCE_SELECTION_CHANGED:'所选对话已变化，请重新选择后保存。',SOURCE_CHANGED:'来源对话已变化，保存已停止。',SOURCE_IDENTITY_MISMATCH:'来源身份不一致，未保存其他对话。',ARCHIVE_BUSY:'文件仍在下载，请完成或停止采集后再备份。',ARCHIVE_EXPORT_LIMIT:'当前内容超过可恢复备份的容量，未生成备份；本地内容仍保留。',HANDOFF_SOURCE_CHANGED:'来源档案或分支已变化，请重新准备接续包。',HANDOFF_SOURCE_CHANGED_REGENERATE:'来源档案已变化，请重新准备接续包。',PASSAGE_COUNT_LIMIT:'每份档案最多保存 5000 条重点片段。',PASSAGE_NOT_ANCHORED_TO_SOURCE:'片段来源已变化，请刷新档案并重新选择。',CONTEXT_PASSAGE_NOT_ANCHORED:'部分重点片段已过期或有歧义，请重新定位后再编译。',CONTEXT_PASSAGE_OUTSIDE_BRANCH_SCOPE:'所选重点片段不属于当前分支；请切换分支或选择全部可访问分支。',NO_SELECTED_CONTEXT_PASSAGES:'请先选择要编译的重点片段。',CHATGPT_PAGE_NOT_READY:'ChatGPT 页面尚未准备好，请打开原对话后重试。',CHATGPT_LOGIN_REQUIRED:'请先在所选 ChatGPT 标签页登录。',NO_CONVERSATION_ID:'请选择已有的 ChatGPT 对话，而不是空白首页。',SOURCE_ALREADY_RUNNING:'这个对话已有采集在运行，请先停止。',LOCAL_STORAGE_FULL:'本地存储空间不足。已保存的文件保留，请先导出 ZIP 或清理本地档案。',MEDIA_PERMISSION_REQUIRED:'未授予 OpenAI 文件域名权限，正文可保存，但有关文件尚未取得字节。',OUT_OF_SAVE_SCOPE:'该文件未尝试下载，因为它不在本次保存范围内。',SAVE_SCOPE_SOURCE_UNRESOLVED:'文件来源或消息位置无法确认，不能判断它是否为当前分支最后生成文件；未自动下载。',LIVE_CACHE_REQUIRES_ALL_SCOPE:'仅保存最后生成文件不能同时开启实时缓存，请选择全部文件或关闭实时缓存。',USER_DRAFT_PRESENT:'目标窗口已有草稿，自动预填已停止，不会覆盖。',SELECTED_FILE_NOT_SAVED:'所选文件尚未取得实际字节，不能加入接续。',CAPTURE_NOT_READY:'该档案仍在采集，或没有可用快照。',SNAPSHOT_HASH_MISMATCH:'档案快照哈希不匹配，恢复已中止。',ARCHIVE_FILE_HASH_MISMATCH:'归档文件哈希不匹配，恢复已中止。',LOCAL_FILE_HASH_MISMATCH:'本地文件校验失败，不会上传。',ZIP_RESOURCE_LIMIT:'档案超过当前版本的安全恢复上限（单个 ZIP 条目 64 MiB，合计 256 MiB）；恢复已中止，原有档案未更改。',ZIP_COMPRESSION_RATIO_LIMIT:'ZIP 内文件压缩比例超过安全上限，已拒绝恢复。',ZIP_EXPANSION_LIMIT:'ZIP 实际展开尺寸超过安全上限，已中止恢复。',UNRECOGNIZED_ARCHIVE:'这不是可识别的ChatFlow档案 ZIP。官方导出请使用“对照官方 ZIP”。',INVALID_ZIP:'文件不是有效 ZIP，请选择正确的备份文件。',ZIP_END_NOT_FOUND:'ZIP 文件不完整或损坏，未导入任何数据。',INVALID_ZIP_DIRECTORY:'ZIP 文件结构损坏，未导入任何数据。',INVALID_HANDOFF_BRANCH_PATH:'所选分支路径不完整或已变化，请重新选择分支。',INVALID_CONTEXT_BRANCH_PATH:'所选分支路径不完整，请重新选择分支。',WORKSPACE_WINDOW_REQUIRED:'无法确认工作区所在的浏览器窗口，未创建新标签页。请从当前窗口重新打开 ChatFlow。',NEW_TAB_FAILED:'无法在当前浏览器窗口创建新标签页。'};
+ Object.assign(errors,{SOURCE_CONVERSATION_CHANGED:'来源对话已切换，请重新选择后保存。',SOURCE_DOCUMENT_CHANGED:'来源页面已刷新，请重新选择后保存。',SOURCE_NAVIGATED:'来源对话已切换，采集已停止。',SOURCE_LOCK_REQUIRED:'请重新打开 ChatFlow，再选择来源对话。',DOCUMENT_ID_UNAVAILABLE:'无法确认来源页面，请刷新后重试。',CAPTURE_SESSION_NOT_FOUND:'采集已停止，请重新保存。',LOCAL_FILE_INTEGRITY_FAILED:'本地文件校验失败，未生成备份。请重新保存该文件。',ARCHIVE_SOURCE_MISMATCH:'备份来源与正文不一致，恢复已停止。',ARCHIVE_METADATA_TOO_LARGE:'对话或清单超过备份容量，未生成备份；本地内容仍保留。',HANDOFF_INSTRUCTIONS_TOO_LONG:'接续目标超过 4,000 个字符；全文已保留，请缩短后继续。',INVALID_CONTEXT_QUERY:'筛选关键词超过 500 个字符；全文已保留，请缩短后继续。'});
+ function explain(e){const key=e?.message||String(e);return errors[key]||(/^HTTP_\d+$/.test(key)?'远端文件当前不可取得（'+key+'）；不能据此认定文件已永久删除。':key);}
+ let statusTimeout=null;
+ function status(text,error=false){const el=$('status'),value=String(text||'').trim();clearTimeout(statusTimeout);if(el.textContent!==value)el.textContent=value;el.classList.toggle('error',!!error&&!!value);if(value&&!error)statusTimeout=setTimeout(()=>{if(el.textContent===value)el.textContent='';},4500);}
+ function node(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;}
+ function button(text,fn,cls){const b=node('button',text,cls);b.type='button';b.addEventListener('click',()=>guard(fn));return b;}
+ async function guard(fn){try{return await fn();}catch(e){status(explain(e),true);}}
+ async function call(type,data={}){const r=await chrome.runtime.sendMessage({type,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
+ async function currentWorkspaceWindow(){
+  const tabs=await chrome.tabs.query({active:true,currentWindow:true});
+  const tab=tabs.find(t=>t.active&&Number.isInteger(t.id)&&Number.isInteger(t.windowId));
+  C.check(tab,'WORKSPACE_WINDOW_REQUIRED');
+  return{windowId:tab.windowId,activeTabId:tab.id};
+ }
+ function bytes(n){return n>=1024**3?(n/1024**3).toFixed(2)+' GB':n>=1024**2?(n/1024**2).toFixed(1)+' MB':n>=1024?(n/1024).toFixed(1)+' KB':n+' B';}
+ function switchView(v){if(!document.getElementById(v+'-view'))return;view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='archive')guard(refreshArchives);if(v==='handoff')guard(updateSelection);document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
+ function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
+ function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('prepare').hidden=false;$('prepare').textContent='重新准备历史与文件';status('内容已更改，请重新准备。');}}
+ async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
+ async function sources(){
+  const rows=await call('tl:sources'),selector=$('source'),signature=JSON.stringify(rows.map(r=>[r.id,r.url,r.title]));
+  if(signature===sourceOptionsSignature)return rows;
+  const old=selector.value||new URL(location.href).searchParams.get('source');
+  const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});
+  const preferred=old||String(activeTab?.id||'');
+  sourceOptionsSignature=signature;sourceLookupKey=null;sourceLookupCaptureId=null;
+  selector.replaceChildren();
+  if(!rows.length){selector.append(new Option('未找到已打开的 ChatGPT 对话',''));$('capture').disabled=true;return rows;}
+  for(const r of rows){const option=new Option(r.title||r.url,String(r.id));option.dataset.sourceUrl=r.url;selector.append(option);}
+  if(rows.some(r=>String(r.id)===preferred))selector.value=String(preferred);
+  $('capture').disabled=!rows.some(r=>String(r.id)===selector.value);
+  return rows;
+ }
+ function selectedSource(){return{tabId:Number($('source').value),scope:$('asset-scope').value,live:$('live').checked,expectedUrl:$('source').selectedOptions[0]?.dataset.sourceUrl};}
+ function assertSelection(frozen){const now=selectedSource();C.check(now.tabId===frozen.tabId&&now.expectedUrl===frozen.expectedUrl&&now.scope===frozen.scope&&now.live===frozen.live,'SOURCE_SELECTION_CHANGED');}
+ async function captureForSelectedSource(selection=selectedSource()){
+  const {tabId,scope,expectedUrl}=selection;if(!Number.isInteger(tabId)||tabId<=0)return null;
+  const openTabs=await call('tl:sources'),source=openTabs.find(row=>Number(row.id)===tabId);
+  if(!source){sourceLookupKey=null;sourceLookupCaptureId=null;return null;}
+  if(source.url!==expectedUrl){sourceLookupKey=null;sourceLookupCaptureId=null;return null;}
+  // A ChatGPT tab can navigate to another conversation without changing tabId.
+  // Cached archive selection is valid only for this exact source URL and save scope.
+  const key=String(tabId)+'|'+scope+'|'+source.url;
+  if(key===sourceLookupKey)return sourceLookupCaptureId?S.get('captures',sourceLookupCaptureId):null;
+  const identity=C.chatUrl(source.url),chosen=await S.findCapture(identity,scope,selectedId);
+  sourceLookupKey=key;sourceLookupCaptureId=chosen?.id||null;return chosen;
+ }
+ function updateScopeUI(){const last=$('asset-scope').value==='last_generated',live=$('live');if(last&&live.checked){live.checked=false;status('已关闭实时缓存：两种模式不能同时使用。');}live.disabled=last;$('scope-hint').textContent=last?'仅当前分支最后生成的文件。':'';$('live-hint').textContent=last?'切换为“所有文件”后才能开启实时缓存。':'';}
+ async function start(){
+  const selection=Object.freeze(selectedSource());C.check(selection.tabId>0&&selection.expectedUrl,'NO_CONVERSATION_ID');
+  $('capture').disabled=true;
+  try{
+   // Start the optional permission prompt in the original click gesture while
+   // freezing the displayed source before either asynchronous operation finishes.
+   const freeze=call('tl:freezeSource',selection),permission=$('allow-media').checked?chrome.permissions.request({origins:chrome.runtime.getManifest().optional_host_permissions}):Promise.resolve(true);
+   const [frozen,allowed]=await Promise.all([freeze,permission]);assertSelection(selection);
+   assertSelection(selection);const existing=await captureForSelectedSource(selection);assertSelection(selection);const request={...selection,expectedConversationId:frozen.expectedConversationId,expectedDocumentId:frozen.expectedDocumentId};
+   if(existing?.id)request.captureId=existing.id;
+   const r=await call('tl:start',request);selectedId=r.captureId;sourceLookupCaptureId=r.captureId;selectedKeys.clear();messageLimit=100;
+   status(existing?'正在更新档案…':allowed?'正在保存对话…':'正在保存正文；部分附件可能无法取得。');await renderRunning();
+  }catch(e){sourceLookupKey=null;sourceLookupCaptureId=null;throw e;}finally{$('capture').disabled=!Number.isInteger(Number($('source').value))||Number($('source').value)<=0;}
+ }
+ async function renderRunning(){
+  const epoch=++runningEpoch,active=await call('tl:sessions'),box=$('running');
+  if(active.length===0){
+   const capture=await captureForSelectedSource();
+   const rows=capture?.snapshot?await S.assets(capture.id):[];
+   if(epoch!==runningEpoch)return;
+   const saved=rows.filter(a=>a.state==='saved').length,excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;
+   const signature=JSON.stringify(['idle',$('source').value,$('asset-scope').value,capture?.id,capture?.state,capture?.live,capture?.lastError,capture?.snapshot?.messages.length,saved,excluded,missing,rows.some(a=>a.state==='downloading')]);
+   $('capture').disabled=!(Number($('source').value)>0);
+   if(signature===runningSignature)return;
+   runningSignature=signature;box.className='running '+(capture?.snapshot?'':'empty');box.replaceChildren();
+   if(capture?.snapshot){
+    const failed=capture.state==='error',busy=capture.state==='capturing'||capture.live||rows.some(a=>a.state==='downloading');
+    selectedId=capture.id;$('capture').hidden=false;$('capture').textContent=failed?'重试保存':'重新采集对话';$('capture').className=failed?'primary full':'quiet full';$('continue').hidden=failed;$('continue').className='primary full';$('capture-backup').hidden=false;$('capture-backup').dataset.busy=String(busy);$('capture-backup').disabled=busy;$('capture-backup').textContent=busy?'下载完成后可备份':missing?'备份已保存的内容':'下载备份';$('capture-view').dataset.saved=String(!failed);$('capture-heading').textContent=failed?'保存未完成':capture.state==='ready'?'对话已保存':'部分内容已保存';$('asset-scope').disabled=false;
+    const outcome=missing?'，'+missing+' 个未取得':'';
+    box.textContent=(capture.state==='ready'?'已保存':capture.state==='partial'?'部分保存':capture.state==='interrupted'?'保存中断':capture.state==='cancelled'?'采集已取消':failed?'上次保存失败，旧快照仍保留':'待复查')+' · '+capture.snapshot.messages.length+' 条消息 · '+saved+' 个文件'+outcome+(excluded?' · '+excluded+' 个已排除':'')+(capture.lastError?' · '+explain(capture.lastError):'');
+   }else{
+    selectedId=capture?.id||null;$('capture-view').dataset.saved='false';$('capture-backup').hidden=true;$('capture-heading').textContent='保存这段对话';$('capture').className='primary full';$('capture').hidden=false;$('capture').textContent=capture?.state==='error'?'重试保存':'保存对话';$('continue').hidden=true;$('asset-scope').disabled=false;
+    box.textContent=capture?.lastError?'保存未完成 · '+explain(capture.lastError):$('source').value?'':'请先打开一段 ChatGPT 对话';
+   }
+   return;
+  }
+  const items=await Promise.all(active.map(async r=>{
+   const c=await S.get('captures',r.captureId),rows=await S.assets(r.captureId);
+   return{r,c,saved:rows.filter(a=>a.state==='saved').length,excluded:rows.filter(a=>a.state==='excluded').length,missing:rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length};
+  }));
+  if(epoch!==runningEpoch)return;
+  const signature=JSON.stringify(['active',items.map(({r,c,saved,excluded,missing})=>[r.captureId,r.phase,r.live,c?.state,c?.snapshot?.messages.length,saved,excluded,missing])]);
+  if(signature===runningSignature)return;
+  runningSignature=signature;
+  $('capture').hidden=true;$('capture').disabled=true;$('continue').hidden=true;$('capture-view').dataset.saved='false';$('capture-backup').hidden=true;$('capture-heading').textContent='正在保存对话';$('asset-scope').disabled=true;
+  const activeIds=items.map(x=>x.r.captureId).join('|');
+  const displayedIds=[...box.querySelectorAll('.panel[data-capture-id]')].map(x=>x.dataset.captureId).join('|');
+  if(activeIds!==displayedIds||box.className!=='running list'){
+   box.replaceChildren();box.className='running list';
+   for(const {r} of items){
+    const el=node('div',null,'panel');el.dataset.captureId=r.captureId;
+    el.append(node('strong','当前对话'),node('p','','hint capture-summary'));
+    el.append(button('停止采集',async()=>{await call('tl:stop',{captureId:r.captureId});runningSignature=null;await renderRunning();status('采集已停止。');}));
+    box.append(el);
+   }
+  }
+  // Progress updates must not destroy and recreate buttons or their focused nodes.
+  for(const {r,c,saved,excluded,missing} of items){
+   const el=[...box.querySelectorAll('.panel[data-capture-id]')].find(x=>x.dataset.captureId===r.captureId);
+   const title=c?.snapshot?.title||c?.title||'当前对话';
+   const summary=(r.live?'实时缓存中':'采集中')+' · '+saved+' 个已保存'+(missing?' · '+missing+' 个待处理或未取得':'')+(excluded?' · '+excluded+' 个已排除':'')+(c?.lastError?' · '+explain(c.lastError):'');
+   if(el.querySelector('strong').textContent!==title)el.querySelector('strong').textContent=title;
+   if(el.querySelector('.capture-summary').textContent!==summary)el.querySelector('.capture-summary').textContent=summary;
+  }
+ }
+ let archivePageEpoch=0,archiveCursor=null;
+ async function refreshArchives(append=false){
+  const epoch=++archivePageEpoch,list=$('archives'),q=$('search').value.trim().toLowerCase(),page=await S.listCaptures({query:q,cursor:append?archiveCursor:null,limit:50});if(epoch!==archivePageEpoch)return;
+  archiveCursor=page.nextCursor;list.querySelector('.archive-more')?.remove();
+  if(!append)list.replaceChildren();for(const c of page.items){const title=c.title;
+   const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.hasSnapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.dataset.captureId=c.id;check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
+   const b=button('',()=>choose(c.id),'archive-button');b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||c.state)+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
+  if(archiveCursor)list.append(button('加载更多档案',()=>refreshArchives(true),'archive-more'));
+  if(!list.children.length)list.append(node('p','没有匹配的本地档案。','empty'));updateContextButton();
+ }
+ function updateContextButton(){$('build-context').disabled=contextSelectedIds.size===0||$('context-query').value.length>500;$('build-context').textContent=contextSelectedIds.size?'创建上下文包（'+contextSelectedIds.size+'）':'创建上下文包';}
+ async function buildContextPackage(){
+  C.check(contextSelectedIds.size>0,'INVALID_CONTEXT_SOURCES');C.check($('context-query').value.length<=500,'INVALID_CONTEXT_QUERY');status('正在校验所选档案并编译上下文。');
+  const mode=$('context-mode').value,sources=[];for(const id of [...contextSelectedIds]){const capture=await S.get('captures',id);C.check(capture?.snapshot&&!['capturing','error'].includes(capture.state),'CONTEXT_SOURCE_NOT_READY');const rows=await S.passages(id),passages=mode==='messages'?[]:rows.filter(p=>contextSelectedPassageIds.has(p.passageId));sources.push({captureId:id,snapshot:capture.snapshot,activeNodes:selectedBranchNodes(capture),assetRows:await S.assets(id),passages});}
+  const compiled=TLContext.compile(sources,{allBranches:$('context-all-branches').checked,includeSavedAssets:$('context-include-assets').checked,maxPartChars:Number($('context-part-size').value),query:$('context-query').value,tokenBudget:Number($('context-token-budget').value),passageMode:mode});
+  const entries=[{name:'context_manifest.json',content:JSON.stringify(compiled.manifest,null,2)},{name:'context_index.md',content:compiled.index},...compiled.parts.map((part,i)=>({name:'context_part_'+String(i+1).padStart(3,'0')+'.md',content:part}))],included=new Set();
+  for(const asset of compiled.assets){const path='assets/'+asset.sha256+'.bin';if(included.has(path))continue;const blob=await S.verifiedBlob(asset.sha256);entries.push({name:path,blob});included.add(path);}
+  const zip=await A.buildZip(entries);await download(zip,'chatflow-context-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip');
+  status('上下文包已生成：'+compiled.manifest.sources.length+' 份档案、'+compiled.manifest.sources.reduce((n,s)=>n+s.messageIds.length,0)+' 条消息、'+compiled.parts.length+' 个历史分段、估算 '+compiled.estimatedTokens+' tokens。'+(compiled.manifest.budgetExceeded?'已超过预算，内容已完整分段，请分批上传。':'')+'请核对清单后手动上传。');
+ }
+ async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='准备历史与文件';$('open-target').disabled=true;$('open-target').hidden=false;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
+ function fileInput(text,onFile){const label=node('label',text,'file-button'),input=document.createElement('input');input.type='file';input.accept='.zip,application/zip';input.addEventListener('change',()=>guard(async()=>{const file=input.files?.[0];if(file)await onFile(file);input.value='';}));label.append(input);return label;}
+ async function download(blob,name){
+  const url=URL.createObjectURL(blob),serial=++downloadStatusNonce,filename=C.safeName(name),label=$('download-status');
+  const tell=value=>{if(serial===downloadStatusNonce)label.textContent=value;};
+  tell('正在下载：'+filename);
+  try{
+   const id=await chrome.downloads.download({url,filename,saveAs:true});
+   let cleaned=false;const cleanup=()=>{if(cleaned)return;cleaned=true;chrome.downloads.onChanged.removeListener(listen);URL.revokeObjectURL(url);};
+   const listen=async change=>{
+    if(change.id!==id)return;
+    if(change.state?.current==='complete'){
+     let actual='';try{const records=await chrome.downloads.search({id});actual=String(records[0]?.filename||'').split(/[\\/]/).pop();}catch{}
+     tell(actual&&actual!==filename?'下载完成，浏览器保存为：'+actual:'下载完成：'+filename);
+     cleanup();
+    }else if(change.error||change.state?.current==='interrupted'){tell('下载未完成：'+filename);cleanup();}
+   };
+   chrome.downloads.onChanged.addListener(listen);
+   const current=(await chrome.downloads.search({id}))[0];if(current?.state==='complete')await listen({id,state:{current:'complete'}});
+   setTimeout(cleanup,15*60*1000);return id;
+  }catch(e){URL.revokeObjectURL(url);tell('下载未确认：'+filename);throw e;}
+ }
+ function clearPassageHighlights(){
+  for(const color of ['yellow','green','blue','pink'])globalThis.CSS?.highlights?.delete('chatflow-saved-'+color);
+ }
+ function selectMessageWithKeyboard(event,pre,changed){
+  const all=(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a';
+  const extending=event.shiftKey&&!event.ctrlKey&&!event.metaKey&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key);
+  if(!all&&!extending)return;
+  const text=pre.firstChild,selection=window.getSelection();if(!(text instanceof Text)||!selection)return;
+  event.preventDefault();
+  let anchor=selection.anchorNode===text?selection.anchorOffset:0,focus=selection.focusNode===text?selection.focusOffset:anchor;
+  if(all){anchor=0;focus=text.length;}
+  else if(event.key==='Home')focus=0;
+  else if(event.key==='End')focus=text.length;
+  else if(event.key==='ArrowRight'){
+   const width=/[\uD800-\uDBFF]/.test(text.data[focus]||'')&&/[\uDC00-\uDFFF]/.test(text.data[focus+1]||'')?2:1;
+   focus=Math.min(text.length,focus+width);
+  }else{
+   const width=focus>1&&/[\uDC00-\uDFFF]/.test(text.data[focus-1]||'')&&/[\uD800-\uDBFF]/.test(text.data[focus-2]||'')?2:1;
+   focus=Math.max(0,focus-width);
+  }
+  selection.setBaseAndExtent(text,anchor,text,focus);changed();
+ }
+ function pathToNode(snapshot,endNode){
+  const path=[],seen=new Set();let current=endNode;
+  while(current&&snapshot.nodes[current]&&!seen.has(current)){seen.add(current);path.unshift(current);current=snapshot.nodes[current].parent;}
+  return path;
+ }
+ function branchChoices(snapshot){
+  const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m])),candidates=[snapshot.currentNode,...Object.values(snapshot.nodes).filter(n=>!n.children?.length).map(n=>n.id)],seen=new Set(),out=[];
+  for(const endNode of candidates){const path=pathToNode(snapshot,endNode),key=JSON.stringify(path);if(!path.length||snapshot.nodes[path[0]].parent!==null||seen.has(key)||!path.some(id=>byNode.has(id)))continue;seen.add(key);
+   const last=[...path].reverse().map(id=>byNode.get(id)).find(Boolean),label=endNode===snapshot.currentNode?'当前分支':'分支 '+(out.length+1)+' · '+String(last?.text||'').slice(0,36);
+   out.push({endNode,path,label});
+  }
+  return out;
+ }
+ function selectedBranchNodes(capture){
+  const choices=branchChoices(capture.snapshot),selected=branchSelections.get(capture.id);
+  return choices.find(x=>x.endNode===selected)?.path||capture.snapshot.active;
+ }
+ async function renderDetail(){
+  const epoch=++detailEpoch,captureId=selectedId,c=captureId&&await S.get('captures',captureId);if(epoch!==detailEpoch||captureId!==selectedId)return;const host=$('detail'),el=node('div');if(!c){el.append(node('p','请选择一个本地档案。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
+  const title=c.snapshot?.title||c.title||'读取中';el.append(node('h2',title),node('p',(labels[c.state]||c.state)+(c.live?' · 实时缓存开启':''),'state '+(c.state==='ready'?'good':'warn')));
+  if(c.lastError)el.append(node('p',explain(c.lastError),'note'));
+  if(!c.snapshot){el.append(node('p','尚未取得对话快照，请查看采集状态。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
+  const snapshot=c.snapshot,rows=await S.assets(c.id),choices=branchChoices(snapshot),savedBranch=branchSelections.get(c.id),choice=choices.find(x=>x.endNode===savedBranch)||choices.find(x=>x.endNode===snapshot.currentNode)||choices[0],activeNodes=choice?.path||snapshot.active,source=node('a','打开源对话');source.href=C.chatUrl(snapshot.source.url).url;source.target='_blank';source.rel='noopener noreferrer';el.append(source);
+  if(choices.length>1){const label=node('label','查看历史分支');label.htmlFor='archive-branch';const select=document.createElement('select');select.id='archive-branch';select.setAttribute('aria-label','选择历史分支');for(const item of choices)select.add(new Option(item.label,item.endNode));select.value=choice.endNode;select.addEventListener('change',async()=>{branchSelections.set(c.id,select.value);messageLimit=100;reanchorPassageId=null;invalidate();await renderDetail();});el.append(label,select);}
+  const savedCount=rows.filter(a=>a.state==='saved').length,excludedCount=rows.filter(a=>a.state==='excluded').length,missingCount=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;el.append(node('p',snapshot.messages.length+' 条消息 · '+savedCount+' 个文件已保存'+(missingCount?' · '+missingCount+' 个未取得':'')+(excludedCount?' · '+excludedCount+' 个已排除':''),'hint'));if(c.saveScope==='last_generated')el.append(node('p','保存范围：最后生成文件','hint'));
+  const busy=c.state==='capturing'||c.live||rows.some(a=>a.state==='downloading'),backup=button(busy?'下载完成后可备份':missingCount?'备份已保存的内容':'下载归档 ZIP',async()=>{backup.disabled=true;try{status('正在校验备份可恢复性…');const out=await A.exportCapture(c.id);await download(out.blob,C.safeName(title)+'.chatflow.zip');status('备份已通过恢复校验，已发起下载。');}finally{backup.disabled=busy;}});backup.disabled=busy;
+  const next=c.state==='error'?button('返回保存页重试',()=>{switchView('capture');guard(renderRunning);},'primary'):button('继续到新对话',()=>{switchView('handoff');},'primary');next.disabled=c.state==='capturing';
+  const actions=node('div',null,'actions');actions.append(next,backup,fileInput('对照官方 ZIP',async file=>{status('正在本地读取官方导出，未识别格式不会被当作文件不存在。');const report=await A.compareOfficial(c.id,file);await download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),'official-comparison.json');status('对照完成：'+report.records.filter(x=>x.result==='bytes_match').length+'/'+report.records.length+' 个文件字节一致。详情见下载报告。');}));
+  if(c.live)actions.append(button('停止实时缓存',async()=>{await call('tl:stop',{captureId:c.id});await renderDetail();}));
+  el.append(actions);
+  if(snapshot.integrity.issues.length){const d=node('details');d.append(node('summary','分支与内容完整性问题：'+snapshot.integrity.issues.length+' 项'),node('pre',JSON.stringify(snapshot.integrity.issues,null,2)));el.append(d);}
+  el.append(node('h3','选择本次接续需要的原始文件'));
+  const fileDetails=node('details');fileDetails.append(node('summary','选择要带到新聊天的原始附件'));
+  const fileList=node('div',null,'list');
+  if(!rows.length)fileList.append(node('p','这份可访问快照中没有识别到文件引用。','hint'));
+  for(const a of rows){
+   const row=node('div',null,'file-row'),check=document.createElement('input');check.type='checkbox';check.disabled=a.state!=='saved';check.checked=selectedKeys.has(a.key);check.setAttribute('aria-label','选择 '+a.name);check.dataset.assetKey=a.key;
+   check.addEventListener('change',()=>{check.checked?selectedKeys.add(a.key):selectedKeys.delete(a.key);guard(updateSelection);invalidate();});
+   const origin=a.origin==='assistant_generated'||(!a.origin&&a.kind==='generated')?'助手生成':a.origin==='user_uploaded'?'用户上传':'来源未确认';const info=node('div');info.append(node('strong',a.name),node('span',labels[a.state]||a.state,'state '+(a.state==='saved'?'good':'warn')),node('small',origin+(a.state==='saved'?' · '+bytes(a.size):'')));
+   if(a.reason)info.append(node('p',explain(a.reason),'hint'));
+   if(a.state==='saved'){const buttons=node('div',null,'actions');buttons.append(button('下载原件',async()=>download(await S.verifiedBlob(a.sha256),a.name)));info.append(buttons);const d=node('details');d.append(node('summary','文件信息'),node('pre','SHA-256: '+a.sha256+'\nMIME: '+a.mime+'\n消息: '+a.messageId));info.append(d);}
+   row.append(check,info);fileList.append(row);
+  }
+  fileDetails.append(fileList);el.append(fileDetails);
+  const passageRows=await S.passages(c.id),passageSection=node('section',null,'passage-section');
+  passageSection.append(node('h3','重点片段（'+passageRows.length+'）'));
+  if(!passageRows.length)passageSection.append(node('p','在历史消息中选中一段文字，即可保存为重点片段。','hint'));
+  const passageStates=new Map();
+  for(const passage of passageRows){
+   const resolved=TLPassages.resolve(passage,snapshot);passageStates.set(passage.passageId,resolved);
+   if(passage.status!==resolved.status)await S.updatePassageStatus(passage.passageId,resolved.status,resolved.reason);
+   const row=node('div',null,'passage-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedPassageIds.has(passage.passageId);check.disabled=resolved.status!=='anchored';check.setAttribute('aria-label','将重点片段加入上下文：'+passage.text.slice(0,60));
+   check.addEventListener('change',()=>{check.checked?contextSelectedPassageIds.add(passage.passageId):contextSelectedPassageIds.delete(passage.passageId);});
+   const sourceChoice=choices.find(x=>x.path.includes(passage.nodeId));
+   const info=node('div');info.append(node('strong',passage.text),node('small',(resolved.status==='anchored'?'已定位':resolved.status==='ambiguous'?'定位有歧义':'来源已变化')+(sourceChoice?' · '+sourceChoice.label:'')));
+   const controls=node('div',null,'actions'),colorSelect=document.createElement('select');
+   colorSelect.setAttribute('aria-label','重点片段颜色');
+   for(const color of ['yellow','green','blue','pink']){const option=new Option(({yellow:'黄色',green:'绿色',blue:'蓝色',pink:'粉色'})[color],color);colorSelect.add(option);}
+   colorSelect.value=passage.color||'yellow';colorSelect.addEventListener('change',async()=>{await S.updatePassageColor(passage.passageId,colorSelect.value);await renderDetail();});
+   controls.append(colorSelect);
+   if(resolved.status!=='anchored'&&sourceChoice&&!activeNodes.includes(passage.nodeId))controls.append(button('切换到来源分支',async()=>{branchSelections.set(c.id,sourceChoice.endNode);messageLimit=100;reanchorPassageId=null;invalidate();await renderDetail();status('已切换到重点片段来源分支，请重新定位。');}));
+   if(resolved.status!=='anchored'&&snapshot.messages.some(m=>m.id===passage.messageId&&m.nodeId===passage.nodeId)&&activeNodes.includes(passage.nodeId))controls.append(button('重新选择片段',async()=>{
+    reanchorPassageId=passage.passageId;messageLimit=Math.max(messageLimit,activeNodes.indexOf(passage.nodeId)+1);
+    await renderDetail();status('请在原始消息中重新选中文字，再点击“更新重点片段”。');
+   }));
+   if(resolved.status==='anchored')controls.append(button('跳转原文',async()=>{
+    let targetPath=activeNodes;
+    if(!targetPath.includes(passage.nodeId)){
+     const targetChoice=choices.find(x=>x.path.includes(passage.nodeId));
+     if(!targetChoice){status('该片段来源节点不在当前可访问分支中。',true);return;}
+     branchSelections.set(c.id,targetChoice.endNode);targetPath=targetChoice.path;
+    }
+    const index=targetPath.indexOf(passage.nodeId);messageLimit=Math.max(messageLimit,index+1);
+    invalidate();await renderDetail();const target=[...$('detail').querySelectorAll('.message')].find(e=>e.dataset.messageId===passage.messageId&&e.dataset.nodeId===passage.nodeId);target?.scrollIntoView({behavior:'smooth',block:'center'});
+   }));
+   controls.append(button('删除片段',async()=>{await S.deletePassage(passage.passageId);contextSelectedPassageIds.delete(passage.passageId);await renderDetail();}));
+   info.append(controls);row.append(check,info);passageSection.append(row);
+  }
+  el.append(passageSection);
+  const d=node('details');d.open=true;d.append(node('summary','阅读所选分支历史（'+activeNodes.length+' 个节点）'));
+  const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m])),messages=activeNodes.map(n=>byNode.get(n)).filter(Boolean),messageElements=new Map(),rangesByColor=new Map();
+  for(const color of ['yellow','green','blue','pink'])rangesByColor.set(color,[]);
+  for(const m of messages.slice(0,messageLimit)){
+   const block=node('div',null,'message');block.dataset.messageId=m.id;block.dataset.nodeId=m.nodeId;
+   block.append(node('strong',m.role+' · '+m.id));
+   const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';pre.tabIndex=0;pre.setAttribute('aria-label','历史消息正文，可用键盘选择文字并保存重点片段');block.append(pre);
+   let pending=null;const save=button('保存选中片段',async()=>{
+    C.check(pending,'PASSAGE_SELECTION_REQUIRED');
+    const prior=reanchorPassageId?passageRows.find(p=>p.passageId===reanchorPassageId):null;
+    C.check(!prior||(prior.messageId===m.id&&prior.nodeId===m.nodeId),'PASSAGE_REANCHOR_SOURCE_MISMATCH');
+    const now=Date.now(),record=TLPassages.create({passageId:prior?.passageId,captureId:c.id,snapshot,message:m,text:pending.text,startOffset:pending.startOffset,endOffset:pending.endOffset,createdAt:prior?.createdAt??now,updatedAt:now,reanchoredAt:prior?now:null,previousMessageHash:prior?.messageHash||null,originPassageId:prior?.originPassageId||null,color:prior?.color||'yellow'});
+    await S.putPassage(record);pending=null;reanchorPassageId=null;save.hidden=true;window.getSelection()?.removeAllRanges();await renderDetail();status(prior?'重点片段已在原始消息内重新定位。':'重点片段已保存，并绑定到原始消息与分支。');
+   },'passage-save');save.hidden=true;block.append(save);
+   const updatePending=()=>{
+    const selection=window.getSelection();if(!selection||selection.isCollapsed||selection.rangeCount!==1){pending=null;save.hidden=true;return;}
+    const range=selection.getRangeAt(0);if(!pre.contains(range.commonAncestorContainer)){pending=null;save.hidden=true;return;}
+    const before=document.createRange();before.selectNodeContents(pre);try{before.setEnd(range.startContainer,range.startOffset);}catch{pending=null;save.hidden=true;return;}
+    const text=range.toString(),startOffset=before.toString().length,endOffset=startOffset+text.length;
+    if(!text.trim()||m.text.slice(startOffset,endOffset)!==text){pending=null;save.hidden=true;return;}
+    pending={text,startOffset,endOffset};save.textContent=reanchorPassageId?'更新重点片段':'保存选中片段';save.hidden=false;
+   };
+   pre.addEventListener('keydown',event=>selectMessageWithKeyboard(event,pre,updatePending));
+   pre.addEventListener('mouseup',updatePending);pre.addEventListener('pointerup',updatePending);pre.addEventListener('keyup',updatePending);
+   d.append(block);messageElements.set(m.id+'\u0000'+m.nodeId,pre);
+  }
+  for(const passage of passageRows){
+   const resolved=passageStates.get(passage.passageId);if(resolved?.status!=='anchored')continue;
+   const pre=messageElements.get(passage.messageId+'\u0000'+passage.nodeId),textNode=pre?.firstChild;
+   const start=resolved.startOffset??resolved.start,end=resolved.endOffset??resolved.end;
+   if(!(textNode instanceof Text)||!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||end>textNode.length)continue;
+   const range=document.createRange();range.setStart(textNode,start);range.setEnd(textNode,end);
+   rangesByColor.get(passage.color||'yellow')?.push(range);
+  }
+  if(epoch!==detailEpoch||captureId!==selectedId)return;
+  const registry=globalThis.CSS?.highlights;
+  if(registry&&typeof globalThis.Highlight==='function'){
+   for(const color of ['yellow','green','blue','pink']){const name='chatflow-saved-'+color;registry.delete(name);const ranges=rangesByColor.get(color)||[];if(ranges.length)registry.set(name,new Highlight(...ranges));}
+  }
+  if(messages.length>messageLimit)d.append(button('再显示 100 条',async()=>{messageLimit+=100;await renderDetail();}));el.append(d);
+  el.append(button('删除此本地档案',async()=>{if(!confirm('仅删除扩展中的这份本地档案，不会删除 ChatGPT 对话。尚未导出 ZIP 的文件可能失去本地副本。确认删除？'))return;await call('tl:stop',{captureId:c.id});for(const passage of await S.passages(c.id))contextSelectedPassageIds.delete(passage.passageId);await S.removeCapture(c.id);contextSelectedIds.delete(c.id);branchSelections.delete(c.id);selectedId=null;selectedKeys.clear();reanchorPassageId=null;detailEpoch++;host.replaceChildren(node('p','本地档案已删除。'));clearPassageHighlights();await refreshArchives();await quota();},'danger'));
+  if(epoch===detailEpoch&&captureId===selectedId)host.replaceChildren(el);
+ }
+ async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent=(selectedKeys.size?'已选 '+selectedKeys.size+' 个原始文件；':'历史文件将自动准备。')+(missing?' '+missing+' 个文件未取得。':'')+(excluded?' '+excluded+' 个按范围排除。':'');$('prepare').disabled=!c?.snapshot||['capturing','error'].includes(c.state)||$('instructions').value.length>4000;}
+ async function prepare(){
+  C.check(selectedId,'CAPTURE_NOT_READY');C.check($('instructions').value.length<=4000,'HANDOFF_INSTRUCTIONS_TOO_LONG');status('正在校验接续文件。');
+  const capture=await S.get('captures',selectedId);C.check(capture?.snapshot,'CAPTURE_NOT_READY');
+  const h=await call('tl:prepareHandoff',{captureId:selectedId,activeNodes:selectedBranchNodes(capture),keys:[...selectedKeys],instructions:$('instructions').value,batchLimit:Number($('batch-limit').value)});
+  handoffId=h.id;planFingerprint=fingerprint();await renderHandoff(h);status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
+ }
+ async function renderHandoff(h){
+  $('handoff-result').hidden=false;$('prepare').hidden=true;$('prompt').textContent=h.prompt;$('confirmed').checked=false;$('open-target').disabled=h.state!=='prepared';$('focus-target').disabled=!h.targetTabId;
+  const box=$('staging');box.replaceChildren();staged=new Map();
+  for(let batch=0;batch<h.batches.length;batch++){
+   box.append(node('h3','第 '+(batch+1)+' 批（'+h.batches[batch].length+' 个文件）'));
+   for(const i of h.batches[batch]){const f=h.files[i],blob=await S.verifiedBlob(f.sha256),file=new File([blob],f.uploadName||f.name,{type:f.mime});staged.set(i,file);
+    const row=node('div',null,'staged');row.draggable=true;row.append(node('strong',file.name),node('small',bytes(file.size)+' · '+(f.kind==='history'?'历史记录':'原始附件')));
+    row.addEventListener('dragstart',e=>{try{e.dataTransfer.items.add(file);e.dataTransfer.effectAllowed='copy';}catch{status('此浏览器未允许跨页文件拖拽，请使用下载后手动上传。',true);}});
+    row.append(button('下载文件',()=>download(file,file.name)));box.append(row);
+   }
+   const indices=h.batches[batch];box.append(button('下载第 '+(batch+1)+' 批',async()=>download(await A.buildZip(indices.map(i=>({name:staged.get(i).name,blob:staged.get(i)}))),'handoff-batch-'+(batch+1)+'.zip')));
+  }
+  if(h.missing.length)box.append(node('p','原档案仍有 '+h.missing.length+' 个文件不可用，未作为空附件注入。','note'));if(h.excluded?.length)box.append(node('p','原档案按保存范围跳过 '+h.excluded.length+' 个文件；如需这些文件，请重新保存全部文件。','note'));
+  await renderHandoffState();
+ }
+ async function renderHandoffState(){
+  if(!handoffId)return;const h=await S.get('handoffs',handoffId);if(!h)return;
+  const source=await S.get('captures',h.captureId),snapshotMatches=!!source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash,branchMatches=!!source?.snapshot&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]);
+  const fresh=snapshotMatches&&branchMatches;
+  const message=(labels[h.state]||h.state)+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
+  const ready=h.state==='prepared'&&planFingerprint===fingerprint()&&fresh;
+  $('prepare').hidden=ready;
+  $('prepare').textContent='重新准备历史与文件';
+  $('open-target').disabled=!ready;
+  $('open-target').hidden=!ready;
+  $('focus-target').disabled=!h.targetTabId;
+  $('confirm-upload').disabled=!fresh||!['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state);
+ }
+ async function downloadHandoff(){
+  C.check(handoffId,'HANDOFF_NOT_PREPARED');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');const entries=[];
+  for(let b=0;b<h.batches.length;b++)for(const i of h.batches[b]){const f=h.files[i];entries.push({name:'batch-'+String(b+1).padStart(3,'0')+'/'+C.safeName(f.uploadName||f.name),blob:await S.verifiedBlob(f.sha256)});}
+  entries.push({name:'handoff_prompt.md',content:h.prompt},{name:'handoff_manifest.json',content:JSON.stringify({schema:1,captureId:h.captureId,sourceConversationId:h.sourceConversationId,snapshotHash:h.snapshotHash,branchNodeIds:h.branchNodeIds||[],files:h.files,batches:h.batches,missing:h.missing,excluded:h.excluded||[],note:'A prepared pack is not proof of webpage upload or model reading.'},null,2)});
+  await download(await A.buildZip(entries),'chatflow-handoff.zip');status('接续包已生成。请解压后上传实际文件，不要假设 ChatGPT 一定能读取 ZIP 内的全部内容。');
+ }
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;e.preventDefault();switchView(b.dataset.view);});
+ globalThis.ChatFlowWorkspace=Object.freeze({show:switchView});
+ $('capture-backup').onclick=()=>guard(async()=>{const captureId=selectedId;C.check(captureId,'CAPTURE_NOT_READY');const control=$('capture-backup');control.disabled=true;try{const capture=await S.get('captures',captureId),title=capture?.snapshot?.title||'ChatFlow';status('正在校验备份可恢复性…');const out=await A.exportCapture(captureId);await download(out.blob,C.safeName(title)+'.chatflow.zip');status('已为「'+title+'」生成备份并发起下载。');}finally{control.disabled=control.dataset.busy==='true';}});
+ $('refresh-source').onclick=()=>guard(async()=>{await sources();selectedId=null;guard(renderRunning);});$('capture').onclick=()=>guard(start);$('source').onchange=()=>{selectedId=null;sourceLookupKey=null;sourceLookupCaptureId=null;$('capture').hidden=false;$('capture').textContent='保存对话';$('continue').hidden=true;guard(renderRunning);};$('asset-scope').onchange=()=>{selectedId=null;sourceLookupKey=null;sourceLookupCaptureId=null;updateScopeUI();guard(renderRunning);};$('continue').onclick=()=>guard(async()=>{await choose(selectedId);switchView('handoff');});$('refresh').onclick=()=>guard(async()=>{await refreshArchives();if(selectedId)await renderDetail();});$('build-context').onclick=()=>guard(buildContextPackage);
+ let searchTimer;$('search').oninput=()=>{clearTimeout(searchTimer);archivePageEpoch++;searchTimer=setTimeout(()=>guard(refreshArchives),150);};$('prepare').onclick=()=>guard(prepare);$('instructions').oninput=invalidate;$('batch-limit').onchange=invalidate;
+ function boundedInput(id,limit,onValidityChange){
+  const input=$(id),notice=node('p','','hint');notice.id=id+'-length-notice';notice.setAttribute('role','status');notice.hidden=true;input.after(notice);input.setAttribute('aria-describedby',notice.id);let invalid=false;
+  input.addEventListener('input',()=>{const excess=input.value.length-limit,next=excess>0;notice.hidden=!next;notice.textContent=next?'超出 '+excess.toLocaleString()+' 个字符；全文已保留，请缩短后继续。':'';input.setCustomValidity(next?notice.textContent:'');input.setAttribute('aria-invalid',String(next));if(next!==invalid){invalid=next;onValidityChange(next);}});
+ }
+ boundedInput('context-query',500,updateContextButton);boundedInput('instructions',4000,invalid=>{if(invalid)$('prepare').disabled=true;else guard(updateSelection);});
+ $('restore').onchange=()=>guard(async()=>{const input=$('restore'),f=input.files?.[0];if(!f)return;status('正在检查备份…');try{const id=await A.restore(f);await choose(id);switchView('archive');status('档案已恢复。');await quota();}finally{input.value='';}});
+ $('open-target').onclick=()=>guard(async()=>{C.check(planFingerprint===fingerprint(),'REGENERATE_HANDOFF_AFTER_CHANGES');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');const context=await currentWorkspaceWindow();await call('tl:openHandoff',{id:handoffId,...context});await renderHandoffState();status('新聊天已打开。请核对文件，再由你手动发送。');});
+ $('focus-target').onclick=()=>guard(()=>call('tl:focusTarget',{id:handoffId}));$('download-handoff').onclick=()=>guard(downloadHandoff);
+ $('confirm-upload').onclick=()=>guard(async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
+ $('open-experiments').onclick=()=>guard(async()=>{await chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')});});$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
+ setInterval(()=>{if(refreshing||document.hidden)return;refreshing=true;Promise.resolve().then(async()=>{if(view==='capture')await renderRunning();if(view==='handoff'&&handoffId)await renderHandoffState();}).catch(()=>{}).finally(()=>refreshing=false);},3000);
+ // A browser may surface the ChatGPT tab after the workspace first loads.
+ // Do not require a manual refresh, and never wipe a user's current selection.
+ const syncSources=()=>guard(async()=>{const prior=sourceOptionsSignature;await sources();if(view==='capture'){if(prior!==sourceOptionsSignature)runningSignature=null;await renderRunning();}});
+ setTimeout(syncSources,1200);setTimeout(syncSources,4200);
+ window.addEventListener('focus',syncSources);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSources();});
+ guard(async()=>{await S.open();updateScopeUI();await sources();await renderRunning();await refreshArchives();updateContextButton();await quota();await updateSelection();status('');});
+})();

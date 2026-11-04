@@ -1,0 +1,35 @@
+{
+  "scope": "installed_mv3_real_indexeddb_synthetic_only",
+  "cases": [
+    {
+      "name": "65_mib_real_indexeddb_chunk_store_export_restore",
+      "result": "pass",
+      "bytes": 68157440,
+      "sha256": "b3aeb20d0075b2a46cd9fe26c50b3d5405aa2de48711d5f3cd74df6832ccbef2",
+      "parts": [
+        67108864,
+        1048576
+      ],
+      "elapsedMs": 10948
+    },
+    {
+      "name": "export_restore_check_has_no_database_writes_and_uses_runtime_version",
+      "result": "pass",
+      "version": "0.3"
+    },
+    {
+      "name": "export_with_persisted_downloading_chunk_is_rejected_without_mutation",
+      "result": "pass"
+    },
+    {
+      "name": "explicit_stop_then_partial_backup_restores_missing_state",
+      "result": "pass"
+    },
+    {
+      "name": "live_capture_export_is_blocked_and_original_bytes_preserved",
+      "result": "pass"
+    }
+  ],
+  "status": "pass",
+  "browser": "141.0.7390.37"
+}

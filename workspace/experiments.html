@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ChatFlow · 并行对照实验</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body{max-width:860px;margin:0 auto;padding:14px 24px 46px;background:var(--bg)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0 20px;border-bottom:1px solid var(--line);margin-bottom:23px}
+    .topbar .back{display:inline-flex;align-items:center;justify-content:center;min-height:42px;border:1px solid var(--control-line);border-radius:10px;padding:8px 14px;background:var(--paper);color:var(--quiet-ink);font-weight:560;text-decoration:none;font-size:14px}
+    .topbar .back:hover{background:var(--hover)}
+    header{margin-bottom:16px}h1{font-size:26px;letter-spacing:-.035em;line-height:1.3;margin:0 0 8px}
+    h2{font-size:17px;margin:0 0 14px}h3{font-size:15px}
+    .subtle{color:var(--muted);font-size:13px;line-height:1.5}
+    .surface{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0;box-shadow:0 2px 12px #19334708}
+    .line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    label{font-weight:620;display:block;margin:10px 0 7px}
+    label.line{display:flex;align-items:center}
+    input[type=checkbox]{accent-color:var(--accent)}
+    textarea{width:100%;min-height:140px;padding:12px;resize:vertical}
+    #ff-p{min-height:150px}
+    button{background:var(--button-bg);border-color:var(--button-bg);color:var(--button-ink);font-weight:650}
+    button:hover:not(:disabled){background:var(--button-hover);border-color:var(--button-hover)}
+    button.secondary{background:var(--paper);color:var(--quiet-ink);border:1px solid var(--control-line)}
+    button.secondary:hover:not(:disabled){background:var(--hover);border-color:var(--hover-line)}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    #ff-notice{margin:12px 0 0;min-height:1.5em;color:var(--state-ink);font-size:13px}
+    #ff-notice:empty{display:none}#ff-notice[data-error=true]{color:var(--bad)}
+    #ff-list{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+    #ff-list button{max-width:100%;overflow-wrap:anywhere}
+    #ff-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow-y:auto;
+      border:1px solid var(--line);border-radius:10px;background:var(--code-bg);padding:14px;font:13px/1.55 ui-monospace,Consolas,monospace}
+    .mono{font:13px/1.55 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+    .surface input[type=file]{max-width:100%}
+    #ff-branch-boxes>*,#ff-columns>*{min-width:0}
+    @media(max-width:620px){body{padding:12px 14px 32px}.grid{grid-template-columns:minmax(0,1fr)}.surface{padding:15px}}
+  </style>
+</head>
+<body>
+  <nav class="topbar" aria-label="ChatFlow 导航"><a class="brand" href="index.html">ChatFlow</a><a class="back" href="index.html">返回主工作区</a></nav>
+  <header><h1>并行对照实验（2–4 分支）</h1>
+    <p class="subtle">对 2—4 个独立聊天使用相同材料，结果由你比较。发送始终手动完成。</p>
+  </header>
+  <section class="surface" aria-label="功能开关">
+    <label class="line" for="ff-enable"><input type="checkbox" id="ff-enable"/>启用并行实验</label>
+    <p id="ff-notice" role="status" aria-live="polite">正在检查本地状态…</p>
+  </section>
+  <div id="ff-local" hidden>
+    <section class="surface" aria-label="新建冻结实验">
+      <h2>新建实验</h2>
+      <form id="ff-create">
+        <div class="grid">
+          <div><label for="ff-w0">共同材料（可选）</label><textarea id="ff-w0" spellcheck="false" placeholder="各条未来分支共同使用的背景资料"></textarea></div>
+          <div><label for="ff-p">任务指令</label><textarea id="ff-p" required spellcheck="false" placeholder="写下各条分支要执行的同一任务"></textarea></div>
+        </div>
+        <p id="ff-bytes" class="subtle" aria-live="polite">最终发送文本：0 / 24,000 UTF-8 字节</p>
+        <label class="line" for="ff-branch-count">并行分支数（2–4）
+          <select id="ff-branch-count"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+        </label>
+        <button id="ff-save" type="submit">保存实验</button>
+      </form>
+    </section>
+    <section class="surface" aria-label="实验列表"><h2>已保存的实验</h2>
+      <button class="secondary" id="ff-refresh" type="button">刷新列表</button>
+      <label class="line">恢复实验 JSON
+        <input type="file" id="ff-import-file" accept="application/json,.json"/>
+      </label>
+      <div id="ff-list"></div>
+    </section>
+    <section class="surface" id="ff-detail" hidden aria-label="冻结结果">
+      <h2>实验材料</h2>
+      <p id="ff-meta" class="mono"></p>
+      <button class="secondary" id="ff-copy-id" type="button">复制完整实验 ID</button>
+      <p id="ff-sha" class="mono"></p>
+      <pre id="ff-text"></pre>
+    </section>
+    <section class="surface" id="ff-branches" hidden aria-label="分支执行">
+      <h2>分支执行</h2>
+      <button class="secondary" id="ff-launch" type="button">发起分支（K 个新标签）</button>
+      <div id="ff-branch-boxes"></div>
+    </section>
+    <section class="surface" id="ff-compare" hidden aria-label="去标签对照与裁决">
+      <h2>去标签对照</h2>
+      <p class="subtle" id="ff-compare-note"></p>
+      <button class="secondary" id="ff-compare-btn" type="button">生成去标签对照（所有分支完成后）</button>
+      <div id="ff-columns"></div>
+      <div id="ff-calibration" hidden>
+        <h3>裁判校准（隐藏校准题，全部答对后开放裁决）</h3>
+        <div id="ff-calibration-items"></div>
+        <button class="secondary" id="ff-calibrate" type="button">提交校准答案</button>
+        <p id="ff-calibration-result" class="subtle"></p>
+      </div>
+      <div id="ff-verdict-form" hidden>
+        <label for="ff-preference">你的偏好</label>
+        <select id="ff-preference"></select>
+        <label for="ff-criteria">判断依据（必填）</label>
+        <textarea id="ff-criteria" rows="2"></textarea>
+        <label for="ff-confidence">置信度</label>
+        <select id="ff-confidence"><option value="medium">中</option><option value="high">高</option><option value="low">低</option></select>
+        <label for="ff-notes">备注</label>
+        <textarea id="ff-notes" rows="2"></textarea>
+        <button id="ff-verdict" type="button">提交裁决并揭盲</button>
+      </div>
+      <p id="ff-reveal" class="mono"></p>
+      <button class="secondary" id="ff-export" type="button" hidden>导出自包含 JSON（仅导出）</button>
+    </section>
+  </div>
+  <p class="subtle" id="ff-version-note" hidden></p>
+
+  <script src="../src/experiment-core.js"></script><script src="../src/experiment-db.js"></script><script src="experiments.js"></script>
+</body>
+</html>

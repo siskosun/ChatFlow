@@ -1,0 +1,74 @@
+{
+  "scope": "real_chromium_indexeddb_synthetic_data_only",
+  "cases": [
+    {
+      "name": "indexeddb_v1_to_v4_migration_preserves_existing_records",
+      "result": "pass"
+    },
+    {
+      "name": "indexeddb_v2_to_v4_preserves_archives_and_passages",
+      "result": "pass"
+    },
+    {
+      "name": "passage_crud_is_source_bound_and_does_not_mutate_archive",
+      "result": "pass"
+    },
+    {
+      "name": "delete_archive_invalidates_its_handoffs_and_preserves_shared_bytes",
+      "result": "pass"
+    },
+    {
+      "name": "handoff_commit_rejects_missing_source_or_missing_binary",
+      "result": "pass"
+    },
+    {
+      "name": "last_reference_removal_reclaims_file_without_global_stale_gc",
+      "result": "pass"
+    },
+    {
+      "name": "concurrent_handoff_commit_and_archive_deletion_are_serialized",
+      "result": "pass"
+    },
+    {
+      "name": "active_delete_empty_chunks_duplicate_sequence_and_interruption_fail_closed",
+      "result": "pass"
+    },
+    {
+      "name": "declared_source_size_mismatch_never_creates_saved_asset",
+      "result": "pass"
+    },
+    {
+      "name": "same_size_local_corruption_is_rejected_before_upload",
+      "result": "pass"
+    },
+    {
+      "name": "forged_passage_message_hash_rejected_without_write",
+      "result": "pass"
+    },
+    {
+      "name": "failed_import_leaves_no_partial_blobs_or_capture",
+      "result": "pass"
+    },
+    {
+      "name": "duplicate_content_addressed_asset_references_roundtrip",
+      "result": "pass"
+    },
+    {
+      "name": "missing_source_passage_remains_stale_across_backup",
+      "result": "pass"
+    },
+    {
+      "name": "live_dom_placeholder_is_replaced_by_same_message_definitive_attachment",
+      "result": "pass"
+    },
+    {
+      "name": "historical_attachment_row_roundtrips_even_if_latest_snapshot_omits_it",
+      "result": "pass"
+    },
+    {
+      "name": "source_integrity_issues_survive_zip_restore_without_laundering",
+      "result": "pass"
+    }
+  ],
+  "status": "pass"
+}

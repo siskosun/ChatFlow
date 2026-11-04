@@ -1,0 +1,140 @@
+name: verify
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: read
+concurrency:
+  group: chatflow-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Preserve reproducible source snapshot
+        run: |
+          mkdir -p source-artifact
+          git archive --format=zip --output=source-artifact/chatflow-source.zip HEAD
+          git rev-parse HEAD > source-artifact/SOURCE_COMMIT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatflow-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: source-artifact/
+          retention-days: 30
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build deterministic candidate packages
+        run: python build.py
+      - name: Node regression and security checks
+        run: python -c "import glob,subprocess; subprocess.run(['node','--test']+sorted(glob.glob('tests/*.test.mjs')),check=True)"
+      - name: Representative algorithm performance budgets
+        run: node tests/performance.mjs
+      - name: Python test syntax preflight
+        run: python -m py_compile build.py tests/browser_e2e.py tests/storage_edges.py tests/task_loop_e2e.py tests/archive_reliability_e2e.py tests/task_storage_v4.py tests/reliability_e2e.py tests/ui_visual_e2e.py
+      - name: Install pinned synthetic browser test tools
+        id: browser_tools
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Synthetic Chromium MV3 acceptance, no real account
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/browser_e2e.py
+      - name: Actual IndexedDB shared-file and handoff safety checks
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/storage_edges.py
+      - name: Task Loop and navigation synthetic acceptance
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/task_loop_e2e.py
+      - name: Real IndexedDB recoverable large archives and busy capture regression
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/archive_reliability_e2e.py
+      - name: Real IndexedDB task backup capacity, migration and summary pagination
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/task_storage_v4.py
+      - name: Source changes, trusted paste and representative archive library
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/reliability_e2e.py
+      - name: Responsive light and dark interface contrast
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/ui_visual_e2e.py
+      - name: Candidate artifacts, not a production release
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatflow-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/chatflow-edge-*-candidate.zip
+            dist/chatflow-chrome-*-candidate.zip
+            dist/SHA256SUMS
+          retention-days: 30
+      - name: Preserve synthetic verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatflow-synthetic-evidence-${{ github.event.pull_request.head.sha || github.sha }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 30
+  windows-baseline:
+    name: windows-baseline
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and check packages
+        run: python build.py
+      - name: Node regression and security checks
+        run: python -c "import glob,subprocess; subprocess.run(['node','--test']+sorted(glob.glob('tests/*.test.mjs')),check=True)"
+      - name: Windows build bytes for cross-platform comparison
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatflow-windows-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/chatflow-edge-*-candidate.zip
+            dist/chatflow-chrome-*-candidate.zip
+            dist/SHA256SUMS
+          retention-days: 30
+  reproducible-build:
+    name: reproducible-build
+    needs: [verify, windows-baseline]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download Ubuntu build
+        uses: actions/download-artifact@v4
+        with:
+          name: chatflow-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ubuntu-build
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: chatflow-windows-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: windows-build
+      - name: Confirm installed packages are byte-for-byte identical
+        shell: bash
+        run: |
+          set -eu
+          for file in chatflow-chrome-0.3-candidate.zip chatflow-edge-0.3-candidate.zip SHA256SUMS; do
+            cmp "ubuntu-build/$file" "windows-build/$file"
+          done
+          echo "CROSS_PLATFORM_BYTE_IDENTICAL"

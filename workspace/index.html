@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChatFlow</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#" aria-label="ChatFlow首页" data-view="home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="14" rx="2"/><path d="M8 8h3M8 11h3M15 9l5 3-5 3M20 12h-8"/></svg></span><span>ChatFlow</span></a>
+  <div class="header-actions"><button type="button" class="quiet" data-view="archive">我的档案</button><button type="button" class="quiet" data-view="settings">高级功能</button></div>
+</header>
+<main>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section id="capture-view" class="view" hidden>
+    <button type="button" class="back quiet" data-view="home">‹ 首页</button><div class="intro"><h1 id="capture-heading">保存这段对话</h1></div>
+    <div class="journey" aria-label="操作流程：保存、整理、接续">
+      <span class="journey-step current"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0-4-4m4 4 4-4M5 17v3h14v-3"/></svg><span>保存</span></span>
+      <span class="journey-connector" aria-hidden="true"></span>
+      <span class="journey-step"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2"/><path d="M8 6V4h8v2M8 11h8M8 15h5"/></svg><span>整理</span></span>
+      <span class="journey-connector" aria-hidden="true"></span>
+      <span class="journey-step"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 3V6a2 2 0 0 1 2-2zM10 11h7m0 0-3-3m3 3-3 3"/></svg><span>接续</span></span>
+    </div>
+    <div class="task-card">
+      <label for="source">来源对话</label>
+      <div class="source-row"><select id="source"><option value="">正在查找已打开的 ChatGPT 对话</option></select><button id="refresh-source" type="button" class="quiet">刷新</button></div>
+      <label for="asset-scope">文件范围</label>
+      <select id="asset-scope">
+        <option value="all">全部文件</option>
+        <option value="last_generated">最后生成的文件</option>
+      </select>
+      <p id="scope-hint" class="hint"></p>
+      <div id="running" class="running empty">尚未开始保存。</div>
+      <button id="continue" class="primary full" type="button" hidden>继续到新对话</button>
+      <div class="capture-secondary"><button id="capture" class="primary full" type="button" disabled>保存对话</button><button id="capture-backup" class="quiet" type="button" hidden>下载备份</button></div>
+    </div>
+    <button id="open-tools" type="button" class="quiet tools-entry">打开此对话的搜索与时间轴</button>
+    <details class="advanced">
+      <summary>更多设置</summary>
+      <label class="check"><input type="checkbox" id="allow-media" checked>允许下载 OpenAI 文件域名附件</label>
+       
+      <label class="check"><input type="checkbox" id="live">实时缓存这段对话中新生成的文件</label>
+      <p id="live-hint" class="hint"></p>
+      <button id="open-experiments" type="button" class="quiet">打开并行对照实验</button>
+      <button id="persist" type="button" class="quiet">请求保留本地存储</button>
+      <p id="quota" class="hint"></p>
+    </details>
+  </section>
+
+  <section id="archive-view" class="view" hidden>
+    <div class="view-heading"><button type="button" class="back quiet" data-view="capture">‹ 返回</button><h1>我的档案</h1></div>
+    <div class="row"><input id="search" type="search" aria-label="搜索本地档案" placeholder="搜索对话"><button id="refresh" type="button" class="quiet">刷新</button><label class="file-button quiet">恢复 ZIP<input id="restore" type="file" accept=".zip,application/zip"></label></div>
+    <div class="context-toolbar">
+       
+      <button id="build-context" type="button" class="quiet context-action" disabled>创建上下文包</button>
+      <details class="advanced compact">
+        <summary>上下文包设置</summary>
+        <label class="check"><input type="checkbox" id="context-all-branches">包含所有可访问分支</label>
+        <label class="check"><input type="checkbox" id="context-include-assets">包含所选档案中的全部已保存附件</label>
+        <label for="context-mode">内容范围</label>
+        <select id="context-mode"><option value="messages">完整消息（默认）</option><option value="passages">仅已选重点片段</option><option value="mixed">完整消息 + 已选重点片段</option></select>
+        <label for="context-query">关键词筛选（可选，空白表示全部所选消息）</label>
+        <input id="context-query" type="text" placeholder="例如：预算 留存 风险">
+        <label for="context-token-budget">估算 token 预算</label>
+        <input id="context-token-budget" class="small" type="number" min="1000" max="1000000" value="100000">
+        <label for="context-part-size">每个历史分段字符数</label>
+        <input id="context-part-size" class="small" type="number" min="1000" max="500000" value="120000">
+         
+      </details>
+    </div>
+    <div class="archive-layout"><aside><div id="archives" class="list" aria-label="本地档案列表"></div></aside><article id="detail"><p class="empty">选择一份档案。</p></article></div>
+  </section>
+
+  <section id="handoff-view" class="view" hidden>
+    <div class="view-heading"><button type="button" class="back quiet" data-view="archive">‹ 返回</button><h1>继续到新对话</h1></div>
+    <p id="handoff-source" class="muted"></p>
+    <div class="task-card">
+      <label for="instructions">接下来做什么？（可选）</label>
+      <textarea id="instructions" rows="3" placeholder="例如：继续完善方案，重点检查成本和风险。"></textarea>
+      <p id="selection-summary" class="hint"></p>
+      <details class="advanced compact"><summary>批次设置</summary><label for="batch-limit">每批文件数</label><input id="batch-limit" class="small" type="number" min="2" max="50" value="10"></details>
+      <button id="prepare" type="button" class="primary full">准备历史与文件</button>
+    </div>
+    <div id="handoff-result" hidden>
+      <div class="result-card"><p id="handoff-state" role="status"></p><details id="staging-details"><summary>查看待上传文件</summary><div id="staging" class="list"></div></details>
+        <button id="open-target" type="button" class="primary full">打开新对话</button>
+        <div class="secondary-actions"><button id="focus-target" type="button" class="quiet">查看新聊天</button><button id="download-handoff" type="button" class="quiet">下载全部接续文件</button></div>
+      </div>
+      <details class="advanced"><summary>查看接续提示</summary><pre id="prompt"></pre></details>
+      <details class="advanced"><summary>上传核对</summary>
+        <label class="check"><input id="confirmed" type="checkbox">我已确认首批文件上传完成</label>
+        <button id="confirm-upload" type="button" class="quiet">记录核对结果</button>
+         
+      </details>
+    </div>
+  </section>
+
+  <footer aria-live="polite"><span id="download-status" role="status"></span></footer>
+</main>
+<script src="../src/tl-core.js"></script><script src="../src/tl-passages.js"></script><script src="../src/tl-store.js"></script><script src="../src/tl-archive.js"></script><script src="../src/tl-context.js"></script><script src="../src/tl-tasks.js"></script><script src="../src/tl-task-store.js"></script><script src="app.js"></script><script src="flow.js"></script>
+</body></html>
