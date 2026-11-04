@@ -145,7 +145,26 @@
  experimentInfo.append(n('summary','并行实验怎样工作？'),n('p','对每个新聊天使用同一份材料；你需自行点击发送，扩展不会自动重试。',{class:'hint'}),n('a','查看并行实验说明',{href:'https://github.com/siskosun/ChatFlow/blob/main/docs/EXPERIMENTS.md',target:'_blank',rel:'noopener noreferrer'}));
 
  const backup=n('details',null,{class:'advanced'});backup.append(n('summary','任务备份与恢复'));
- const backupButton=button('下载任务备份','task-backup',async()=>{backupButton.disabled=true;try{say('正在校验并生成任务备份…');const blob=await S.exportBackup(),url=URL.createObjectURL(blob),a=n('a',null,{href:url,download:'chatflow-tasks.jsonl'});a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);say('已发起备份下载，请在浏览器中核对。');}finally{backupButton.disabled=false;}});backup.append(backupButton);
+ const backupButton=button('下载任务备份','task-backup',async()=>{
+  backupButton.disabled=true;let url=null,downloadId=null;
+  try{
+   say('正在校验并生成任务备份…');
+   const blob=await S.exportBackup();url=URL.createObjectURL(blob);
+   downloadId=await chrome.downloads.download({url,filename:'chatflow-tasks.jsonl',saveAs:true});
+   let cleaned=false;
+   const cleanup=()=>{if(cleaned)return;cleaned=true;chrome.downloads.onChanged.removeListener(onChanged);URL.revokeObjectURL(url);};
+   const onChanged=change=>{if(change.id!==downloadId)return;
+    if(change.state?.current==='complete'){cleanup();say('任务备份下载完成，请妥善保存。');}
+    else if(change.state?.current==='interrupted'||change.error){cleanup();say('任务备份下载中断；本地记录仍保留。',true);}
+   };
+   chrome.downloads.onChanged.addListener(onChanged);
+   const records=await chrome.downloads.search({id:downloadId}).catch(()=>[]);
+   if(records[0]?.state==='complete')onChanged({id:downloadId,state:{current:'complete'}});
+   else if(records[0]?.state==='interrupted')onChanged({id:downloadId,state:{current:'interrupted'}});
+   else say('已发起任务备份下载，请在浏览器下载列表核对。');
+  }catch(e){if(!downloadId&&url)URL.revokeObjectURL(url);throw e;}
+  finally{backupButton.disabled=false;}
+ });backup.append(backupButton);
  const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复失败：'+e.message),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,experimentInfo,backup,settingsStatus);main.append(settings);
  function applyPreferences(){for(const[k,v]of Object.entries(prefs)){document.body.classList.toggle('feature-'+k,!!v);$('pref-'+k).checked=!!v;}if(!prefs.live)$('live').checked=false;}
  document.addEventListener('chatflow:view',e=>{invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
