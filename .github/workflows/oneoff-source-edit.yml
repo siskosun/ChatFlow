@@ -1,0 +1,37 @@
+name: Apply hash-locked engineering patch
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.repository == 'siskosun/ChatFlow' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'cf/engineering-review-20261104'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply exact-source edits on development branch only
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote origin refs/heads/cf/engineering-review-20261104 | cut -f1)" = "$EXPECTED_HEAD"
+          python .ci-work/source-edit.py
+          git rm .ci-work/source-edit.py .github/workflows/oneoff-source-edit.yml
+          git add src workspace tests scripts docs build.py package.json package-lock.json .github/workflows/verify.yml
+          git config user.name 'ChatFlow cloud development'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: apply hash-locked dependency, migration and observability review patch'
+          git push origin HEAD:refs/heads/cf/engineering-review-20261104
+          echo "APPLIED_SOURCE_SHA=$(git rev-parse HEAD)"
