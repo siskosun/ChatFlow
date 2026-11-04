@@ -11,6 +11,12 @@
  function say(text,error=false){const e=!$('tasks-view')?.hidden?$('task-status'):!$('settings-view')?.hidden?$('settings-status'):$('status');if(!e)return;e.textContent=text;e.classList.toggle('error',error);}
  async function safe(fn){try{return await fn();}catch(e){say(errors[e.message]||'操作未完成：'+String(e.message||e),true);}}
  async function call(type,data={}){const r=await chrome.runtime.sendMessage({type,...data});if(!r?.ok)throw Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
+ async function currentWorkspaceWindow(){
+  const tabs=await chrome.tabs.query({active:true,currentWindow:true});
+  const tab=tabs.find(t=>t.active&&Number.isInteger(t.id)&&Number.isInteger(t.windowId));
+  if(!tab)throw Error('WORKSPACE_WINDOW_REQUIRED');
+  return{windowId:tab.windowId,activeTabId:tab.id};
+ }
  const defaults={context:false,experiments:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
@@ -50,9 +56,9 @@
   if(!prepared||prepared.text!==resultText.value)throw Error('TASK_MATCH_CONFLICT');
   const r={...prepared};const copied=await copy(r.text,resultText);
   if(!prepared||prepared.id!==r.id||resultText.value!==r.text)throw Error('TASK_MATCH_CONFLICT');
-  if(!copied){openOnly.hidden=false;return;}await call('tl:taskReturn',{taskId:r.taskId});say('已复制并打开来源对话；请自行粘贴、核对和发送。');
+  if(!copied){openOnly.hidden=false;return;}await call('tl:taskReturn',{taskId:r.taskId,...await currentWorkspaceWindow()});say('已复制并打开来源对话；请自行粘贴、核对和发送。');
  },'primary full');returnAction.hidden=true;
- const openOnly=button('只打开原对话','task-open-only',async()=>{if(!prepared)throw Error('TASK_NOT_FOUND');await call('tl:taskReturn',{taskId:prepared.taskId});});openOnly.hidden=true;
+ const openOnly=button('只打开原对话','task-open-only',async()=>{if(!prepared)throw Error('TASK_NOT_FOUND');await call('tl:taskReturn',{taskId:prepared.taskId,...await currentWorkspaceWindow()});});openOnly.hidden=true;
  ret.append(...field('Agent 的结果',resultText),resultCount,preview,manual,save,returnAction,openOnly,n('p','返回后自行粘贴并发送。',{class:'hint'}));
  const recent=n('details',null,{class:'recent-tasks',open:''});recent.append(n('summary','最近的任务'),n('div',null,{id:'task-list',class:'list'}));taskView.append(head,taskStatus,modes,compose,ret,recent);main.append(taskView);mode('compose');
  async function readSource(){const tabId=Number(source.value);if(!tabId)throw Error('请选择一个已打开的 ChatGPT 对话。');return call('tl:taskSource',{tabId,expectedUrl:source.selectedOptions[0]?.dataset.sourceUrl});}
@@ -61,7 +67,7 @@
  function invalidateCreation(){createEpoch++;created=null;promptBox.hidden=true;create.hidden=false;updateCreateState();}
  text.addEventListener('input',invalidateCreation);source.addEventListener('change',invalidateCreation);
  async function copy(value,fallback){try{await navigator.clipboard.writeText(value);say('已复制。');return true;}catch{const details=fallback.closest('details');if(details)details.open=true;fallback.focus();fallback.select();say('未能复制。文本已选中，请手动复制。',true);return false;}}
- async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source')||$('source').value,oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));for(const r of rows){const option=new Option((r.title||'ChatGPT')+' · '+TLCore.chatUrl(r.url).conversationId.slice(-8),String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else if(rows.length===1)source.value=String(rows[0].id);if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl)invalidateCreation();else updateCreateState();}
+ async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source')||$('source').value,oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));for(const r of rows){const option=new Option((r.title||'ChatGPT')+' · '+TLCore.chatUrl(r.url).conversationId.slice(-8),String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl)invalidateCreation();else updateCreateState();}
  async function refreshChoices(epoch=matchEpoch){
   if(choicesFresh)return epoch===matchEpoch;
   const old=manualSource.value,rows=await S.taskChoices();if(epoch!==matchEpoch)return false;
