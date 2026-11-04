@@ -158,13 +158,14 @@ async def main():
             await workspace.wait_for_function('typeof TLStore!=="undefined"&&typeof TLArchive!=="undefined"')
             await wait_async(workspace,'()=>document.querySelector("#source").value===""&&document.querySelector("#capture").disabled')
             assert await workspace.locator('#capture').is_disabled()
-            assert await workspace.locator('#source-empty-help').is_visible()
+            assert await workspace.locator('#source-empty-help').count()==1
             assert await workspace.locator('#source-empty-help a').get_attribute('href')=='https://chatgpt.com/'
             passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
             assert await workspace.locator('#home-view .flow-choice').count()==2
             assert await workspace.locator('#home-view').is_visible()
             assert not await workspace.locator('.context-toolbar').is_visible()
             await workspace.locator('#home-view [data-view="capture"]').click()
+            assert await workspace.locator('#source-empty-help').is_visible()
             passed('two_equal_primary_journeys_and_advanced_off_by_default')
             source=await ctx.new_page();await source.goto(SOURCE);await source.wait_for_timeout(350)
             assert await source.locator('#chatflow-handoff-notice').count()==0, 'ordinary existing conversations must not show a false parallel-handoff error'
