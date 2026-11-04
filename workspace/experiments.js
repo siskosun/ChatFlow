@@ -479,12 +479,22 @@
       const snapshot = await send({type:"FF_EXPORT", experimentId:currentExperiment});
       const blob = new Blob([JSON.stringify(snapshot, null, 1)],
         {type:"application/json"});
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = snapshot.experiment.id + "-chatflow-experiment.json";
-      document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      notice("已导出自包含 JSON。可在实验列表的导入入口经严格验证后导入（哈希与映射重算，不覆盖既有实验）。");
+      const url = URL.createObjectURL(blob);let downloadId=null;
+      try {
+        downloadId=await chrome.downloads.download({url,filename:snapshot.experiment.id+"-chatflow-experiment.json",saveAs:true});
+        let cleaned=false;
+        const cleanup=()=>{if(cleaned)return;cleaned=true;chrome.downloads.onChanged.removeListener(onChanged);URL.revokeObjectURL(url);};
+        const onChanged=change=>{
+          if(change.id!==downloadId)return;
+          if(change.state?.current==='complete'){cleanup();notice("实验 JSON 下载完成。导入时会重新核验哈希与映射，不覆盖既有实验。");}
+          else if(change.state?.current==='interrupted'||change.error){cleanup();notice("实验 JSON 下载中断；原始实验仍在本地。",true);}
+        };
+        chrome.downloads.onChanged.addListener(onChanged);
+        const records=await chrome.downloads.search({id:downloadId}).catch(()=>[]);
+        if(records[0]?.state==='complete')onChanged({id:downloadId,state:{current:'complete'}});
+        else if(records[0]?.state==='interrupted')onChanged({id:downloadId,state:{current:'interrupted'}});
+        else notice("实验 JSON 已发起下载，请在浏览器下载列表核对。");
+      }catch(e){if(!downloadId)URL.revokeObjectURL(url);throw e;}
     } catch (e) { notice(e.message, true); }
     finally { button.disabled = false; }
   });
