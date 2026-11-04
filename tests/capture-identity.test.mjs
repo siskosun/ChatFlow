@@ -45,3 +45,16 @@ test('two distinct unnamed references do not collapse by filename or case', () =
   assert.equal(result.assets.length, 3);
   assert.equal(new Set(result.assets.map(item => item.key)).size, 3);
 });
+
+test('unavailable DOM audit does not turn a verified API snapshot into an incomplete mapping', () => {
+  const context = vm.createContext({ TLCore: {}, ChatFlowProviders: {},
+    TLPageScope: { current: () => ({status:'unavailable',root:null}) },
+    chrome: { runtime: { onMessage: { addListener() {} } } } });
+  const source=fs.readFileSync(new URL('../src/tl-capture.js', import.meta.url),'utf8');
+  vm.runInContext(source.replace(/\}\)\(\);\s*$/, 'globalThis.reconcile = reconcileVisibleAttachments;\n})();'), context);
+  const model={source:{conversationId:'source_alpha_1234'},messages:[],assets:[],integrity:{state:'valid',issues:[]}};
+  context.reconcile(model);
+  assert.equal(model.integrity.state,'valid');
+  assert.equal(model.domAudit.state,'unavailable');
+  assert.equal(model.assets.length,0);
+});
