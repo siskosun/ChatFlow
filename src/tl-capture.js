@@ -29,7 +29,7 @@
   function status() { document.getElementById('chatflow-cache-notice')?.remove(); }
   function stop(run) {
     run.stopped = true;
-    run.controller?.abort(); run.observer?.disconnect(); clearInterval(run.timer);
+    run.controller?.abort(); run.reader?.cancel().catch(()=>{}); run.observer?.disconnect(); clearInterval(run.timer);
     if (active === run) active = null;
     status();
   }
@@ -99,20 +99,21 @@
     if (mime === 'text/html' && !/\.html?$/i.test(asset.name)) throw new Error('HTML_LOGIN_OR_ERROR_DOCUMENT');
     await message('tl:assetBegin', { key: asset.key }, run.nonce);
     C.check(response.body, 'EMPTY_DOWNLOAD_BODY');
-    const reader = response.body.getReader(); let seq = 0, total = 0;
+    const reader = response.body.getReader(); run.reader=reader; let seq = 0, total = 0;
     try {
       while (true) {
         sameSource(run); if (run.assetDeadline != null) remaining(run);
         const part = await reader.read(); sameSource(run);
         if (part.done) break;
         for (let i = 0; i < part.value.length; i += CHUNK_BYTES) {
+          sameSource(run); if (run.assetDeadline != null) remaining(run);
           const bytes = part.value.subarray(i, i + CHUNK_BYTES);
           await message('tl:assetChunk', { key: asset.key, seq: seq++, data: C.bytesToBase64(bytes) }, run.nonce);
           total += bytes.length;
         }
       }
     } catch (error) { try { await reader.cancel(); } catch { /* retain original */ } throw error; }
-    finally { reader.releaseLock(); }
+    finally { if(run.reader===reader)run.reader=null;reader.releaseLock(); }
     if (run.assetDeadline != null) remaining(run);
     const declared = Number(response.headers.get('content-length') || 0);
     if (declared && !response.headers.get('content-encoding')) C.check(total === declared, 'DOWNLOAD_SIZE_MISMATCH');
