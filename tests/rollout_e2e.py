@@ -119,12 +119,21 @@ async def main():
                 await w.locator('#detail input[data-asset-key]').first.check()
                 await w.locator('#detail .actions .primary').first.click();await w.locator('#prepare').click()
                 await poll(w,'()=>!document.querySelector("#handoff-result").hidden')
+                # Wait for all asynchronous Blob reads and rendered file rows, then
+                # verify the exact generated index type and displayed label.
+                await poll(w,"async()=>{const h=(await TLStore.all('handoffs')).at(-1);return h&&document.querySelectorAll('#staging .staged').length===h.files.length;}")
+                # The staged file rows are in a collapsed <details> until opened:
+                # innerText of hidden content is empty, even when its DOM label exists.
+                await w.locator('#staging-details summary').click()
+                index_ui=await w.evaluate("async()=>{const h=(await TLStore.all('handoffs')).at(-1),row=document.querySelector('#staging .staged');return {kind:h.files[0]?.kind,name:h.files[0]?.name,label:row?.innerText||''};}")
+                assert index_ui['kind']=='index' and index_ui['name']=='handoff_index.md',index_ui
+                assert '\u63a5\u7eed\u7d22\u5f15' in index_ui['label'],index_ui
                 async with ctx.expect_page() as target_event:await w.locator('#open-target').click()
                 target=await target_event.value;await target.wait_for_url('https://chatgpt.com/')
                 receipt=await poll(w,"async()=>{const h=(await TLStore.all('handoffs')).at(-1);return h?.state==='upload_unknown'?h:null;}",seconds=25)
                 assert receipt['evidenceVersion']==1 and len(receipt['fileEvidence'])==len(receipt['batches'][0])
                 assert any(r['state']=='page_ready' for r in receipt['fileEvidence']) and any(r['state']=='unknown' for r in receipt['fileEvidence'])
-                await w.locator('#staging-details summary').click();await poll(w,'()=>!!document.querySelector("[data-evidence-state=unknown]")')
+                await poll(w,'()=>!!document.querySelector("[data-evidence-state=unknown]")')
                 assert await target.evaluate('window.uploads===1&&window.sent===0')
                 old=receipt['fileEvidence']
                 late=await worker.evaluate('''async h=>{try{await handle({type:'tl:handoffProgress',id:h.id,attemptId:h.attemptId,files:h.fileEvidence},{id:chrome.runtime.id,documentId:h.targetDocumentId,tab:{id:h.targetTabId},url:'https://chatgpt.com/'});return false;}catch{return (await TLStore.get('handoffs',h.id)).fileEvidence;}}''',receipt)
@@ -132,6 +141,7 @@ async def main():
                 w.once('dialog',lambda d:d.accept())
                 await w.locator('[data-verify-file="1"]').click();await poll(w,"()=>Array.from(document.querySelectorAll('[data-file-evidence]')).some(e=>e.dataset.fileEvidence==='1'&&e.dataset.evidenceState==='user_checked')")
                 assert await target.evaluate('window.uploads===1&&window.sent===0')
+                assert await w.locator('[data-verify-file="1"]').is_disabled()
                 passed('partial_upload_exact_file_evidence_manual_check_and_late_receipt_protection')
                 await target.close()
                 samples=[]

@@ -73,6 +73,9 @@ jobs:
       - name: Installed MV3 rollout navigation, evidence and schema upgrades
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/rollout_e2e.py
+      - name: Independent source-bound answer headings
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/headings_e2e.py
       - name: Responsive light and dark interface contrast
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/ui_visual_e2e.py

@@ -10,7 +10,7 @@
     },
     "Navigation and licensed utilities": {
       "status": "implemented",
-      "description": "Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."
+      "description": "Message navigation and optional heading integration changed; old narrow baseline receipt does not certify this rollout. New exact-head acceptance pending."
     },
     "Source locked capture": {
       "status": "implemented",
@@ -36,7 +36,7 @@
   "Validation": {
     "Regression and real Chromium synthetic QA": {
       "status": "implemented",
-      "description": "Changed in reliability rollout; exact-head revalidation required. Prior pass evidence is preserved in docs/verification/checkpoint-before-reliability-20261104.jsonl."
+      "description": "New B-D and independent E runtime requires its own exact-head installed-MV3 regression. Historical baseline receipts remain in history; no new pass claimed."
     },
     "Cloud build reproducibility": {
       "status": "implemented",
@@ -69,8 +69,8 @@
       "description": "Attempt/document-bound per-file observations and manual acknowledgements implemented; exact-head cloud gates pending."
     },
     "E answer headings": {
-      "status": "todo",
-      "description": "Independent next increment; deliberately excluded from B-D safety/navigation acceptance."
+      "status": "implemented",
+      "description": "Independent source-bound rendered H1-H6 outline implemented; exact message/outline hash, duplicate occurrence and cancellation safeguards; cloud acceptance pending."
     },
     "Review engineering fixes": {
       "status": "implemented",

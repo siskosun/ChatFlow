@@ -121,9 +121,15 @@ async def main():
     passed('stale_source_tab_identity_rejected_before_task_creation')
     # Optional navigation loads only after the user asks. It finds messages not in the current DOM.
     assert await a.locator('#chatflow-page-tools').count()==0
-    await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click();await w.locator('#source').select_option(str(ta))
+    await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click()
+    # Browser navigation can finish before the extension tabs API has published
+    # the final URL. Verify both API and selector have recovered from B to A.
+    await poll(w,"async x=>{const rows=(await chrome.runtime.sendMessage({type:'tl:sources'})).data;return rows?.some(r=>r.id===x[0]&&r.url===x[1]);}",[ta,URL_A])
+    await poll(w,"x=>{const s=document.querySelector('#source');return [...s.options].some(o=>o.value===String(x[0])&&o.dataset.sourceUrl===x[1]);}",[ta,URL_A])
+    await w.locator('#source').select_option(str(ta))
     selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
-    assert selected=={'id':str(ta),'url':URL_A},selected
+    options=await w.evaluate("()=>[...document.querySelector('#source').options].map(o=>({id:o.value,url:o.dataset.sourceUrl}))")
+    assert selected=={'id':str(ta),'url':URL_A},{'selected':selected,'ta':ta,'tb':tb,'options':options}
     await w.locator('#open-tools').click()
     await w.wait_for_timeout(350)
     print('SIDEPANEL_TOOLS_DIAGNOSTIC',json.dumps({'selection':selected,'status':await w.locator('#status').inner_text(),'toolsPresent':await a.locator('#chatflow-page-tools').count()}),flush=True)
@@ -135,7 +141,7 @@ async def main():
     await tools.get_by_role('button',name='\u4e0b\u4e00\u6761',exact=True).click();await a.locator('#scroll [data-message-id="m4"]').wait_for(state='attached')
     await tools.locator('#list .row button').last.click();await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
     passed('virtualized_navigation_finds_exact_ids_and_distinguishes_duplicate_text')
-    await tools.locator('#list .row input').first.check();await tools.locator('details summary').click();await tools.locator('select').first.select_option('json')
+    await tools.locator('#list .row input').first.check();await tools.locator('summary').filter(has_text='\u5bfc\u51fa\u6240\u9009\u56de\u5408\u4e0e\u516c\u5f0f\u590d\u5236').click();await tools.locator('select').first.select_option('json')
     async with a.expect_download() as downloaded:await tools.get_by_role('button',name='\u5bfc\u51fa\u52fe\u9009\u56de\u5408').click()
     data=json.loads(Path(await (await downloaded.value).path()).read_text());assert data['scope']=='selected_turns_not_full_archive' and data['source']['conversationId']==A;assert data['messages'][0]['id']=='m4'
     await tools.locator('select').last.select_option('x^2 + y^2');await tools.get_by_role('button',name='\u590d\u5236 LaTeX').click()

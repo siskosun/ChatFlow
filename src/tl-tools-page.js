@@ -64,7 +64,7 @@
     }
     return document.scrollingElement;
   }
-  async function jump(session, message) {
+  async function jump(session, message, section = null) {
     const token = ++session.jump;
     session.navigationController?.abort();
     if (session.navigationPromise) await session.navigationPromise;
@@ -85,8 +85,14 @@
     for(const event of events)window.addEventListener(event,cancel,{capture:true,passive:true});
     session.status.textContent='\u6b63\u5728\u5b9a\u4f4d\u539f\u6d88\u606f\u2026';
     const work=globalThis.TLNavigation.navigate({
-      resolve:()=>resolve(session,message,scope()),
-      mounted:()=>nodes().map(el=>({el,index:K.getDomMessageIdCandidates(el).map(id=>byId.get(id)).find(index=>index!==undefined)})).filter(row=>row.index!==undefined),
+      resolve:()=>{
+        const match=resolve(session,message,scope());
+        if(!section)return match;
+        if(match?.confidence!=='verified_message_id')return null;
+        const el=globalThis.TLHeadings.resolve(match.el,section,node=>S.contains(scope(),node));
+        return el?{el,confidence:'verified_message_id'}:null;
+      },
+      mounted:()=>section?[]:nodes().map(el=>({el,index:K.getDomMessageIdCandidates(el).map(id=>byId.get(id)).find(index=>index!==undefined)})).filter(row=>row.index!==undefined),
       scrollContainer:scroller,targetIndex:session.messages.indexOf(message),total:session.messages.length,signal:controller.signal,
       assertCurrent:()=>{ensure(session);S.assert(initial);C.check(token===session.jump,'TOOLS_REQUEST_SUPERSEDED');}
     });
@@ -95,7 +101,8 @@
       const result=await work;session.navigationResult=result;
       if(!current(session)||token!==session.jump)return false;
       const labels={matched:'\u5df2\u6309\u6d88\u606f\u8eab\u4efd\u5b9a\u4f4d\u3002',observed:'\u4ec5\u5b9a\u4f4d\u5230\u672c\u6b21\u8bfb\u53d6\u7684\u9875\u9762\u8282\u70b9\uff1b\u539f\u6d88\u606f\u8eab\u4efd\u5c1a\u672a\u6838\u9a8c\u3002',cancelled:'\u5df2\u53d6\u6d88\u5b9a\u4f4d\u3002',timeout:'\u5b9a\u4f4d\u8d85\u65f6\uff0c\u672a\u62a5\u544a\u6210\u529f\u3002',not_found:'\u672a\u627e\u5230\u53ef\u786e\u8ba4\u7684\u76ee\u6807\uff0c\u672a\u8df3\u8f6c\u5230\u76f8\u4f3c\u6587\u672c\u3002'};
-      session.status.textContent=labels[result.state];
+      session.status.textContent=section && result.state==='matched' ? '\u5df2\u5b9a\u4f4d\u5230\u56de\u7b54\u7ae0\u8282\u3002' :
+        section && result.state==='not_found' ? '\u5df2\u5b9a\u4f4d\u5230\u56de\u7b54\uff0c\u4f46\u7ae0\u8282\u5df2\u53d8\u5316\u6216\u65e0\u6cd5\u786e\u8ba4\u3002' : labels[result.state];
       return result.state==='matched'||result.state==='observed';
     } finally {for(const event of events)window.removeEventListener(event,cancel,true);}
   }
@@ -165,6 +172,45 @@
     if (!current(session)) return;
     session.status.textContent = '定位未完成：' + (/^[A-Z0-9_]+$/.test(error?.message || '') ? error.message : 'PAGE_NAVIGATION_FAILED');
   }
+  function headingMenu(session, message) {
+    const details=n('details',null,{class:'cf-headings'});
+    const summary=n('summary','\u56de\u7b54\u7ae0\u8282');
+    const list=n('div',null,{class:'cf-heading-list'});
+    const load=n('button','\u5b9a\u4f4d\u56de\u7b54\u5e76\u8bfb\u53d6\u7ae0\u8282',{type:'button',class:'cf-read-headings'});
+    const hint=n('p',null,{class:'hint','aria-live':'polite'});
+    function populate() {
+      ensure(session);list.replaceChildren();
+      const sc=scope(),match=resolve(session,message,sc);
+      if(match?.confidence!=='verified_message_id') {
+        hint.textContent='\u56de\u7b54\u5c1a\u672a\u6302\u8f7d\u6216\u6d88\u606f\u8eab\u4efd\u672a\u786e\u8ba4\u3002';return;
+      }
+      const entries=globalThis.TLHeadings.read(match.el,node=>S.contains(sc,node));
+      hint.textContent=entries.length ? entries.length+' \u4e2a\u7ae0\u8282' : '\u6b64\u56de\u7b54\u6ca1\u6709\u53ef\u5b9a\u4f4d\u7684\u6807\u9898\u3002';
+      for(const entry of entries) {
+        const saved=globalThis.TLHeadings.descriptor(entry);
+        const button=n('button',entry.text,{type:'button',class:'cf-heading','data-level':String(entry.level)});
+        button.style.marginInlineStart=(entry.level-1)*10+'px';
+        button.title='H'+entry.level+' / '+(entry.occurrence+1);
+        button.onclick=async()=>{
+          try {
+            if(!await jump(session,message)||session.navigationResult?.state!=='matched')return;
+            await jump(session,message,saved);
+          } catch(error) {reportJumpError(session,error);}
+        };
+        list.append(button);
+      }
+    }
+    load.onclick=async()=>{
+      load.disabled=true;
+      try{if(await jump(session,message))populate();}catch(error){reportJumpError(session,error);}
+      finally{load.disabled=false;}
+    };
+    details.addEventListener('toggle',()=>{
+      if(!details.open)return;
+      try{populate();}catch(error){reportJumpError(session,error);}
+    });
+    details.append(summary,load,hint,list);return details;
+  }
   function render(session) {
     session.list.replaceChildren(); session.cursor = -1;
     const query = session.query.value.trim(), tooLong = query.length > 200;
@@ -195,10 +241,12 @@
       else button.textContent = item.text.slice(start, end) || '（无文本）';
       button.onclick = () => { session.cursor = session.matches.indexOf(item); jump(session, item).catch(error => reportJumpError(session, error)); };
       row.append(check, button); session.list.append(row);
+      const answers=item.role==='assistant'?[item]:(turn?.assistantMessages||[]).map(entry=>entry.message);
+      for(const answer of answers)session.list.append(headingMenu(session,answer));
     }
     if (session.matches.length > 200) session.list.append(n('p', '显示前 200 条；请缩小搜索范围。'));
   }
-  const STYLE = `:host{all:initial;position:fixed;right:18px;top:80px;z-index:2147483646;width:min(340px,calc(100vw - 32px));font:14px/1.5 system-ui;color:#233442;color-scheme:light}*{box-sizing:border-box}.panel{background:#fff;border:1px solid #d3dce4;border-radius:16px;box-shadow:0 12px 44px #182e4524;padding:16px;max-height:calc(100vh - 160px);overflow:auto}header,.controls,.row{display:flex;gap:8px;align-items:center}header{justify-content:space-between;margin-bottom:12px}h2{font-size:16px;margin:0}button,input,select{font:inherit;color:inherit}button{min-height:44px;padding:8px 10px;border:1px solid #d6dfe6;border-radius:9px;background:#fff;cursor:pointer}button:disabled{opacity:.5}input[type=search],select{width:100%;padding:10px;border:1px solid #ccd7e0;border-radius:9px;margin:7px 0}input[type=checkbox]{flex:none;width:18px;height:18px}.row{border-bottom:1px solid #edf0f3}.row button{flex:1;text-align:left;border:0;overflow-wrap:anywhere;min-width:0}.controls{justify-content:space-between}.hint,small{color:#5d6d7c;font-size:12px}#list{max-height:38vh;overflow:auto;margin:8px 0}p{overflow-wrap:anywhere}details{margin-top:12px}summary{cursor:pointer;min-height:44px;padding-top:10px}mark{background:#fff0a4}button:focus-visible,input:focus-visible,summary:focus-visible,select:focus-visible{outline:2px solid #327aba;outline-offset:2px}@media(prefers-color-scheme:dark){:host{color:#e4edf4;color-scheme:dark}.panel,button,input[type=search],select{background:#1c2832;border-color:#425666}.hint,small{color:#c1ced8}.row{border-color:#3b4a57}mark{background:#6d581d;color:#fff}}`;
+  const STYLE = `:host{all:initial;position:fixed;right:18px;top:80px;z-index:2147483646;width:min(340px,calc(100vw - 32px));font:14px/1.5 system-ui;color:#233442;color-scheme:light}*{box-sizing:border-box}.panel{background:#fff;border:1px solid #d3dce4;border-radius:16px;box-shadow:0 12px 44px #182e4524;padding:16px;max-height:calc(100vh - 160px);overflow:auto}header,.controls,.row{display:flex;gap:8px;align-items:center}header{justify-content:space-between;margin-bottom:12px}h2{font-size:16px;margin:0}button,input,select{font:inherit;color:inherit}button{min-height:44px;padding:8px 10px;border:1px solid #d6dfe6;border-radius:9px;background:#fff;cursor:pointer}button:disabled{opacity:.5}input[type=search],select{width:100%;padding:10px;border:1px solid #ccd7e0;border-radius:9px;margin:7px 0}input[type=checkbox]{flex:none;width:18px;height:18px}.row{border-bottom:1px solid #edf0f3}.row button{flex:1;text-align:left;border:0;overflow-wrap:anywhere;min-width:0}.controls{justify-content:space-between}.hint,small{color:#5d6d7c;font-size:12px}#list{max-height:38vh;overflow:auto;margin:8px 0}p{overflow-wrap:anywhere}details{margin-top:12px}.cf-headings{margin:0 0 8px 26px}.cf-heading-list{display:flex;flex-direction:column;gap:3px}.cf-heading{text-align:left;overflow-wrap:anywhere}.cf-headings summary{font-size:12px}summary{cursor:pointer;min-height:44px;padding-top:10px}mark{background:#fff0a4}button:focus-visible,input:focus-visible,summary:focus-visible,select:focus-visible{outline:2px solid #327aba;outline-offset:2px}@media(prefers-color-scheme:dark){:host{color:#e4edf4;color-scheme:dark}.panel,button,input[type=search],select{background:#1c2832;border-color:#425666}.hint,small{color:#c1ced8}.row{border-color:#3b4a57}mark{background:#6d581d;color:#fff}}`;
   function show(url) {
     C.check(canonical() === url, 'TOOLS_SOURCE_CHANGED'); close();
     const host = n('div', null, { id: 'chatflow-page-tools' }), shadow = host.attachShadow({ mode: 'open' });

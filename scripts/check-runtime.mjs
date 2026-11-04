@@ -13,6 +13,7 @@ const requirements={
  'src/tl-provider.js':['src/tl-core.js'],
  'src/tl-page-scope.js':['src/tl-core.js'],
  'src/tl-evidence.js':['src/tl-core.js'],
+ 'src/tl-headings.js':['src/tl-core.js'],
  'src/tl-passages.js':['src/tl-core.js'],
  'src/tl-store.js':['src/tl-core.js','src/tl-passages.js','src/tl-evidence.js'],
  'src/tl-capture.js':['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js'],
@@ -24,7 +25,7 @@ const requirements={
  'src/tl-context.js':['src/tl-core.js','src/tl-passages.js'],
  'src/experiment-service.js':['src/experiment-core.js','src/experiment-db.js'],
  'src/tl-service.js':['src/tl-core.js','src/tl-provider.js','src/tl-store.js','src/tl-task-service.js','src/experiment-service.js','src/tl-diagnostics.js'],
- 'src/tl-tools-page.js':['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-navigation.js'],
+ 'src/tl-tools-page.js':['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-navigation.js','src/tl-headings.js'],
  'workspace/app.js':['src/tl-core.js','src/tl-store.js','src/tl-archive.js','src/tl-context.js','src/tl-evidence.js','src/tl-diagnostics.js'],
  'workspace/flow.js':['workspace/app.js','src/tl-task-store.js','src/tl-diagnostics.js'],
  'workspace/experiments.js':['src/experiment-core.js','src/experiment-db.js']

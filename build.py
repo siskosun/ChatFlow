@@ -45,6 +45,7 @@ RUNTIME_FILES = [
     "src/tl-task-service.js",
     "src/toolkit-port.js",
     "src/tl-navigation.js",
+    "src/tl-headings.js",
     "src/tl-tools-page.js",
     "src/tl-archive.js",
     "src/tl-context.js",
