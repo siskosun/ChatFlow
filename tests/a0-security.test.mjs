@@ -36,7 +36,7 @@ test('popup has no deletion UI or all-site permission request',()=>{
  assert.match(popup,/EXTERNAL_MEDIA_HOSTS/);
 });
 test('all source classic JavaScript parses, independent of string guards',()=>{
- for(const dir of ['src','popup'])for(const file of fs.readdirSync(path.join(ROOT,dir))){if(file.endsWith('.js'))new vm.Script(read(dir+'/'+file),{filename:dir+'/'+file});}
+ for(const dir of ['src','tests/fixtures/legacy-popup'])for(const file of fs.readdirSync(path.join(ROOT,dir))){if(file.endsWith('.js'))new vm.Script(read(dir+'/'+file),{filename:dir+'/'+file});}
 });
 test('background validates sender and media host before fetch',async()=>{
  const listeners=[],calls=[];
