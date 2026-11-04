@@ -235,7 +235,7 @@
   const detail=node('details');detail.append(node('summary','\u6838\u67e5\u5177\u4f53\u7248\u672c\u4e0e\u6587\u4ef6\u54c8\u5e0c'),node('pre',JSON.stringify(proof,null,2)));panel.append(detail);return panel;
  }
  async function renderDetail(){
-  const epoch=++detailEpoch,captureId=selectedId,c=captureId&&await S.get('captures',captureId);if(epoch!==detailEpoch||captureId!==selectedId)return;const host=$('detail'),restoreFocus=preserveIdentityFocus(host),el=node('div');if(!c){el.append(node('p','请选择一个本地档案。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
+  const epoch=++detailEpoch,captureId=selectedId,c=captureId&&await S.get('captures',captureId);if(epoch!==detailEpoch||captureId!==selectedId)return;const host=$('detail'),restoreFocus=host.dataset.captureId===captureId?preserveIdentityFocus(host):()=>{},el=node('div');if(!c){el.append(node('p','请选择一个本地档案。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
   const title=c.snapshot?.title||c.title||'读取中';el.append(node('h2',title),node('p',(labels[c.state]||c.state)+(c.live?' · 实时缓存开启':''),'state '+(c.state==='ready'?'good':'warn')));
   if(c.lastError)el.append(node('p',explain(c.lastError),'note'));
   if(!c.snapshot){el.append(node('p','尚未取得对话快照，请查看采集状态。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
@@ -339,7 +339,7 @@
   }
   if(messages.length>messageLimit)d.append(button('再显示 100 条',async()=>{messageLimit+=100;await renderDetail();}));el.append(d);
   el.append(button('删除此本地档案',async()=>{if(!confirm('仅删除扩展中的这份本地档案，不会删除 ChatGPT 对话。尚未导出 ZIP 的文件可能失去本地副本。确认删除？'))return;await call('tl:stop',{captureId:c.id});for(const passage of await S.passages(c.id))contextSelectedPassageIds.delete(passage.passageId);await S.removeCapture(c.id);contextSelectedIds.delete(c.id);branchSelections.delete(c.id);selectedId=null;selectedKeys.clear();reanchorPassageId=null;detailEpoch++;host.replaceChildren(node('p','本地档案已删除。'));clearPassageHighlights();await refreshArchives();await quota();},'danger'));
-  if(epoch===detailEpoch&&captureId===selectedId){host.replaceChildren(el);restoreFocus();}
+  if(epoch===detailEpoch&&captureId===selectedId){host.replaceChildren(el);host.dataset.captureId=captureId;restoreFocus();}
  }
  async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent=(selectedKeys.size?'已选 '+selectedKeys.size+' 个原始文件；':'历史文件将自动准备。')+(missing?' '+missing+' 个文件未取得。':'')+(excluded?' '+excluded+' 个按范围排除。':'');$('prepare').disabled=!c?.snapshot||['capturing','error'].includes(c.state)||$('instructions').value.length>4000;}
  async function prepare(){
