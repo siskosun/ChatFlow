@@ -167,3 +167,13 @@ button,.file-button{min-height:44px}.task-row button{min-height:44px}#task-retur
 .source-actions{margin:6px 0 16px}.source-actions button{min-height:36px;font-size:12px;padding:6px 10px}.task-row .actions button{font-size:12px;padding:8px 12px}.task-result-list{margin:8px 0}.task-more{margin:14px 0}
 #settings-status{font-size:13px;color:var(--ink);padding:12px;background:var(--tint);border-radius:10px}#settings-status:empty{display:none}#settings-status.error{background:var(--error-bg);color:var(--bad)}
 @media(max-width:640px){.home-intro{padding:26px 0 20px}.flow-choice{min-height:150px;padding:20px}.flow-arrow{margin-top:8px}.source-actions{gap:6px}.source-actions button{min-height:44px}}
+
+/* Native side-panel layout: compact controls without horizontal overflow. */
+@media(max-width:520px){
+ .top{flex-wrap:wrap;gap:8px;padding:10px 14px}
+ .header-actions{width:100%;gap:7px}
+ .header-actions button{min-height:36px;padding:6px 10px}
+ .archive-layout aside{max-height:40vh;overflow:auto}
+ .archive-layout article{overflow-wrap:anywhere}
+ .home-intro{padding:22px 0 14px}
+}
