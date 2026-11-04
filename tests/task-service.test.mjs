@@ -23,7 +23,7 @@ test('Task Loop service accepts only the owning extension workspace',async()=>{
  assert.equal(h.events.length,0);
 });
 test('source creation reads only selected message and returns verified identity, not a full capture',async()=>{
- const h=setup(),r=await h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_A});assert.equal(r.source.url,URL_A);assert.equal(r.source.messageId,'m1');assert.equal(r.source.nodeId,null);assert.equal(r.selection,'selected synthetic text');assert.deepEqual(h.events,[['script','selection']]);
+ const h=setup(),r=await h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_A});assert.equal(r.source.url,URL_A);assert.equal(r.source.messageId,'m1');assert.equal(r.source.nodeId,null);assert.equal(r.selection,'selected synthetic text');assert.deepEqual(h.events,[['script',['src/tl-page-scope.js']],['script','selection']]);
 });
 test('source selector mismatch and script navigation race fail before associating a task',async()=>{
  const h=setup();await assert.rejects(h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_B}),/TASK_SOURCE_CHANGED/);assert.equal(h.events.length,0);
@@ -57,7 +57,7 @@ test('missing task and missing workspace window cannot open a destination',async
 });
 test('optional page tools load only from an explicit source-bound command',async()=>{
  const h=setup();assert.equal(await h.handle({type:'unrelated'}),undefined);assert.equal(h.events.length,0);
- const r=await h.handle({type:'tl:openTools',tabId:20,expectedUrl:URL_A});assert.equal(r.opened,true);assert.deepEqual(h.events[0],['script',['src/tl-core.js','src/tl-provider.js','src/toolkit-port.js','src/tl-tools-page.js']]);assert.equal(h.events[1][2].url,URL_A);
+ const r=await h.handle({type:'tl:openTools',tabId:20,expectedUrl:URL_A});assert.equal(r.opened,true);assert.deepEqual(h.events[0],['script',['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-tools-page.js']]);assert.equal(h.events[1][2].url,URL_A);
 });
 test('tool injection does not show a panel if the tab changed during injection',async()=>{
  const h=setup({changeOnSecondGet:true});await assert.rejects(h.handle({type:'tl:openTools',tabId:20,expectedUrl:URL_A}),/TASK_SOURCE_CHANGED/);assert.equal(h.events.filter(x=>x[0]==='message').length,0);
