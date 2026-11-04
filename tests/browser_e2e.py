@@ -218,7 +218,7 @@ async def main():
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
             passed('ux_home_one_primary_action_and_clear_save_task',{'widths':[320,360,1280],'primary_actions':1})
             await workspace.locator('[data-view="settings"]').click()
-            for feature in ['context','experiments','live','diagnostics','passages']:
+            for feature in ['context','live','diagnostics','passages']:
                 await workspace.locator('#pref-'+feature).check()
             await workspace.locator('#settings-view [data-view="home"]').click()
             await workspace.locator('#home-view [data-view="capture"]').click()

@@ -37,7 +37,7 @@ async def main():
     worker=context.service_workers[0] if context.service_workers else await context.wait_for_event('serviceworker')
     base='chrome-extension://'+worker.url.split('/')[2]+'/workspace/'
     page=await context.new_page();page.on('pageerror',lambda e:report['errors'].append(str(e)));await page.goto(base+'index.html');await page.wait_for_function('!!globalThis.ChatFlowWorkspace&&!!globalThis.ChatFlowTaskUI')
-    await page.evaluate("""async()=>{await chrome.storage.local.set({cfPreferences:{context:true,experiments:true,live:true,diagnostics:true,passages:true,tools:true}});const raw={conversation_id:'visual_fixture_20261103',title:'合成项目方案',current_node:'a',mapping:{a:{parent:null,children:[],message:{id:'m',author:{role:'assistant'},content:{parts:['仅用于界面回归的合成材料。']}}}}};await TLStore.snapshot('visual-capture',TLCore.normalizeConversation(raw,'https://chatgpt.com/c/visual_fixture_20261103'));await TLStore.finishCapture('visual-capture');}""")
+    await page.evaluate("""async()=>{await chrome.storage.local.set({cfPreferences:{context:true,live:true,diagnostics:true,passages:true,tools:true}});const raw={conversation_id:'visual_fixture_20261103',title:'合成项目方案',current_node:'a',mapping:{a:{parent:null,children:[],message:{id:'m',author:{role:'assistant'},content:{parts:['仅用于界面回归的合成材料。']}}}}};await TLStore.snapshot('visual-capture',TLCore.normalizeConversation(raw,'https://chatgpt.com/c/visual_fixture_20261103'));await TLStore.finishCapture('visual-capture');}""")
     await page.reload();await page.wait_for_function('!!globalThis.ChatFlowWorkspace&&document.body.classList.contains("feature-context")')
     for scheme in ['light','dark']:
      await page.emulate_media(color_scheme=scheme)
