@@ -106,7 +106,12 @@ async def main():
     passed('stale_source_tab_identity_rejected_before_task_creation')
     # Optional navigation loads only after the user asks. It finds messages not in the current DOM.
     assert await a.locator('#chatflow-page-tools').count()==0
-    await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click();await w.locator('#source').select_option(str(ta));await w.locator('#open-tools').click()
+    await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click();await w.locator('#source').select_option(str(ta))
+    selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
+    assert selected=={'id':str(ta),'url':URL_A},selected
+    await w.locator('#open-tools').click()
+    await w.wait_for_timeout(350)
+    print('SIDEPANEL_TOOLS_DIAGNOSTIC',json.dumps({'selection':selected,'status':await w.locator('#status').inner_text(),'toolsPresent':await a.locator('#chatflow-page-tools').count()}),flush=True)
     tools=a.locator('#chatflow-page-tools');await tools.wait_for(state='attached');await poll(a,"()=>document.querySelector('#chatflow-page-tools').shadowRoot.textContent.includes('80')")
     search=tools.locator('input[type=search]');await search.fill('Question number 0');await tools.locator('#list .row button').first.click();await a.locator('[data-message-id="m0"]').wait_for(state='attached')
     assert await a.locator('[data-message-id="m0"]').evaluate("e=>{const r=e.getBoundingClientRect(),b=document.querySelector('#scroll').getBoundingClientRect();return r.bottom>b.top&&r.top<b.bottom;}")
