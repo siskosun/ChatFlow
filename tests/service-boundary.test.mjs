@@ -7,10 +7,10 @@ const core=fs.readFileSync(new URL('../src/tl-core.js',import.meta.url),'utf8');
 const provider=fs.readFileSync(new URL('../src/tl-provider.js',import.meta.url),'utf8');
 const service=fs.readFileSync(new URL('../src/tl-service.js',import.meta.url),'utf8');
 async function harness({navigationFails=false}={}){
- const records=new Map([['handoff',{id:'handoff',captureId:'capture',state:'prepared',prompt:'Test',files:[{name:'history.md',size:1,sha256:'a'.repeat(64)}],batches:[[0]],missing:[]}]]),events=[],tabs=new Map();
+ const records=new Map([['handoff',{id:'handoff',captureId:'capture',state:'prepared',prompt:'Test',files:[{name:'history.md',size:1,sha256:'a'.repeat(64)}],batches:[[0]],missing:[]}]]),events=[],tabs=new Map(),panelBehaviors=[];
  const store={get:async(name,key)=>structuredClone(records.get(key)),all:async name=>name==='handoffs'?[...records.values()].map(x=>structuredClone(x)):[],set:async(name,value)=>{records.set(value.id,structuredClone(value));events.push('persist:'+value.state);},recover:async()=>{}};
  const event=()=>({addListener(){}});
- const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:event()},storage:{session:{get:async()=>({}),set:async()=>{}}},action:{onClicked:event()},scripting:{executeScript:async()=>{}},permissions:{contains:async()=>true},
+ const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:event()},storage:{session:{get:async()=>({}),set:async()=>{}}},action:{onClicked:{addListener(){throw Error('Legacy full-page action handler must not be registered');}}},sidePanel:{setPanelBehavior:async options=>{panelBehaviors.push({...options});}},scripting:{executeScript:async()=>{}},permissions:{contains:async()=>true},
   windows:{create:async()=>{throw Error('WINDOW_CREATION_NOT_ALLOWED');},update:async()=>{}},
   tabs:{onUpdated:event(),onRemoved:event(),create:async options=>{assert.equal(options.url,'about:blank');assert.equal(options.windowId,9);assert.equal(options.active,true);events.push('create-tab');const tab={id:17,windowId:9,url:'about:blank',status:'complete'};tabs.set(17,tab);return tab;},get:async id=>tabs.get(id),query:async()=>[],sendMessage:async()=>{events.push('announce');},update:async(id,options)=>{const h=records.get('handoff');assert.equal(h.targetTabId,id);assert.equal(h.state,'target_opened');events.push('navigate');if(navigationFails)throw Error('network failure');tabs.set(id,{...tabs.get(id),url:options.url,status:'loading'});return tabs.get(id);}}
  };
@@ -19,9 +19,26 @@ async function harness({navigationFails=false}={}){
  vm.runInContext(provider,context);
  vm.runInContext(service+'\n globalThis.TEST_BOUNDARY={openHandoff,claim,targetHandoff,handle,sourceRun,runs,boot};',context);
  await context.TEST_BOUNDARY.boot;
- return{...context.TEST_BOUNDARY,events,records,tabs,api};
+ return{...context.TEST_BOUNDARY,events,records,tabs,api,panelBehaviors};
 }
 const workspaceSender={id:'extension',url:'chrome-extension://extension/workspace/index.html',tab:{id:10,windowId:9,url:'chrome-extension://extension/workspace/index.html'}};
+const panelSender={id:'extension',url:'chrome-extension://extension/workspace/index.html'};
+test('toolbar action registers native side panel rather than creating a full-page workspace tab',async()=>{
+ const h=await harness();await Promise.resolve();
+ assert.deepEqual(h.panelBehaviors,[{openPanelOnActionClick:true}]);
+ assert.equal(h.events.filter(x=>x==='create-tab').length,0);
+});
+test('side panel handoff opens a ChatGPT tab in the validated browser window',async()=>{
+ const h=await harness();h.tabs.set(11,{id:11,windowId:9,active:true,url:'https://chatgpt.com/'});
+ const result=await h.handle({type:'tl:openHandoff',id:'handoff',windowId:9,activeTabId:11},panelSender);
+ assert.equal(result.targetWindowId,9);assert.equal(h.tabs.get(17).url,'https://chatgpt.com/');
+});
+test('side panel handoff fails closed with forged or stale active-window context',async()=>{
+ const h=await harness();h.tabs.set(11,{id:11,windowId:9,active:true,url:'https://chatgpt.com/'});
+ for(const bad of [{windowId:10,activeTabId:11},{windowId:9,activeTabId:12},{windowId:9,activeTabId:0}])
+  await assert.rejects(h.handle({type:'tl:openHandoff',id:'handoff',...bad},panelSender),/WORKSPACE_WINDOW_REQUIRED|Cannot read/);
+ assert.equal(h.events.length,0);
+});
 test('new chat opens as a tab in the workspace window after handoff ownership is persisted',async()=>{
  const h=await harness(),result=await h.openHandoff('handoff',workspaceSender);
  assert.equal(result.targetTabId,17);assert.equal(result.targetWindowId,9);
