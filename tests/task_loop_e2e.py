@@ -72,6 +72,11 @@ async def main():
      alignment=await w.locator('.preference-row').evaluate_all("""rows=>rows.map(row=>{const a=row.getBoundingClientRect(),b=row.querySelector('input').getBoundingClientRect(),t=row.querySelector('.preference-copy').getBoundingClientRect();return{right:a.right,checkboxRight:b.right,textRight:t.right,checkboxLeft:b.left,textLeft:t.left,display:getComputedStyle(row).display,weight:getComputedStyle(row).fontWeight};})""")
      assert len(alignment)==6 and all(r['display']=='grid' and r['textRight']<=r['checkboxLeft']-6 and abs(r['right']-r['checkboxRight'])<3 for r in alignment),alignment
      assert await w.evaluate('document.documentElement.scrollWidth<=innerWidth+2')
+    await w.screenshot(path=str(OUT/'cf03-settings-light-390.png'),full_page=True)
+    await w.emulate_media(color_scheme='dark')
+    await w.screenshot(path=str(OUT/'cf03-settings-dark-390.png'),full_page=True)
+    assert await w.evaluate('document.documentElement.scrollWidth<=innerWidth+2')
+    await w.emulate_media(color_scheme='light')
     passed('sidebar_settings_toggle_column_and_descriptions_align_at_320_360_390')
     for name in ['context','experiments','live','diagnostics','passages']:assert not await w.locator('#pref-'+name).is_checked()
     await w.locator('#pref-context').check();await poll(w,"async()=>(await chrome.storage.local.get('cfPreferences')).cfPreferences?.context===true");await w.reload();await w.locator('[data-view="settings"]').click();assert await w.locator('#pref-context').is_checked();await w.locator('#pref-context').uncheck()
