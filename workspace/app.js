@@ -17,6 +17,12 @@
   else if(value)statusTimeout=setTimeout(()=>{if(el.textContent===value)status('');},4500);
  }
  function node(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;}
+ function preserveIdentityFocus(container){
+  const focused=document.activeElement;
+  if(!focused||!container.contains(focused)||!focused.dataset?.focusId||!focused.dataset?.focusRole)return()=>{};
+  const key=focused.dataset.focusId,role=focused.dataset.focusRole,tag=focused.tagName;
+  return()=>{const item=[...container.querySelectorAll('[data-focus-id]')].find(el=>el.dataset.focusId===key&&el.dataset.focusRole===role&&el.tagName===tag&&!el.disabled);item?.focus({preventScroll:true});};
+ }
  function button(text,fn,cls){const b=node('button',text,cls);b.type='button';b.addEventListener('click',()=>guard(fn));return b;}
  async function guard(fn){try{return await fn();}catch(e){status(explain(e),true);if(['IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS','STARTUP_FAILED','EXTENSION_UNAVAILABLE'].includes(e?.message))$('retry-workspace').hidden=false;}}
  async function call(type,data={}){const r=await chrome.runtime.sendMessage({type,...data});if(!r?.ok)throw new Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
@@ -133,16 +139,16 @@
  let archivePageEpoch=0,archiveCursor=null;
  async function refreshArchives(append=false){
   const epoch=++archivePageEpoch,list=$('archives'),q=$('search').value.trim().toLowerCase(),page=await S.listCaptures({query:q,cursor:append?archiveCursor:null,limit:50});if(epoch!==archivePageEpoch)return;
-  archiveCursor=page.nextCursor;list.querySelector('.archive-more')?.remove();
+  archiveCursor=page.nextCursor;const restoreFocus=preserveIdentityFocus(list);list.querySelector('.archive-more')?.remove();
   if(!append)list.replaceChildren();for(const c of page.items){const title=c.title;
-   const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.hasSnapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.dataset.captureId=c.id;check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
-   const b=button('',()=>choose(c.id),'archive-button');b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||c.state)+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
+   const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.hasSnapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.dataset.captureId=c.id;check.dataset.focusId='capture:'+c.id;check.dataset.focusRole='checkbox';check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
+   const b=button('',()=>choose(c.id),'archive-button');b.dataset.focusId='capture:'+c.id;b.dataset.focusRole='open';b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||c.state)+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
   if(archiveCursor)list.append(button('加载更多档案',()=>refreshArchives(true),'archive-more'));
   if(!list.children.length){
    if(q)list.append(node('p','没有匹配的本地档案，请调整关键词。','empty'));
    else{const empty=node('div',null,'archive-empty');empty.append(node('strong','还没有本地档案'),node('p','先保存一段已打开的 ChatGPT 对话，就能在这里搜索、备份和接续。'),button('去保存第一份',()=>{switchView('capture');$('source').focus();},'primary'));list.append(empty);}
   }
-  $('detail').hidden=!page.items.length&&!append;updateContextButton();
+  $('detail').hidden=!page.items.length&&!append;updateContextButton();restoreFocus();
  }
  function updateContextButton(){$('build-context').disabled=contextSelectedIds.size===0||$('context-query').value.length>500;$('build-context').textContent=contextSelectedIds.size?'创建上下文包（'+contextSelectedIds.size+'）':'创建上下文包';}
  async function buildContextPackage(){
@@ -229,7 +235,7 @@
   const detail=node('details');detail.append(node('summary','\u6838\u67e5\u5177\u4f53\u7248\u672c\u4e0e\u6587\u4ef6\u54c8\u5e0c'),node('pre',JSON.stringify(proof,null,2)));panel.append(detail);return panel;
  }
  async function renderDetail(){
-  const epoch=++detailEpoch,captureId=selectedId,c=captureId&&await S.get('captures',captureId);if(epoch!==detailEpoch||captureId!==selectedId)return;const host=$('detail'),el=node('div');if(!c){el.append(node('p','请选择一个本地档案。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
+  const epoch=++detailEpoch,captureId=selectedId,c=captureId&&await S.get('captures',captureId);if(epoch!==detailEpoch||captureId!==selectedId)return;const host=$('detail'),restoreFocus=preserveIdentityFocus(host),el=node('div');if(!c){el.append(node('p','请选择一个本地档案。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
   const title=c.snapshot?.title||c.title||'读取中';el.append(node('h2',title),node('p',(labels[c.state]||c.state)+(c.live?' · 实时缓存开启':''),'state '+(c.state==='ready'?'good':'warn')));
   if(c.lastError)el.append(node('p',explain(c.lastError),'note'));
   if(!c.snapshot){el.append(node('p','尚未取得对话快照，请查看采集状态。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
@@ -264,11 +270,12 @@
    const resolved=TLPassages.resolve(passage,snapshot);passageStates.set(passage.passageId,resolved);
    if(passage.status!==resolved.status)await S.updatePassageStatus(passage.passageId,resolved.status,resolved.reason);
    const row=node('div',null,'passage-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedPassageIds.has(passage.passageId);check.disabled=resolved.status!=='anchored';check.setAttribute('aria-label','将重点片段加入上下文：'+passage.text.slice(0,60));
+   check.dataset.focusId='passage:'+passage.passageId;check.dataset.focusRole='checkbox';
    check.addEventListener('change',()=>{check.checked?contextSelectedPassageIds.add(passage.passageId):contextSelectedPassageIds.delete(passage.passageId);});
    const sourceChoice=choices.find(x=>x.path.includes(passage.nodeId));
    const info=node('div');info.append(node('strong',passage.text),node('small',(resolved.status==='anchored'?'已定位':resolved.status==='ambiguous'?'定位有歧义':'来源已变化')+(sourceChoice?' · '+sourceChoice.label:'')));
    const controls=node('div',null,'actions'),colorSelect=document.createElement('select');
-   colorSelect.setAttribute('aria-label','重点片段颜色');
+   colorSelect.setAttribute('aria-label','重点片段颜色');colorSelect.dataset.focusId='passage:'+passage.passageId;colorSelect.dataset.focusRole='color';
    for(const color of ['yellow','green','blue','pink']){const option=new Option(({yellow:'黄色',green:'绿色',blue:'蓝色',pink:'粉色'})[color],color);colorSelect.add(option);}
    colorSelect.value=passage.color||'yellow';colorSelect.addEventListener('change',async()=>{await S.updatePassageColor(passage.passageId,colorSelect.value);await renderDetail();});
    controls.append(colorSelect);
@@ -297,7 +304,7 @@
   for(const m of messages.slice(0,messageLimit)){
    const block=node('div',null,'message');block.dataset.messageId=m.id;block.dataset.nodeId=m.nodeId;
    block.append(node('strong',m.role+' · '+m.id));
-   const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';pre.tabIndex=0;pre.setAttribute('aria-label','历史消息正文，可用键盘选择文字并保存重点片段');block.append(pre);
+   const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';pre.dataset.focusId='message:'+m.nodeId;pre.dataset.focusRole='text';pre.tabIndex=0;pre.setAttribute('aria-label','历史消息正文，可用键盘选择文字并保存重点片段');block.append(pre);
    let pending=null;const save=button('保存选中片段',async()=>{
     C.check(pending,'PASSAGE_SELECTION_REQUIRED');
     const prior=reanchorPassageId?passageRows.find(p=>p.passageId===reanchorPassageId):null;
@@ -332,7 +339,7 @@
   }
   if(messages.length>messageLimit)d.append(button('再显示 100 条',async()=>{messageLimit+=100;await renderDetail();}));el.append(d);
   el.append(button('删除此本地档案',async()=>{if(!confirm('仅删除扩展中的这份本地档案，不会删除 ChatGPT 对话。尚未导出 ZIP 的文件可能失去本地副本。确认删除？'))return;await call('tl:stop',{captureId:c.id});for(const passage of await S.passages(c.id))contextSelectedPassageIds.delete(passage.passageId);await S.removeCapture(c.id);contextSelectedIds.delete(c.id);branchSelections.delete(c.id);selectedId=null;selectedKeys.clear();reanchorPassageId=null;detailEpoch++;host.replaceChildren(node('p','本地档案已删除。'));clearPassageHighlights();await refreshArchives();await quota();},'danger'));
-  if(epoch===detailEpoch&&captureId===selectedId)host.replaceChildren(el);
+  if(epoch===detailEpoch&&captureId===selectedId){host.replaceChildren(el);restoreFocus();}
  }
  async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent=(selectedKeys.size?'已选 '+selectedKeys.size+' 个原始文件；':'历史文件将自动准备。')+(missing?' '+missing+' 个文件未取得。':'')+(excluded?' '+excluded+' 个按范围排除。':'');$('prepare').disabled=!c?.snapshot||['capturing','error'].includes(c.state)||$('instructions').value.length>4000;}
  async function prepare(){
