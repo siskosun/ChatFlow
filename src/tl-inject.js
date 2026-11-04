@@ -142,7 +142,7 @@
    let confirmed=false;
    for(let i=0;i<32;i++){await sleep(250);P.identify(location.href,{target:true}).identity;if(uploadsConfirmed(files.map(f=>f.name),e)){confirmed=true;break;}}
    await send('tl:handoffStatus',{id:h.id,state:confirmed?'upload_confirmed':'upload_unknown'});
-   notice((confirmed?'ChatFlow：网页已确认首批附件上传。':'ChatFlow：已尝试附加首批文件，但上传结果尚未确认，请检查网页。')+'请核对后手动发送。'+(h.remainingBatches?'另有 '+h.remainingBatches+' 批文件，请从档案页下载并手动补充。':''));
+   notice((confirmed?'ChatFlow：网页显示首批附件就绪（仅页面观察，不代表模型已读取）。':'ChatFlow：已尝试附加首批文件，但上传结果尚未确认，请检查网页。')+'请核对后手动发送。'+(h.remainingBatches?'另有 '+h.remainingBatches+' 批文件，请从档案页下载并手动补充。':''));
   }catch(e){
    await send('tl:handoffStatus',{id:h.id,state:injected?'partial_injection':'injection_blocked',code:code(e)}).catch(()=>{});
    notice('ChatFlow：自动接续未确认（'+code(e)+'）。不会自动重试或清除草稿。请回档案页下载接续包，手动上传。');
