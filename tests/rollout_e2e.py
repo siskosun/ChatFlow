@@ -115,7 +115,7 @@ async def main():
                 await w.locator('#verification-report [data-evidence="restore"]').wait_for(state='attached')
                 assert await w.locator('#verification-report [data-evidence="restore"]').count()==1
                 assert '\u6821\u9a8c\u901a\u8fc7' in await w.locator('[data-evidence="restore"]').inner_text()
-                await w.locator('#detail details').filter(has=w.locator('input[data-asset-key]')).locator('summary').click()
+                await w.locator('#detail details').filter(has=w.locator('input[data-asset-key]')).locator(':scope > summary').click()
                 await w.locator('#detail input[data-asset-key]').first.check()
                 await w.locator('#detail .actions .primary').first.click();await w.locator('#prepare').click()
                 await poll(w,'()=>!document.querySelector("#handoff-result").hidden')
