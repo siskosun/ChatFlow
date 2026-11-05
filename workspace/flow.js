@@ -374,7 +374,7 @@
  chrome.tabs.onUpdated.addListener((_id,change)=>{if(change.url||change.status==='complete')scheduleTaskSourceSync();});
  chrome.tabs.onRemoved.addListener(scheduleTaskSourceSync);
  window.addEventListener('focus',()=>{if(!$('tasks-view').hidden)safe(async()=>{await refreshSources();await refreshTasks();});});
- $('open-tools').onclick=()=>safe(async()=>{const id=Number($('source').value);await call('tl:openTools',{tabId:id,expectedUrl:$('source').selectedOptions[0]?.dataset.sourceUrl});});
+ // Search/navigation has a single, source-verified entry in Advanced settings.
  chrome.storage.local.get('cfPreferences').then(r=>{for(const k of Object.keys(defaults))if(typeof r.cfPreferences?.[k]==='boolean')prefs[k]=r.cfPreferences[k];applyPreferences();}).catch(()=>applyPreferences());
  globalThis.ChatFlowTaskUI=Object.freeze({refreshTasks,refreshSources,updateMatch,mode});
 })();
