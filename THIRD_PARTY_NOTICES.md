@@ -139,3 +139,107 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+## Second implementation review (2026-11-05)
+
+The following sources informed narrowly scoped, independently integrated changes.
+No complete upstream application, DOM collector, state store or runtime framework
+is added. Source-specific file references and rejected behaviors are documented in
+`docs/reviews/2026-11-05-open-source-round2.md`.
+
+- Threadmark, MIT, `95962bd3d09d48f6537e83f6cada4b1ca87bfd2f`:
+  https://github.com/ccheney/threadmark — temporary observation of a delayed native
+  selection toolbar. ChatFlow retains its independent Shadow DOM button.
+- penciled, MIT, `feeb55e144f0a35c867fb2c0dcfd7c950af015d0`:
+  https://github.com/marcellosso/penciled — measured floating-control placement and
+  cancellation lifecycle. No penciled or Floating UI runtime is bundled.
+- pionxzh/chatgpt-exporter, MIT, `ce5987a328a95945777bcdac6b953855424fac22`:
+  https://github.com/pionxzh/chatgpt-exporter — message-local content-reference
+  fields and source-link export. ChatFlow preserves raw text and unsupported
+  markers, and uses its own bounded, code-aware projection.
+- ContextBridge, Apache-2.0, `35e23a261683769f2a976055fa91ba9e2ae6ec00`:
+  https://github.com/vinchlabs/contextbridge — design reference for a shared
+  attachment/source/upload-name mapping. No ContextBridge source is copied.
+- Multi-AI Chat, MIT, `c93fef795b7209e8a95e7276352149b40417d5de`:
+  https://github.com/TED-H-com/multi-ai-chat — design reference for tab ownership
+  and stale asynchronous states. No provider automation is copied.
+
+Sidenote's inspected package declares UNLICENSED. Its code is not reused.
+Relay Chat Handoff has an MIT statement in its README but no separately identified
+project license file in the inspected tree; its code is not reused.
+
+
+### Threadmark license notice
+
+MIT License
+
+Copyright (c) 2025 Threadmark contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+### penciled license notice
+
+MIT License
+
+Copyright (c) 2026 Marcel Losso
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+### pionxzh/chatgpt-exporter license notice
+
+MIT License
+
+Copyright (c) 2022-Present Pionxzh
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

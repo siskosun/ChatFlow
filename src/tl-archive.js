@@ -187,8 +187,33 @@
   C.check(raw?.schema==='threadline.snapshot/1'&&C.record(raw.nodes)&&Array.isArray(raw.messages)&&Array.isArray(raw.assets),'UNRECOGNIZED_SNAPSHOT');
   C.chatUrl(raw.source?.url);const mapping=Object.create(null);
   for(const [key,node] of Object.entries(raw.nodes)){C.check(C.record(node),'INVALID_NODE');mapping[key]={parent:node.parent,children:node.children,message:null};}
-  const seen=new Set();for(const m of raw.messages){C.check(C.record(m)&&mapping[m.nodeId]&&typeof m.id==='string'&&typeof m.text==='string'&&!seen.has(m.nodeId),'INVALID_MESSAGE');seen.add(m.nodeId);mapping[m.nodeId].message={id:m.id,author:{role:m.role},content:{parts:[m.text]},metadata:{is_user_visible:true},create_time:m.timestamp};}
-  const out=C.normalizeConversation({conversation_id:raw.source.conversationId,title:raw.title,current_node:raw.currentNode,mapping},raw.source.url),messageByNode=new Map(out.messages.map(m=>[m.nodeId,m])),assetKeys=new Set();
+  const seen=new Set();for(const m of raw.messages){
+   C.check(C.record(m)&&mapping[m.nodeId]&&typeof m.id==='string'&&typeof m.text==='string'&&!seen.has(m.nodeId),'INVALID_MESSAGE');seen.add(m.nodeId);
+   const metadata={is_user_visible:true};
+   if(m.sourceReferences!=null){
+    C.check(m.role==='assistant'&&Array.isArray(m.sourceReferences)&&m.sourceReferences.length<=256,'INVALID_MESSAGE_REFERENCES');
+    const markers=new Set();
+    metadata.content_references=m.sourceReferences.map(ref=>{
+     C.check(C.record(ref)&&typeof ref.marker==='string'&&ref.marker.length>0&&ref.marker.length<=2048&&m.text.includes(ref.marker)&&!markers.has(ref.marker)&&Array.isArray(ref.links)&&ref.links.length>0&&ref.links.length<=32,'INVALID_MESSAGE_REFERENCES');
+     markers.add(ref.marker);
+     const items=ref.links.map(link=>{
+      C.check(C.record(link)&&typeof link.title==='string'&&link.title.length<=500&&typeof link.url==='string'&&link.url.length>0&&link.url.length<=4096,'INVALID_MESSAGE_REFERENCE_LINK');
+      return {title:link.title,url:link.url};
+     });
+     return {matched_text:ref.marker,items};
+    });
+   }
+   mapping[m.nodeId].message={id:m.id,author:{role:m.role},content:{parts:[m.text]},metadata,create_time:m.timestamp};
+  }
+  const out=C.normalizeConversation({conversation_id:raw.source.conversationId,title:raw.title,current_node:raw.currentNode,mapping},raw.source.url,{referenceDiagnostics:false}),messageByNode=new Map(out.messages.map(m=>[m.nodeId,m])),assetKeys=new Set();
+  // Reproject minimal references through the capture normalizer. A crafted
+  // backup may not silently drop, alter or add a citation during restore.
+  for(const message of raw.messages){
+   if(message.sourceReferences!=null){
+    const restored=messageByNode.get(message.nodeId);
+    C.check(JSON.stringify(restored?.sourceReferences||[])===JSON.stringify(message.sourceReferences),'INVALID_MESSAGE_REFERENCES');
+   }
+  }
   out.assets=raw.assets.map(a=>{
    C.check(C.record(a)&&typeof a.key==='string'&&a.key.length>0&&typeof a.messageId==='string'&&typeof a.nodeId==='string'&&!assetKeys.has(a.key),'INVALID_ASSET_METADATA');
    assetKeys.add(a.key);

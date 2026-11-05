@@ -7,16 +7,17 @@
  */
 (() => {
  'use strict';
- const formatConversationExportJson=payload=>JSON.stringify(payload,null,2);
+ const exportText=message=>globalThis.TLCore?.exportMessageText?.(message)??message.text??'';
+  const formatConversationExportJson=payload=>JSON.stringify(payload,null,2);
  const formatConversationExportMarkdown=payload=>{
   const lines=[];if(payload?.title)lines.push(`# ${payload.title}`,'');
   (payload?.messages||[]).forEach(message=>{
    const role=message.role?message.role[0].toUpperCase()+message.role.slice(1):'Message';
-   const text=payload?.source==='api'&&typeof message.__markdown==='string'?message.__markdown:message.text||'';
+   const text=payload?.source==='api'&&typeof message.__markdown==='string'?message.__markdown:exportText(message);
    lines.push(`## ${role}`,'');if(text)lines.push(text,'');
   });return lines.join('\n').trimEnd()+'\n';
  };
- const formatConversationExportText=payload=>(payload?.messages||[]).map(message=>{const role=message.role||'message';return`[${role}]\n${message.text||''}`.trim();}).filter(Boolean).join('\n\n');
+ const formatConversationExportText=payload=>(payload?.messages||[]).map(message=>{const role=message.role||'message';return`[${role}]\n${exportText(message)}`.trim();}).filter(Boolean).join('\n\n');
  function getSearchMatchRanges(text,query){
   // Upstream lowercasing may change UTF-16 length (e.g. dotted I). Map offsets.
   text=String(text||'');query=String(query||'').toLowerCase();if(!query)return[];
@@ -51,7 +52,7 @@
  function exportSelected(messages,selectedIds,source,title,format){
   const wanted=new Set(selectedIds),turns=groupExportMessagesIntoTurns(messages);
   if(!wanted.size||[...wanted].some(id=>!turns.some(t=>t.id===id)))throw new Error('NO_EXPORT_TURNS');
-  const selected=turns.filter(t=>wanted.has(t.id)).flatMap(t=>t.messages.map(({message})=>({id:message.id,nodeId:message.nodeId||null,role:message.role,text:message.text})));
+  const selected=turns.filter(t=>wanted.has(t.id)).flatMap(t=>t.messages.map(({message})=>({id:message.id,nodeId:message.nodeId||null,role:message.role,text:message.text,...(message.sourceReferences?.length?{sourceReferences:message.sourceReferences}:{})})));
   const payload={schema:'chatflow.selected-turns/1',title,scope:'selected_turns_not_full_archive',source,sourceMessageCount:messages.length,messages:selected};
   if(format==='json')return formatConversationExportJson(payload);
   const header=['Source: '+source.url,'Scope: selected turns; not a restorable archive.','Message IDs: '+selected.map(m=>m.id).join(', '),''].join('\n');
