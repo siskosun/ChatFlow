@@ -248,16 +248,19 @@
   }
   if(key==='live'){
    livePanel.hidden=false;toolsPanel.hidden=true;
+   $('feature-open-live').after(livePanel);livePanel.scrollIntoView({block:'nearest'});
    say('已展开实时缓存说明。只有明确选择来源并开始保存才会启动缓存。');return;
   }
   if(key==='diagnostics'){
    diagnosticDetails.open=true;
    const q=await navigator.storage.estimate();
    $('quota').textContent='本地已用 '+(q.usage||0).toLocaleString()+' B'+(q.quota?' / 可用配额 '+q.quota.toLocaleString()+' B':'');
+   diagnosticDetails.scrollIntoView({block:'nearest'});
    say('已展开本地存储与文件诊断。');return;
   }
   if(key==='tools'){
    toolsPanel.hidden=false;livePanel.hidden=true;
+   $('feature-open-tools').after(toolsPanel);toolsPanel.scrollIntoView({block:'nearest'});
    const rows=await call('tl:sources'),old=toolsSource.value;
    toolsSource.replaceChildren(new Option('选择来源对话',''));
    const names=displayLabels(rows,row=>row.title,'标签页');
@@ -283,7 +286,9 @@
     await chrome.storage.local.set({cfPreferences:{...prefs,[key]:next}});
     prefs[key]=next;applyPreferences();action.hidden=!next;
     if(next)say('已开启“'+title+'”。点击“'+action.textContent+'”继续。');
-    else say('已关闭“'+title+'”。');
+    else{if(key==='live')livePanel.hidden=true;if(key==='tools')toolsPanel.hidden=true;
+     if(key==='diagnostics')diagnosticDetails.open=false;
+     say('已关闭“'+title+'”。');}
    }catch(error){prefs[key]=old;input.checked=old;applyPreferences();action.hidden=!old;throw error;}
    finally{input.disabled=false;}
   }));
