@@ -39,7 +39,7 @@
   if(!tab)throw Error('WORKSPACE_WINDOW_REQUIRED');
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
- const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
+ const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0,selectionPort=null,selectionEpoch=0,selectedFromWatch=null;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
@@ -65,15 +65,58 @@
  const taskStatus=n('p',null,{id:'task-status',role:'status','aria-live':'polite'});
  const modes=n('div',null,{class:'mode-switch',role:'group','aria-label':'任务操作'});
  function invalidateSavedResultOpen(){savedResultOpenEpoch++;matchEpoch++;}
- function mode(value){invalidateSavedResultOpen();$('task-compose').hidden=value!=='compose';$('task-return').hidden=value!=='return';$('task-mode-compose').setAttribute('aria-pressed',String(value==='compose'));$('task-mode-return').setAttribute('aria-pressed',String(value==='return'));}
+ function mode(value){if(value!=='compose')stopSelectionWatch();invalidateSavedResultOpen();$('task-compose').hidden=value!=='compose';$('task-return').hidden=value!=='return';$('task-mode-compose').setAttribute('aria-pressed',String(value==='compose'));$('task-mode-return').setAttribute('aria-pressed',String(value==='return'));}
  modes.append(button('交出任务','task-mode-compose',()=>mode('compose')),button('回传结果','task-mode-return',()=>mode('return')));
  const compose=n('div',null,{id:'task-compose',class:'task-card'}),source=n('select',null,{id:'task-source'}),text=n('textarea',null,{id:'task-text',rows:5,'aria-describedby':'task-text-count',placeholder:'例如：检查这段 SQL 的连接条件。'}),sourceActions=n('div',null,{class:'actions source-actions'}),taskCount=n('p',null,{id:'task-text-count',class:'input-count',role:'status'});
- sourceActions.append(button('刷新对话','task-refresh-source',refreshSources),button('使用原对话中的选文','task-use-selection',async()=>{const v=await readSource();if(v.selectionTooLong)throw Error('选文超过20,000个字符，请缩短后再选；当前草稿已保留。');if(!v.selection)throw Error('请先在原对话的单条消息中选择文字。');if(text.value&&!confirm('替换当前任务草稿？'))return;text.value=v.selection;invalidateCreation();}));
+ // A user-armed, source-bound watcher. No background polling or autosend.
+ const selectionButton=button('接收原对话选文','task-use-selection',async()=>{
+  if(selectionPort){stopSelectionWatch();say('已停止接收选文。');return;}
+  const tabId=Number(source.value),expectedUrl=source.selectedOptions[0]?.dataset.sourceUrl;
+  if(!tabId||!expectedUrl)throw Error('请选择一个已打开的来源对话。');
+  if(text.value&&!confirm('读取新选文会替换当前任务草稿，是否继续？'))return;
+  const initialText=text.value,epoch=++selectionEpoch;
+  selectionButton.disabled=true;
+  try{
+   const ready=await call('tl:taskSelectionWatch',{tabId,expectedUrl});
+   if(epoch!==selectionEpoch||Number(source.value)!==tabId||
+      source.selectedOptions[0]?.dataset.sourceUrl!==expectedUrl||$('task-compose').hidden)return;
+   const port=chrome.tabs.connect(tabId,{name:'chatflow:task-selection',documentId:ready.documentId});
+   selectionPort=port;selectionButton.textContent='停止接收选文';
+   port.onMessage.addListener(event=>{
+    if(selectionPort!==port||epoch!==selectionEpoch||Number(source.value)!==tabId||
+       source.selectedOptions[0]?.dataset.sourceUrl!==expectedUrl||$('task-compose').hidden)return;
+    if(event?.type==='stopped'){stopSelectionWatch();say(event.reason==='scope-unavailable'?'当前页面无法识别唯一的消息区域，请刷新原对话，或将文字直接粘贴到任务框。':'来源对话已切换，请重新选择后接收选文。',true);return;}
+    if(event?.type==='hint'){say('请仅选择原对话中一条消息的正文，不要跨多条消息。',true);return;}
+    if(event?.type!=='selection'||event.url!==expectedUrl)return;
+    if(event.tooLong||typeof event.text!=='string'||event.text.length>T.LIMITS.task){
+     say('选文超过 20,000 字，请缩短后重新选择；原有草稿未修改。',true);return;
+    }
+    if(!event.text.trim())return;
+    if(text.value!==initialText){stopSelectionWatch();say('任务草稿已有修改，未覆盖。请重新选择并确认后接收。',true);return;}
+    text.value=event.text;
+    selectedFromWatch={tabId,documentId:ready.documentId,url:expectedUrl,
+     messageId:event.evidence==='confirmed'?event.messageId:null,text:event.text};
+    invalidateCreation();stopSelectionWatch();
+    say(event.evidence==='confirmed'
+      ?'已读取原对话的选文。可编辑任务并点击“复制任务”。'
+      :'已读取可见选文，但页面未提供可独立确认的对话标记。请核对来源与内容后再复制任务。');
+   });
+   port.onDisconnect.addListener(()=>{if(selectionPort===port){stopSelectionWatch();say('选文接收已结束，请重新点击接收。',true);}});
+   port.postMessage({type:'watch',expectedUrl});
+   say('正在等待选文：请在所选的 ChatGPT 对话中选中单条消息的文字。选中后会自动填入。');
+  }finally{selectionButton.disabled=false;}
+ });
+ function stopSelectionWatch(){
+  selectionEpoch++;const port=selectionPort;selectionPort=null;
+  selectionButton.textContent='接收原对话选文';
+  try{port?.disconnect();}catch{}
+ }
+ sourceActions.append(button('刷新对话','task-refresh-source',refreshSources),selectionButton);
  const prompt=n('textarea',null,{id:'task-envelope',rows:6,readonly:'','aria-label':'带标记的任务文本'}),promptBox=n('div',null,{id:'task-envelope-box',hidden:''}),promptDetails=n('details',null,{class:'advanced compact'}),promptState=n('p','任务已保存到浏览器',{class:'task-outcome',id:'task-copy-state'});promptDetails.append(n('summary','查看任务文本'),prompt);promptBox.append(promptState,n('p','将任务文本复制给你选择的外部助手；完成后回到这里粘贴答复。扩展不会替你发送。',{class:'hint'}),button('回传结果','task-next-return',()=>{mode('return');resultText.focus();},'primary full'),button('再次复制任务','task-copy-again',()=>copy(prompt.value,prompt)),promptDetails);
  const create=button('复制任务','task-create',async()=>{
-  if(creating)return;if(!inputWithinLimit(text,taskCount,T.LIMITS.task))throw Error('TASK_TEXT_LIMIT');creating=true;create.disabled=true;const epoch=createEpoch;try{const capturedText=text.value,selectedTab=source.value,v=await readSource();if(createEpoch!==epoch||text.value!==capturedText||source.value!==selectedTab)throw Error('TASK_SOURCE_CHANGED');const saved=await S.create(v.source,capturedText);await refreshTasks();if(createEpoch!==epoch||text.value!==capturedText||source.value!==selectedTab)throw Error('TASK_SOURCE_CHANGED');created=saved;prompt.value=T.envelope(saved);promptBox.hidden=false;create.hidden=true;const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}finally{creating=false;updateCreateState();}
+  if(creating)return;if(!inputWithinLimit(text,taskCount,T.LIMITS.task))throw Error('TASK_TEXT_LIMIT');creating=true;create.disabled=true;const epoch=createEpoch;try{const capturedText=text.value,selectedTab=source.value,v=await readSource();if(createEpoch!==epoch||text.value!==capturedText||source.value!==selectedTab)throw Error('TASK_SOURCE_CHANGED');const proof=selectedFromWatch;if(proof&&proof.tabId===Number(selectedTab)&&proof.documentId===v.documentId&&proof.url===v.source.url&&proof.text===capturedText&&proof.messageId)v.source.messageId=proof.messageId;const saved=await S.create(v.source,capturedText);await refreshTasks();if(createEpoch!==epoch||text.value!==capturedText||source.value!==selectedTab)throw Error('TASK_SOURCE_CHANGED');created=saved;prompt.value=T.envelope(saved);promptBox.hidden=false;create.hidden=true;const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}finally{creating=false;updateCreateState();}
  },'primary full');
- compose.append(n('p','本功能只复制带来源标记的文本，不连接外部助手，也不自动发送。',{class:'task-explainer'}),...field('来源对话',source),sourceActions,...field('要交给外部助手的任务',text),taskCount,create,promptBox);
+ compose.append(n('p','先选来源，再点击“接收原对话选文”，在 ChatGPT 中选中单条消息的文字；选文会自动填入。也可以直接输入任务。不会自动发送。',{class:'task-explainer'}),...field('来源对话',source),sourceActions,...field('要交给外部助手的任务',text),taskCount,create,promptBox);
  const ret=n('div',null,{id:'task-return',class:'task-card',hidden:''}),resultText=n('textarea',null,{id:'task-result-text',rows:7,'aria-describedby':'task-result-count',placeholder:'粘贴外部助手的回复，包括任务标记。'}),preview=n('div',null,{id:'task-match',class:'match-preview',role:'status'}),resultCount=n('p',null,{id:'task-result-count',class:'input-count',role:'status'});
  const manual=n('div',null,{id:'task-manual',hidden:''}),manualSource=n('select',null,{id:'task-manual-source'}),confirmBox=n('input',null,{id:'task-manual-confirm',type:'checkbox'}),confirmLabel=n('label',null,{class:'check'});confirmLabel.append(confirmBox,n('span','我已核对，关联到所选任务'));
  manual.append(...field('人工选择原任务',manualSource),confirmLabel);
@@ -101,9 +144,9 @@
  function inputWithinLimit(input,count,limit){const length=input.value.length,over=length>limit;input.setAttribute('aria-invalid',String(over));count.classList.toggle('error',over);count.textContent=over?'已输入 '+length.toLocaleString()+' / '+limit.toLocaleString()+' 字符；内容已完整保留，请缩短后再试。':length?length.toLocaleString()+' / '+limit.toLocaleString()+' 字符':'';return !over&&!!input.value.trim();}
  function updateCreateState(){const valid=inputWithinLimit(text,taskCount,T.LIMITS.task);create.disabled=creating||!source.value||!valid;}
  function invalidateCreation(){createEpoch++;created=null;promptBox.hidden=true;create.hidden=false;updateCreateState();}
- text.addEventListener('input',invalidateCreation);source.addEventListener('change',invalidateCreation);
+ text.addEventListener('input',()=>{stopSelectionWatch();selectedFromWatch=null;invalidateCreation();});source.addEventListener('change',()=>{stopSelectionWatch();selectedFromWatch=null;invalidateCreation();});
  async function copy(value,fallback){try{await navigator.clipboard.writeText(value);say('已复制。');return true;}catch{const details=fallback.closest('details');if(details)details.open=true;fallback.focus();fallback.select();say('未能复制。文本已选中，请手动复制。',true);return false;}}
- async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));const names=displayLabels(rows,r=>r.title,'标签页');for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl)invalidateCreation();else updateCreateState();}
+ async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));const names=displayLabels(rows,r=>r.title,'标签页');for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl){stopSelectionWatch();selectedFromWatch=null;invalidateCreation();}else updateCreateState();}
  async function refreshChoices(epoch=matchEpoch){
   if(choicesFresh)return epoch===matchEpoch;
   const old=manualSource.value,rows=await S.taskChoices();if(epoch!==matchEpoch)return false;
@@ -197,7 +240,7 @@
  });backup.append(backupButton);
  const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复未完成，请检查备份文件；如持续失败，可在高级功能中查看诊断信息。'),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,experimentInfo,backup,settingsStatus);main.append(settings);
  function applyPreferences(){for(const[k,v]of Object.entries(prefs)){document.body.classList.toggle('feature-'+k,!!v);$('pref-'+k).checked=!!v;}if(!prefs.live)$('live').checked=false;}
- document.addEventListener('chatflow:view',e=>{invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
+ document.addEventListener('chatflow:view',e=>{if(e.detail!=='tasks')stopSelectionWatch();invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
  window.addEventListener('focus',()=>{if(!$('tasks-view').hidden)safe(async()=>{await refreshSources();await refreshTasks();});});
  $('open-tools').onclick=()=>safe(async()=>{const id=Number($('source').value);await call('tl:openTools',{tabId:id,expectedUrl:$('source').selectedOptions[0]?.dataset.sourceUrl});});
  chrome.storage.local.get('cfPreferences').then(r=>{for(const k of Object.keys(defaults))if(typeof r.cfPreferences?.[k]==='boolean')prefs[k]=r.cfPreferences[k];applyPreferences();}).catch(()=>applyPreferences());

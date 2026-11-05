@@ -3,7 +3,7 @@
   'use strict';
   const C = globalThis.TLCore, T = globalThis.TLTasks;
   async function handle(msg, sender, api) {
-    if (!['tl:taskSource','tl:taskReturn','tl:openTools'].includes(msg.type)) return undefined;
+    if (!['tl:taskSource','tl:taskReturn','tl:openTools','tl:taskSelectionWatch'].includes(msg.type)) return undefined;
     C.check(sender?.id === api.runtime.id && String(sender.url || '').startsWith(api.runtime.getURL('workspace/')), 'WORKSPACE_ONLY');
     if (msg.type === 'tl:taskReturn') {
       const raw = await TLTaskStore.get(msg.taskId); C.check(raw, 'TASK_NOT_FOUND');
@@ -26,6 +26,16 @@
     C.check(Number.isInteger(msg.tabId), 'INVALID_TAB_ID');
     const before = await api.tabs.get(msg.tabId), identity = C.chatUrl(before.url);
     C.check(typeof msg.expectedUrl === 'string' && identity.url === msg.expectedUrl, 'TASK_SOURCE_CHANGED');
+    if (msg.type === 'tl:taskSelectionWatch') {
+      // On demand only. The owning side panel connects to the exact returned
+      // document; closing the port disarms observation without background polling.
+      const injected = await api.scripting.executeScript({target:{tabId:msg.tabId},
+        files:['src/tl-core.js','src/tl-page-scope.js','src/tl-task-selection.js']});
+      const documentId=injected.find(row=>row.frameId===0)?.documentId;
+      C.check(documentId,'SOURCE_DOCUMENT_CHANGED');
+      C.check(C.chatUrl((await api.tabs.get(msg.tabId)).url).url===identity.url,'TASK_SOURCE_CHANGED');
+      return {documentId,url:identity.url};
+    }
     if (msg.type === 'tl:openTools') {
       const injected = await api.scripting.executeScript({ target: { tabId: msg.tabId },
         files: ['src/tl-core.js','src/tl-provider.js','src/tl-page-scope.js','src/toolkit-port.js','src/tl-navigation.js','src/tl-headings.js','src/tl-tools-page.js'] });

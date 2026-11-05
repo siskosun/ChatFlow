@@ -91,6 +91,114 @@ async def main():
     assert set(item['url'] for item in choices)=={URL_A,URL_B},choices
     assert all('CF-' not in item['text'] and '20261103' not in item['text'] for item in choices),choices
     passed('same_title_source_choices_use_human_labels_not_conversation_suffixes')
+    # Reproduce the real UX report: user clicks "receive", then selects text
+    # on the original ChatGPT page, without clicking the sidebar again.
+    await w.locator('#task-source').select_option(str(ta))
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    assert '正在等待选文' in await w.locator('#task-status').inner_text()
+    assert await w.locator('#task-text').input_value()==''
+    await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
+    await a.evaluate("""()=>{
+      const xs=[...document.querySelectorAll('#scroll [data-message-id]')];
+      const start=xs.find(x=>x.dataset.messageId==='m63').firstChild;
+      const end=xs.find(x=>x.dataset.messageId==='m64').firstChild;
+      const range=document.createRange();range.setStart(start,0);
+      range.setEnd(end,end.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await w.wait_for_timeout(350)
+    assert await w.locator('#task-text').input_value()=='','Selecting across messages must not fill the task'
+    assert '请仅选择原对话中一条消息' in await w.locator('#task-status').inner_text()
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
+    assert '已读取原对话的选文' in await w.locator('#task-status').inner_text()
+    assert await w.evaluate("()=>TLTaskStore.list().then(rows=>rows.length)") == 0
+    passed('user_armed_selection_autofills_task_from_one_message_without_send')
+
+    # ChatGPT may not expose the synthetic conversation marker. One uniquely
+    # visible thread can still supply a draft, but evidence must say unverified.
+    await w.locator('#task-text').fill('')
+    await a.evaluate("""()=>{
+      document.querySelector('#scroll').removeAttribute('data-chatgpt-selection-conversation-id');
+      window.getSelection().removeAllRanges();
+    }""")
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
+    assert '未提供可独立确认的对话标记' in await w.locator('#task-status').inner_text()
+    await a.evaluate("""()=>{
+      document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id',location.pathname.split('/').pop());
+      window.getSelection().removeAllRanges();
+    }""")
+    passed('unmarked_chatgpt_thread_autofills_draft_with_unverified_warning')
+
+    # A mismatched/ambiguous page scope must not remain silently waiting or
+    # promote text to a verified task source.
+    await w.locator('#task-text').fill('')
+    await a.evaluate("()=>window.getSelection().removeAllRanges()")
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    await a.evaluate("""()=>{
+      document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id','another-conversation');
+    }""")
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(w,"()=>document.querySelector('#task-status').textContent.includes('无法识别唯一的消息区域')")
+    assert await w.locator('#task-text').input_value()==''
+    await a.evaluate("""()=>{
+      document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id',location.pathname.split('/').pop());
+      window.getSelection().removeAllRanges();
+    }""")
+    passed('ambiguous_page_selection_fails_with_clear_message_instead_of_silent_wait')
+
+    # Events from a different open ChatGPT conversation must not be imported.
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    await b.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await w.wait_for_timeout(350)
+    assert await w.locator('#task-text').input_value()=='','Another tab must not fill the selected source'
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
+    passed('selection_watch_is_bound_to_the_chosen_tab_only')
+    await w.locator('#task-text').fill('')
+
+    # Explicit typing disarms a pending watch. An unrelated later selection
+    # must never overwrite the user's current task draft.
+    await w.locator('#task-text').fill('')
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    await w.locator('#task-text').fill('my edited draft')
+    assert '接收原对话选文' in await w.locator('#task-use-selection').inner_text()
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await w.wait_for_timeout(350)
+    assert await w.locator('#task-text').input_value()=='my edited draft'
+    passed('selection_watcher_does_not_overwrite_a_user_edited_draft')
+    await w.locator('#task-text').fill('')
     for tabid in [ta,tb]:
      await w.locator('#task-source').select_option(str(tabid));await w.locator('#task-text').fill(TEXT);await w.locator('#task-create').click()
      await poll(w,'n=>TLTaskStore.list().then(xs=>xs.length===n)',1 if tabid==ta else 2)
