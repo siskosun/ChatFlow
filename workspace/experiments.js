@@ -43,7 +43,7 @@
     });
   });
   const errorMessages={FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。',FF_INVALID_PREFERENCE:'裁决选项无效，请重新选择。',FF_INVALID_CONFIDENCE:'置信度无效，请重新选择。',FF_VERDICT_ALREADY_RECORDED:'该实验已经裁决，不能重复提交。',FF_COMPARISON_MAPPING_REQUIRED:'需要先完成对照映射和裁判校准。',EXTENSION_UNAVAILABLE:'扩展后台未响应，请重新打开实验页面。',OPERATION_FAILED:'实验操作未完成，请核对实验状态后重试。'};
-  function readableError(message){const value=String(message||'');if(Object.hasOwn(errorMessages,value))return errorMessages[value];if(/[\u3400-\u9fff]/.test(value)&&value.length<=240)return value;return /^[A-Z][A-Z0-9_]{2,100}$/.test(value)?'实验操作未完成（'+value+'），请检查状态后重试。':'实验操作未完成，请检查输入与实验状态后重试。';}
+  function readableError(message){const value=String(message||'');if(Object.hasOwn(errorMessages,value))return errorMessages[value];if(/[\u3400-\u9fff]/.test(value)&&value.length<=240)return value;return '实验操作未完成，请检查输入与实验状态后重试；高级功能中可查看诊断信息。';}
   function notice(message, error=false) {
     // The in-card live region is the only status. A duplicate body-level toast
     // would obscure a browser viewport and repeat the same text.
@@ -75,18 +75,16 @@
     const info = data.branches[branch], attempt = info.attempts.at(-1), ev = attempt?.evidence || {};
     const box = document.createElement("div");
     const head = document.createElement("p");
-    head.className = "mono";
-    head.textContent = "分支 " + branch + "：" + ({pending:"进行中",done:"已完成",failed:"失败",unknown:"结果未确认"}[info.status]||info.status) + " · " + ({created:"等待预填核对",awaiting_send:"待你手动发送",generating:"生成中",capturing:"采集中"}[info.phase]||info.phase) +
-      (attempt ? " · 尝试 " + attempt.id.slice(0, 16) : "") +
-      (ev.sessionId ? " · 会话 " + ev.sessionId.slice(0, 16) : "");
+    head.className = "branch-heading";
+    head.textContent = "分支 " + branch + " · " + ({pending:"进行中",done:"已完成",failed:"失败",unknown:"结果未确认"}[info.status]||"状态待确认") + " · " + ({created:"等待预填核对",awaiting_send:"待你手动发送",generating:"生成中",capturing:"采集中"}[info.phase]||"进度待确认");
     box.appendChild(head);
     const detail = document.createElement("p");
     detail.className = "subtle";
     const parts = [];
-    if (ev.inputLevel) parts.push("输入一致性 " + ev.inputLevel);
+    if (ev.inputLevel) parts.push("输入核对：" + ({exact:"一致",verified:"已核对",partial:"部分一致",unknown:"未确认"}[ev.inputLevel]||"状态待确认"));
     if (ev.prefill) parts.push("预填 " + (ev.prefill === "reacked" ? "已重新预填" : "已逐字核对"));
     if (typeof ev.assistantBytes === "number") parts.push("回复 " + ev.assistantBytes + " 字节");
-    if (Array.isArray(ev.endSignals)) parts.push("完成信号 " + ev.endSignals.join("/"));
+    // Internal completion signals remain in the exported evidence, not the task UI.
     if (info.status === "pending" && ev.sessionId) parts.push("回复生成后请点击采集");
     if (info.status === "pending" && attempt) {
       const next = {created:"下一步：等待预填逐字核对（绿色横幅）",
@@ -254,7 +252,7 @@
     $("ff-verdict-form").hidden = true;
     $("ff-reveal").textContent = "裁决：" + v.preference + " · 揭盲：" +
       labels.map(label => label + " = 分支 " + decision.mapping[label]).join("，") +
-      " · 依据：" + v.criteria + " · 置信度 " + v.confidence +
+      " · 依据：" + v.criteria + " · 置信度 " + ({medium:"中",high:"高",low:"低"}[v.confidence]||"未确认") +
       (v.notes ? " · 备注 " + v.notes : "");
     $("ff-export").hidden = false;
   }
@@ -263,9 +261,10 @@
     if(currentExperiment){verdictDrafts.set(currentExperiment,{preference:$("ff-preference").value,criteria:$("ff-criteria").value,notes:$("ff-notes").value,confidence:$("ff-confidence").value,
       calibration:[...document.querySelectorAll('#ff-calibration-items input:checked')].map(n=>({name:n.name,value:n.value}))});}
     const draft=verdictDrafts.get(id);currentExperiment = id;currentData=value;
-    $("ff-meta").textContent = "实验 " + value.id + " · revision " + value.revision +
-      " · " + value.frozen.bytes + " UTF-8 字节";
-    $("ff-sha").textContent = "冻结 SHA-256（canonicalization-v1）：" +
+    $("ff-meta").textContent = "已固定共同材料 · " + value.branchCount + " 个分支";
+    $("ff-technical-id").textContent = value.id;
+    $("ff-tech-revision").textContent = "记录版本：" + value.revision;
+    $("ff-sha").textContent = "材料校验信息：" +
       value.frozen.textHashes.frozen;
     $("ff-text").textContent = value.frozen.text;
     $("ff-detail").hidden = false;
@@ -307,7 +306,7 @@
       return;
     }
     const titleKey = title => title.normalize("NFKC").toLocaleLowerCase();
-    const titleCounts = new Map();
+    const titleCounts = new Map(),titleSeen=new Map();
     for (const item of values) {
       if (typeof item.taskTitle !== "string" || !item.taskTitle) continue;
       const key = titleKey(item.taskTitle);
@@ -323,15 +322,16 @@
       const mark = status => status === "done" ? "✓" : status === "failed" ? "✗" : status === "unknown" ? "?" : "…";
       const candidate = typeof item.taskTitle === "string" && item.taskTitle ? item.taskTitle : null;
       const duplicate = candidate && titleCounts.get(titleKey(candidate)) > 1;
-      const displayTitle = candidate && !duplicate ? candidate : item.id;
+      const cleanTitle = (candidate||"未命名实验").replace(/[\u0000-\u001f\u007f-\u009f]/g," ").replace(/\s+/g," ").trim().slice(0,80)||"未命名实验";
+      const titleNumber=(titleSeen.get(titleKey(cleanTitle))||0)+1;titleSeen.set(titleKey(cleanTitle),titleNumber);
+      const displayTitle = duplicate ? cleanTitle + " · 同名实验 " + titleNumber : cleanTitle;
       const date = Number.isSafeInteger(item.createdAt) && item.createdAt > 0
         ? new Date(item.createdAt).toLocaleDateString() : "日期未知";
       const branchCount = Number.isSafeInteger(item.branchCount) && item.branchCount > 0
         ? item.branchCount : Object.keys(statuses).length;
       const progress = Object.entries(statuses).map(([label,status]) => label + mark(status)).join(" ");
-      button.textContent = displayTitle + " · " + date + " · K=" + branchCount + " · " + progress;
-      button.title = duplicate ? "标题重复，列表使用完整实验 ID 区分" :
-        candidate ? candidate : "任务指令为空或含控制字符，列表使用完整实验 ID";
+      button.textContent = displayTitle + " · " + date + " · " + branchCount + " 个分支 · " + progress;
+      button.title = candidate ? cleanTitle : "实验尚未设置名称";
       button.setAttribute("aria-label",displayTitle + "，" + date + "，" + branchCount + " 个分支，" + progress);
       button.addEventListener("click", () => read(item.id).catch(e=>notice(e.message,true)));
       holder.appendChild(button);
@@ -418,8 +418,7 @@
       if(file.size>20*1024*1024)throw Error("文件超过 20 MiB，未读取内容");
       const snapshot = JSON.parse(await file.text());
       const imported = await send({type:"FF_IMPORT",snapshot});
-      notice("已导入实验 " + imported.id + "（revision " + imported.revision + "，" +
-        imported.branchCount + " 分支）。");
+      notice("实验已导入，包含 " + imported.branchCount + " 个分支。");
       await list();
     } catch (e) { notice("导入被拒绝：" + e.message, true); }
     finally { event.target.value = ""; }
@@ -430,7 +429,7 @@
       await navigator.clipboard.writeText(currentExperiment);
       notice("已复制完整实验 ID。");
     }catch{
-      notice("无法自动复制；请从实验详情中的 ID 文本手动复制："+currentExperiment,true);
+      notice("无法自动复制，请在“技术信息”中手动选择实验编号。",true);
     }
   });
   $("ff-refresh").addEventListener("click", () =>
