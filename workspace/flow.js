@@ -39,7 +39,7 @@
   if(!tab)throw Error('WORKSPACE_WINDOW_REQUIRED');
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
- const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0,selectionPort=null,selectionEpoch=0,selectedFromWatch=null;
+ const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0,selectionPort=null,selectionEpoch=0,selectedFromWatch=null,sourceRefreshEpoch=0;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
@@ -146,7 +146,7 @@
  function invalidateCreation(){createEpoch++;created=null;promptBox.hidden=true;create.hidden=false;updateCreateState();}
  text.addEventListener('input',()=>{stopSelectionWatch();selectedFromWatch=null;invalidateCreation();});source.addEventListener('change',()=>{stopSelectionWatch();selectedFromWatch=null;invalidateCreation();});
  async function copy(value,fallback){try{await navigator.clipboard.writeText(value);say('已复制。');return true;}catch{const details=fallback.closest('details');if(details)details.open=true;fallback.focus();fallback.select();say('未能复制。文本已选中，请手动复制。',true);return false;}}
- async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));const names=displayLabels(rows,r=>r.title,'标签页');for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl){stopSelectionWatch();selectedFromWatch=null;invalidateCreation();}else updateCreateState();}
+ async function refreshSources(){const epoch=++sourceRefreshEpoch,rows=await call('tl:sources');if(epoch!==sourceRefreshEpoch)return;const old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));const names=displayLabels(rows,r=>r.title,'标签页');for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl){stopSelectionWatch();selectedFromWatch=null;invalidateCreation();}else updateCreateState();}
  async function refreshChoices(epoch=matchEpoch){
   if(choicesFresh)return epoch===matchEpoch;
   const old=manualSource.value,rows=await S.taskChoices();if(epoch!==matchEpoch)return false;
@@ -241,6 +241,17 @@
  const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复未完成，请检查备份文件；如持续失败，可在高级功能中查看诊断信息。'),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,experimentInfo,backup,settingsStatus);main.append(settings);
  function applyPreferences(){for(const[k,v]of Object.entries(prefs)){document.body.classList.toggle('feature-'+k,!!v);$('pref-'+k).checked=!!v;}if(!prefs.live)$('live').checked=false;}
  document.addEventListener('chatflow:view',e=>{if(e.detail!=='tasks')stopSelectionWatch();invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
+ // A newly opened or navigated ChatGPT tab may not refocus the side panel.
+ // Keep the chooser current without discarding its source ID or task draft.
+ let taskSourceSyncTimer=null;
+ function scheduleTaskSourceSync(){
+  if($('tasks-view').hidden)return;
+  clearTimeout(taskSourceSyncTimer);
+  taskSourceSyncTimer=setTimeout(()=>{taskSourceSyncTimer=null;if(!$('tasks-view').hidden)safe(refreshSources);},180);
+ }
+ chrome.tabs.onCreated.addListener(scheduleTaskSourceSync);
+ chrome.tabs.onUpdated.addListener((_id,change)=>{if(change.url||change.status==='complete')scheduleTaskSourceSync();});
+ chrome.tabs.onRemoved.addListener(scheduleTaskSourceSync);
  window.addEventListener('focus',()=>{if(!$('tasks-view').hidden)safe(async()=>{await refreshSources();await refreshTasks();});});
  $('open-tools').onclick=()=>safe(async()=>{const id=Number($('source').value);await call('tl:openTools',{tabId:id,expectedUrl:$('source').selectedOptions[0]?.dataset.sourceUrl});});
  chrome.storage.local.get('cfPreferences').then(r=>{for(const k of Object.keys(defaults))if(typeof r.cfPreferences?.[k]==='boolean')prefs[k]=r.cfPreferences[k];applyPreferences();}).catch(()=>applyPreferences());

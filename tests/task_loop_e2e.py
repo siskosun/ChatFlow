@@ -91,6 +91,15 @@ async def main():
     assert set(item['url'] for item in choices)=={URL_A,URL_B},choices
     assert all('CF-' not in item['text'] and '20261103' not in item['text'] for item in choices),choices
     passed('same_title_source_choices_use_human_labels_not_conversation_suffixes')
+    await w.locator('#task-source').select_option(str(ta))
+    extra=await c.new_page()
+    await extra.goto('https://chatgpt.com/c/conversation_task_C_20261105')
+    await poll(w,'()=>document.querySelectorAll("#task-source option").length===4')
+    assert await w.locator('#task-source').input_value()==str(ta)
+    await extra.close()
+    await poll(w,'()=>document.querySelectorAll("#task-source option").length===3')
+    assert await w.locator('#task-source').input_value()==str(ta)
+    passed('new_and_closed_chatgpt_tabs_refresh_task_source_choices_without_manual_refresh')
     # Reproduce the real UX report: user clicks "receive", then selects text
     # on the original ChatGPT page, without clicking the sidebar again.
     await w.locator('#task-source').select_option(str(ta))

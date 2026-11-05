@@ -114,14 +114,19 @@
             {type:"FF_CAPTURE", experimentId:data.id, branch}, cap);
           if (!started) return;
           notice("采集已启动（分支 " + branch + "）。采集在分支标签页完成后自动核对，稍候此处会刷新。");
-          // The capture run finishes asynchronously in the branch tab; the
-          // immediate re-read inside runOperation still shows the old phase,
-          // so poll a few times to surface the result without a manual refresh.
-          for (const delay of [4000, 9000, 15000]) {
-            setTimeout(() => {
-              if (currentExperiment === data.id) read(currentExperiment).catch(() => {});
-            }, delay);
-          }
+          // Capture finishes asynchronously. Keep the status observable for
+          // longer-running branches, but stop refreshing once it becomes final.
+          // After the bounded window, point to the manual refresh action.
+          const checks=[4000,9000,15000,25000,40000,60000,90000,120000];
+          for (const delay of checks) setTimeout(async()=>{
+            if(currentExperiment!==data.id || currentData?.branches?.[branch]?.status!=='pending')return;
+            try{
+              await read(data.id);
+              if(delay===checks.at(-1)&&currentExperiment===data.id&&
+                 currentData?.branches?.[branch]?.status==='pending')
+                notice('分支 '+branch+' 的采集仍未确认。请检查分支标签页，再点“刷新实验”查看最新状态。');
+            }catch{notice('无法刷新分支采集状态，请点击“刷新实验”重新查看。',true);}
+          },delay);
         });
         row.appendChild(cap);
       }
@@ -431,8 +436,13 @@
       notice("无法自动复制，请在“技术信息”中手动选择实验编号。",true);
     }
   });
-  $("ff-refresh").addEventListener("click", () =>
-    list().catch(error => notice(error.message,true)));
+  $("ff-refresh").addEventListener("click", async()=>{
+    try{
+      await list();
+      // Refreshing the list alone leaves the open branch detail stale.
+      if(currentExperiment)await read(currentExperiment);
+    }catch(error){notice(error.message,true);}
+  });
   $("ff-launch").addEventListener("click", async event => {
     // Live-run finding: a silent no-op here reads as a dead button when the
     // button sits below the fold and no experiment has been selected.
