@@ -109,6 +109,7 @@ async def main():
     }""")
     await w.wait_for_timeout(350)
     assert await w.locator('#task-text').input_value()=='','Selecting across messages must not fill the task'
+    assert '请仅选择原对话中一条消息' in await w.locator('#task-status').inner_text()
     await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
       const node=el.firstChild,range=document.createRange();
       range.setStart(node,0);range.setEnd(node,node.textContent.length);
@@ -140,6 +141,47 @@ async def main():
       window.getSelection().removeAllRanges();
     }""")
     passed('unmarked_chatgpt_thread_autofills_draft_with_unverified_warning')
+
+    # A mismatched/ambiguous page scope must not remain silently waiting or
+    # promote text to a verified task source.
+    await w.locator('#task-text').fill('')
+    await a.evaluate("()=>window.getSelection().removeAllRanges()")
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    await a.evaluate("""()=>{
+      document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id','another-conversation');
+    }""")
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(w,"()=>document.querySelector('#task-status').textContent.includes('无法识别唯一的消息区域')")
+    assert await w.locator('#task-text').input_value()==''
+    await a.evaluate("""()=>{
+      document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id',location.pathname.split('/').pop());
+      window.getSelection().removeAllRanges();
+    }""")
+    passed('ambiguous_page_selection_fails_with_clear_message_instead_of_silent_wait')
+
+    # Events from a different open ChatGPT conversation must not be imported.
+    await w.locator('#task-use-selection').click()
+    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
+    await b.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await w.wait_for_timeout(350)
+    assert await w.locator('#task-text').input_value()=='','Another tab must not fill the selected source'
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
+    passed('selection_watch_is_bound_to_the_chosen_tab_only')
+    await w.locator('#task-text').fill('')
 
     # Explicit typing disarms a pending watch. An unrelated later selection
     # must never overwrite the user's current task draft.
