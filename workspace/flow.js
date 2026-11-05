@@ -43,13 +43,22 @@
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
- intro.append(n('p','保存并整理已有对话后，再在新的 ChatGPT 聊天中继续。接续内容不会自动发送。',{class:'home-lead'}));
+ intro.append(n('span','选择一个操作开始',{class:'eyebrow home-eyebrow'}));
+ intro.append(n('p','保存已有聊天，或将任务交给其他助手后准确带回结果。你的原对话和草稿都不会被改动。',{class:'home-lead'}));
  const choices=n('div',null,{class:'flow-choices'});
- for(const [view,title,description,action]of[['capture','保存并接到新对话','保存历史与已取得的文件，再打开新聊天。由你核对并发送。','开始保存 →'],['tasks','任务回传','复制任务给外部助手；收到答复后粘贴结果并返回来源。','交出或回传 →']]){const b=n('button',null,{type:'button','data-view':view,class:'flow-choice'});b.append(n('strong',title),n('span',description,{class:'muted'}),n('span',action,{class:'flow-arrow'}));choices.append(b);}
+ const journeys=[['capture','保存并接到新对话','保存聊天与文件，在新的 ChatGPT 对话里继续。'],['tasks','任务回传','复制任务给其他助手，完成后把结果放回正确的来源。']];
+ for(const [index,[view,title,description]] of journeys.entries()){
+  const b=n('button',null,{type:'button','data-view':view,class:'flow-choice'});
+  const number=n('span',String(index+1).padStart(2,'0'),{class:'flow-number','aria-hidden':'true'});
+  const content=n('span',null,{class:'flow-copy'});content.append(n('strong',title),n('span',description,{class:'muted'}));
+  const arrow=n('span','›',{class:'flow-arrow','aria-hidden':'true'});
+  b.append(number,content,arrow);choices.append(b);
+ }
  const setup=n('section',null,{class:'first-run',id:'first-run-prereqs','aria-label':'开始前确认'});
- setup.append(n('h2','开始前确认'));
- const prerequisites=n('ol');for(const item of ['使用 Chrome 116+ 或支持侧边栏的 Edge，且不是无痕窗口。','已在浏览器标签页登录 ChatGPT。','打开一段已有的 ChatGPT 对话；空白新聊天无法保存。'])prerequisites.append(n('li',item));setup.append(prerequisites);
- const openChat=n('a','去打开 ChatGPT',{class:'chatgpt-link',href:'https://chatgpt.com/',target:'_blank',rel:'noopener noreferrer'});setup.append(openChat);
+ setup.append(n('p','使用前：请先在普通浏览器标签页登录 ChatGPT，并打开已有对话。',{class:'first-run-tip'}));
+ const requirements=n('details',null,{class:'first-run-details'});requirements.append(n('summary','查看使用条件'));
+ const prerequisites=n('ol');for(const item of ['使用 Chrome 116+ 或支持侧边栏的 Edge，且不是无痕窗口。','已在浏览器标签页登录 ChatGPT。','打开一段已有的 ChatGPT 对话；空白新聊天无法保存。'])prerequisites.append(n('li',item));requirements.append(prerequisites);setup.append(requirements);
+ const openChat=n('a','打开 ChatGPT',{class:'chatgpt-link',href:'https://chatgpt.com/',target:'_blank',rel:'noopener noreferrer'});setup.append(openChat);
  home.append(intro,choices,setup,n('p','工程试用候选 · 资料保存在此浏览器 · 不会代你发送消息',{class:'home-footnote'}));main.insertBefore(home,$('capture-view'));
  const taskView=n('section',null,{id:'tasks-view',class:'view',hidden:''}),head=n('div',null,{class:'view-heading'});
  head.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','任务回传'));
