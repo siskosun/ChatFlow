@@ -168,6 +168,10 @@ async def main():
     # the final URL. Verify both API and selector have recovered from B to A.
     await poll(w,"async x=>{const rows=(await chrome.runtime.sendMessage({type:'tl:sources'})).data;return rows?.some(r=>r.id===x[0]&&r.url===x[1]);}",[ta,URL_A])
     await poll(w,"x=>{const s=document.querySelector('#source');return [...s.options].some(o=>o.value===String(x[0])&&o.dataset.sourceUrl===x[1]);}",[ta,URL_A])
+    capture_choices=await w.locator('#source option').evaluate_all("xs=>xs.map(x=>({text:x.textContent,value:x.value,url:x.dataset.sourceUrl}))")
+    assert len(capture_choices)==2 and set(item['text'] for item in capture_choices)=={'Same title · 标签页 1','Same title · 标签页 2'},capture_choices
+    assert set(item['url'] for item in capture_choices)=={URL_A,URL_B},capture_choices
+    passed('capture_source_titles_hide_conversation_ids')
     await w.locator('#source').select_option(str(ta))
     selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
     options=await w.evaluate("()=>[...document.querySelector('#source').options].map(o=>({id:o.value,url:o.dataset.sourceUrl}))")
