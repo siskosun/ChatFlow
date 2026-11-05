@@ -247,7 +247,7 @@
  function scheduleTaskSourceSync(){
   if($('tasks-view').hidden)return;
   clearTimeout(taskSourceSyncTimer);
-  taskSourceSyncTimer=setTimeout(()=>{taskSourceSyncTimer=null;safe(refreshSources);},180);
+  taskSourceSyncTimer=setTimeout(()=>{taskSourceSyncTimer=null;if(!$('tasks-view').hidden)safe(refreshSources);},180);
  }
  chrome.tabs.onCreated.addListener(scheduleTaskSourceSync);
  chrome.tabs.onUpdated.addListener((_id,change)=>{if(change.url||change.status==='complete')scheduleTaskSourceSync();});
