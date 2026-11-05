@@ -274,3 +274,15 @@ body:has(.experiment-path) input,body:has(.experiment-path) select,body:has(.exp
 @media(prefers-reduced-motion:reduce) {
   .flow-choice,button,.file-button {transition:none!important;}
 }
+
+/* The experiment's page-local secondary button rules can preserve a pale
+   surface after a color-scheme transition. Keep contrast stable on every
+   visited/hovered state without changing button behavior. */
+@media(prefers-color-scheme:dark) {
+  body:has(.experiment-path) button.secondary:not(:disabled) {
+    background:#292820;color:#FFF3DF;border-color:#FFF3DF;
+  }
+  body:has(.experiment-path) button.secondary:hover:not(:disabled) {
+    background:#43394E;color:#FFF3DF;
+  }
+}
