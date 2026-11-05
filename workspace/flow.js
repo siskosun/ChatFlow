@@ -335,6 +335,8 @@
   if(area==='session'&&changes.cfPendingSelectedTask?.newValue)safe(claimQuickSelection);
  });
  setTimeout(()=>safe(claimQuickSelection),400);
+ // Activate the selection shortcut on ChatGPT tabs opened before this extension.
+ setTimeout(()=>call('tl:ensureSelectionActions').catch(()=>{}),1300);
 
  // A newly opened or navigated ChatGPT tab may not refocus the side panel.
  // Keep the chooser current without discarding its source ID or task draft.
