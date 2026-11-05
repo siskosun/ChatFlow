@@ -7,7 +7,7 @@
  const MAX=20000;
  chrome.runtime.onConnect.addListener(port=>{
   if(port.name!=='chatflow:task-selection')return;
-  let expected=null,timer=null,active=false,previous='';
+  let expected=null,timer=null,active=false,previous='',lastHint='';
   const stop=()=>{
    active=false;clearTimeout(timer);timer=null;
    document.removeEventListener('selectionchange',schedule);
@@ -22,14 +22,20 @@
    const lease=S.freeze();
    // A uniquely visible thread without an explicit DOM conversation marker
    // is usable as a user-selected draft, but never claimed as verified.
-   if(!lease.root||!['confirmed','unverified'].includes(lease.status))return;
+   if(!lease.root||!['confirmed','unverified'].includes(lease.status)){
+    send({type:'stopped',reason:'scope-unavailable'});stop();return;
+   }
    const selection=window.getSelection();
    if(!selection||selection.isCollapsed||!selection.anchorNode||!selection.focusNode)return;
    const anchor=selection.anchorNode,focus=selection.focusNode;
    const el=anchor instanceof Element?anchor:anchor.parentElement;
    const message=el?.closest('[data-message-id],[data-turn-key],[data-message-author-role]');
    if(!message||!message.contains(focus)||
-      !S.contains(lease,anchor)||!S.contains(lease,focus)||!S.contains(lease,message))return;
+      !S.contains(lease,anchor)||!S.contains(lease,focus)||!S.contains(lease,message)){
+    if(lastHint!=='single-message'){send({type:'hint',reason:'single-message'});lastHint='single-message';}
+    return;
+   }
+   lastHint='';
    const value=String(selection);
    if(!value.trim()||!S.unchanged(lease))return;
    const tooLong=value.length>MAX;
