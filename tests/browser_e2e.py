@@ -296,6 +296,16 @@ async def main():
                 await wait_async(workspace,'()=>document.querySelector("#status").textContent.includes("文件不是有效 ZIP")')
                 assert await workspace.locator('#restore').input_value()==''
             passed('bad_zip_shows_human_readable_error_and_same_file_can_be_reselected')
+            # A failed official-file comparison must reset its chooser. Otherwise
+            # selecting the same ZIP again may not generate another change event.
+            await workspace.locator('.archive-button').first.click()
+            official_picker=workspace.locator('#detail label.file-button').filter(has_text='对照官方 ZIP').locator('input[type=file]')
+            await official_picker.wait_for(state='attached')
+            for _ in range(2):
+                await official_picker.set_input_files({'name':'bad-official.zip','mimeType':'application/zip','buffer':b'not-a-zip'})
+                await wait_async(workspace,'()=>document.querySelector("#status").textContent.includes("文件不是有效 ZIP")')
+                assert await official_picker.input_value()==''
+            passed('official_zip_comparison_rejects_bad_file_and_allows_same_file_retry')
             legacy_roundtrip=await workspace.evaluate('''async id=>{
               const out=await TLArchive.exportCapture(id),entries=await TLArchive.readZip(out.blob),manifest=JSON.parse(await (await entries.get('manifest.json').blob()).text());
               manifest.schema='threadline.archive/1';delete manifest.formatVersion;delete manifest.app;delete manifest.source;delete manifest.snapshotSchema;delete manifest.state;
@@ -655,7 +665,6 @@ async def main():
                 for _ in range(60):
                     await asyncio.sleep(1)
                     await experiment_page.locator('#ff-refresh').click()
-                    await experiment_page.locator('#ff-list button').first.click()
                     current_branches=await experiment_page.locator('#ff-branch-boxes').inner_text()
                     if current_branches.count('已完成')>=completed:break
                 assert current_branches.count('已完成')>=completed,current_branches
@@ -665,6 +674,7 @@ async def main():
             comparison_text=await experiment_page.locator('#ff-columns').inner_text()
             assert 'Synthetic final answer' in comparison_text,comparison_text
             assert await experiment_page.locator('#ff-reveal').inner_text()==''
+            passed('experiment_refresh_updates_current_capture_status_without_reselecting')
             passed('parallel_experiment_k2_manual_send_capture_completion_and_blind_comparison')
             for branch_count in [3,4]:
                 await experiment_page.locator('#ff-w0').fill('shared material for K='+str(branch_count))
@@ -700,7 +710,6 @@ async def main():
                     for _ in range(60):
                         await asyncio.sleep(1)
                         await experiment_page.locator('#ff-refresh').click()
-                        await experiment_page.locator('#ff-list button').first.click()
                         current_k=await experiment_page.locator('#ff-branch-boxes').inner_text()
                         if current_k.count('已完成')>=completed:break
                     assert current_k.count('已完成')>=completed,current_k
