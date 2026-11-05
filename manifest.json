@@ -57,7 +57,8 @@
         "src/tl-provider.js",
         "src/tl-page-scope.js",
         "src/tl-capture.js",
-        "src/tl-inject.js"
+        "src/tl-inject.js",
+        "src/tl-selection-action.js"
       ],
       "run_at": "document_idle",
       "all_frames": false
