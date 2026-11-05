@@ -105,6 +105,42 @@ async def main():
                 }""")
                 passed('experiment_entry_is_singleton_toggle_across_home_and_settings')
 
+                # A formerly active experiment tab may be navigated to another
+                # website by the user. Its ID is not an ownership lease; closing
+                # experiments must never close that unrelated page.
+                await workspace.locator('header [data-view="home"]').click()
+                await workspace.locator('#home-experiment').click()
+                await wait(workspace, """async()=>{
+                    const u=chrome.runtime.getURL('workspace/experiments.html');
+                    return (await chrome.tabs.query({})).filter(t=>t.url===u).length===1;
+                }""")
+                experiment_page=next(
+                    p for p in context.pages
+                    if p.url==base+'experiments.html'
+                )
+                navigated_url='https://chatgpt.com/c/ui_audit_navigated_20261105'
+                await experiment_page.goto(navigated_url)
+                await wait(workspace, """async()=>{
+                    const u=chrome.runtime.getURL('workspace/experiments.html');
+                    return !(await chrome.tabs.query({})).some(t=>t.url===u) &&
+                        document.querySelector('#home-experiment strong').textContent==='打开并行实验';
+                }""")
+                await workspace.locator('#home-experiment').click()
+                await wait(workspace, """async()=>{
+                    const u=chrome.runtime.getURL('workspace/experiments.html');
+                    return (await chrome.tabs.query({})).filter(t=>t.url===u).length===1;
+                }""")
+                assert experiment_page.url==navigated_url, 'Navigated user tab must not be closed'
+                await workspace.locator('#home-experiment').click()
+                await wait(workspace, """async()=>{
+                    const u=chrome.runtime.getURL('workspace/experiments.html');
+                    return !(await chrome.tabs.query({})).some(t=>t.url===u);
+                }""")
+                assert experiment_page.url==navigated_url
+                await experiment_page.close()
+                await workspace.locator('header [data-view="settings"]').click()
+                passed('experiment_close_never_closes_navigated_unrelated_tab')
+
                 # 2. Preferences do not navigate by merely being enabled.
                 for key in ('context', 'live', 'diagnostics', 'passages'):
                     await workspace.locator('#pref-' + key).check()
@@ -248,7 +284,7 @@ async def main():
 
             finally:
                 (OUT / 'ui-click-audit-report.json').write_text(
-                    json.dumps({'status':'pass' if not errors and len(results)==8 else 'fail',
+                    json.dumps({'status':'pass' if not errors and len(results)==9 else 'fail',
                                 'passed':results,'errors':errors},ensure_ascii=False,indent=2),
                     encoding='utf-8')
                 await context.close()
