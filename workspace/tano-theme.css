@@ -280,9 +280,9 @@ body:has(.experiment-path) input,body:has(.experiment-path) select,body:has(.exp
    visited/hovered state without changing button behavior. */
 @media(prefers-color-scheme:dark) {
   body:has(.experiment-path) button.secondary:not(:disabled) {
-    background:#292820;color:#FFF3DF;border-color:#FFF3DF;
+    background:#292820!important;color:#FFF3DF!important;border-color:#FFF3DF!important;
   }
   body:has(.experiment-path) button.secondary:hover:not(:disabled) {
-    background:#43394E;color:#FFF3DF;
+    background:#43394E!important;color:#FFF3DF!important;
   }
 }
