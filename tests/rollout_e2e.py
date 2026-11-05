@@ -124,7 +124,8 @@ async def main():
                 await poll(w,"async()=>{const h=(await TLStore.all('handoffs')).at(-1);return h&&document.querySelectorAll('#staging .staged').length===h.files.length;}")
                 # Staged files open by default after preparation. Confirm that
                 # visible text is present rather than accidentally toggling closed.
-                assert await w.locator('#staging-details').evaluate('(e)=>e.open')
+                assert await w.locator('#staging-details').evaluate('(e)=>!e.open')
+                await w.locator('#staging-details > summary').click()
                 index_ui=await w.evaluate("async()=>{const h=(await TLStore.all('handoffs')).at(-1),row=document.querySelector('#staging .staged');return {kind:h.files[0]?.kind,name:h.files[0]?.name,label:row?.innerText||''};}")
                 assert index_ui['kind']=='index' and index_ui['name']=='handoff_index.md',index_ui
                 assert '\u63a5\u7eed\u7d22\u5f15' in index_ui['label'],index_ui
