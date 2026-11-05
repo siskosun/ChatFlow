@@ -51,6 +51,30 @@ async def main():
        if (width==360 and scheme=='dark') or (width==1440 and scheme=='light'):await page.screenshot(path=str(OUT/f'ui-{view}-{scheme}-{width}.png'),full_page=True)
        report['cases'].append(value)
     experiment=await context.new_page();experiment.on('pageerror',lambda e:report['errors'].append(str(e)));await experiment.goto(base+'experiments.html');await experiment.wait_for_function("()=>!document.querySelector('#ff-notice').textContent.includes('正在检查')&&!document.querySelector('#ff-enable').disabled");await experiment.locator('#ff-enable').check();await experiment.wait_for_function("()=>document.querySelector('#ff-enable').checked&&!document.querySelector('#ff-enable').disabled&&!document.querySelector('#ff-local').hidden");await experiment.locator('#ff-p').fill('合成比较任务')
+    # The criteria field is shown only after comparison and calibration. Drive its
+    # existing DOM input listeners without bypassing the installed extension.
+    # A disabled submit button must not be advertised as aria-valid.
+    validation=await experiment.evaluate("""() => {
+      const field=document.querySelector('#ff-criteria');
+      const button=document.querySelector('#ff-verdict');
+      const hint=document.querySelector('#ff-criteria-limit');
+      if(!field||!button||!hint)throw new Error('criteria validation controls unavailable');
+      function check(text) {
+        field.value=text;
+        field.dispatchEvent(new Event('input',{bubbles:true}));
+        return {
+          ariaInvalid:field.getAttribute('aria-invalid'),
+          customError:field.validity.customError,
+          buttonDisabled:button.disabled,
+          hintVisible:!hint.hidden
+        };
+      }
+      return {overLimit:check('x'.repeat(401)),withinLimit:check('x'.repeat(400))};
+    }""")
+    assert validation['overLimit']=={'ariaInvalid':'true','customError':True,'buttonDisabled':True,'hintVisible':True},validation
+    assert validation['withinLimit']=={'ariaInvalid':'false','customError':False,'buttonDisabled':False,'hintVisible':False},validation
+    report['criteria_validation']=validation
+    print('PASS criteria_validation_aria_matches_submit_guard',flush=True)
     for scheme in ['light','dark']:
      await experiment.emulate_media(color_scheme=scheme)
      for width in [320,360,1440]:

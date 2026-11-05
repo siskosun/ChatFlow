@@ -464,7 +464,6 @@
     } catch (e) { notice(e.message, true); await read(currentExperiment).catch(()=>{}); }
     finally { button.disabled = false; }
   });
-  $('ff-criteria').addEventListener('input',()=>{$('ff-criteria').setAttribute('aria-invalid','false');});
   $("ff-verdict").addEventListener("click", async event => {
     if (!currentExperiment) return;
     const criteria=$('ff-criteria');
