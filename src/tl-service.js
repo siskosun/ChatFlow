@@ -244,11 +244,38 @@ async function claimQuickSelection(sender){
  return {tabId:pending.tabId,url:pending.url,text:pending.text,nonce:pending.nonce,evidence:pending.evidence,
    messageId:pending.messageId,documentId:pending.documentId};
 }
+// Static manifest scripts only run on navigation. An already-open chat tab
+// can predate extension install, so bootstrap the missing listener in place.
+// Reuse the full manifest dependency graph when needed; never reload the tab.
+async function ensureSelectionActions(){
+ const rows=api.runtime.getManifest().content_scripts||[];
+ const files=rows.find(row=>row.js?.includes('src/tl-selection-action.js'))?.js;
+ if(!Array.isArray(files)||!files.length)return {checked:0,installed:0};
+ const tabs=await api.tabs.query({url:['https://chatgpt.com/*','https://chat.openai.com/*']});
+ let installed=0;
+ for(const tab of tabs){
+  if(!Number.isInteger(tab.id))continue;
+  try{
+   const state=await api.scripting.executeScript({target:{tabId:tab.id,frameIds:[0]},func:()=>({
+    selection:!!globalThis.ChatFlowSelectionActionInstalled,
+    dependencies:!!globalThis.TLCore&&!!globalThis.TLPageScope
+   })});
+   const observed=state.find(x=>x.frameId===0)?.result;
+   if(!observed||observed.selection)continue;
+   await api.scripting.executeScript({target:{tabId:tab.id,frameIds:[0]},
+    files:observed.dependencies?['src/tl-selection-action.js']:files});
+   installed++;
+  }catch{ // Tab changed or cannot be injected; leave it unchanged.
+  }
+ }
+ return {checked:tabs.length,installed};
+}
 async function handle(msg,sender){
  C.check(trusted(sender),'FOREIGN_EXTENSION');
  if(msg.type==='tl:ackQuickSelection'){workspace(sender);const stored=(await api.storage.session.get(QUICK_SELECTION_KEY))[QUICK_SELECTION_KEY];if(stored?.nonce===msg.nonce)await api.storage.session.remove(QUICK_SELECTION_KEY);return {acknowledged:true};}
  if(msg.type==='tl:quickSelection')return quickSelection(msg,sender);
  if(msg.type==='tl:claimQuickSelection')return claimQuickSelection(sender);
+ if(msg.type==='tl:ensureSelectionActions'){workspace(sender);return ensureSelectionActions();}
  if(msg.type==='tl:retryBoot'){workspace(sender);return retryBoot();}
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');
  if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type))return serializeHandoffWrite(()=>applyHandoffEvidence(msg,sender));
@@ -300,6 +327,7 @@ api.runtime.onMessage.addListener((msg,sender,respond)=>{if(!msg||typeof msg.typ
 api.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{
  TLDiagnostics.record('sidepanel-setup',new Error('SIDEPANEL_SETUP_FAILED'));
 });
+api.runtime.onInstalled.addListener(()=>{ensureSelectionActions().catch(()=>{});});
 api.tabs.onUpdated.addListener((tabId,change,tab)=>{
  ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(e=>TLDiagnostics.record('experiment-tab-update',e));
  if(change.status==='complete')announce(tabId).catch(e=>TLDiagnostics.record('handoff-announce',e));
