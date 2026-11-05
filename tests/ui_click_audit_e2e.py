@@ -118,6 +118,15 @@ async def main():
                 assert await workspace.locator('#settings-tools-panel').is_visible()
                 assert await workspace.locator('#settings-view').is_visible()
                 assert await workspace.locator('#settings-tools-source option').count() >= 2
+                assert await workspace.locator('#settings-tools-panel').evaluate(
+                    '(el)=>el.previousElementSibling?.id==="feature-open-tools"')
+                await workspace.locator('#pref-tools').uncheck()
+                assert not await workspace.locator('#settings-tools-panel').is_visible()
+                await workspace.locator('#pref-tools').check()
+                await workspace.locator('#feature-open-tools').click()
+                assert await workspace.locator('#settings-tools-panel').is_visible()
+                assert await workspace.locator('#settings-live-panel').evaluate(
+                    '(el)=>el.previousElementSibling?.id==="feature-open-live"')
                 passed('advanced_switches_and_open_actions_do_not_misroute_to_capture')
 
                 await workspace.locator('#feature-open-context').click()
