@@ -240,7 +240,10 @@ async def main():
             assert await workspace.evaluate('window.fixtureAsyncReady') is True
             passed('async_database_waiter_awaits_resolved_predicate')
             await workspace.locator('#capture').scroll_into_view_if_needed()
-            await workspace.locator('details.advanced summary').first.click()
+            # A preference may have opened these settings already. Do not
+            # toggle an open panel closed before interacting with its controls.
+            if not await workspace.locator('#allow-media').is_visible():
+                await workspace.locator('#capture-view details.advanced summary').click()
             await workspace.locator('#allow-media').uncheck();await workspace.locator('#capture').click()
             await wait_async(workspace,'async()=>{const xs=await TLStore.all("captures");return xs.length>0&&xs[0].snapshot&&["ready","partial"].includes(xs[0].state)}',timeout=90000)
             captures=await workspace.evaluate('TLStore.all("captures")');cap=captures[0];cid=cap['id']
