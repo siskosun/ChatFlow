@@ -39,7 +39,7 @@
   if(!tab)throw Error('WORKSPACE_WINDOW_REQUIRED');
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
- const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0,selectionPort=null,selectionEpoch=0,selectedFromWatch=null;
+ const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0,selectionPort=null,selectionEpoch=0,selectedFromWatch=null,sourceRefreshEpoch=0;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
@@ -146,7 +146,7 @@
  function invalidateCreation(){createEpoch++;created=null;promptBox.hidden=true;create.hidden=false;updateCreateState();}
  text.addEventListener('input',()=>{stopSelectionWatch();selectedFromWatch=null;invalidateCreation();});source.addEventListener('change',()=>{stopSelectionWatch();selectedFromWatch=null;invalidateCreation();});
  async function copy(value,fallback){try{await navigator.clipboard.writeText(value);say('已复制。');return true;}catch{const details=fallback.closest('details');if(details)details.open=true;fallback.focus();fallback.select();say('未能复制。文本已选中，请手动复制。',true);return false;}}
- async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));const names=displayLabels(rows,r=>r.title,'标签页');for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl){stopSelectionWatch();selectedFromWatch=null;invalidateCreation();}else updateCreateState();}
+ async function refreshSources(){const epoch=++sourceRefreshEpoch,rows=await call('tl:sources');if(epoch!==sourceRefreshEpoch)return;const old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));const names=displayLabels(rows,r=>r.title,'标签页');for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl){stopSelectionWatch();selectedFromWatch=null;invalidateCreation();}else updateCreateState();}
  async function refreshChoices(epoch=matchEpoch){
   if(choicesFresh)return epoch===matchEpoch;
   const old=manualSource.value,rows=await S.taskChoices();if(epoch!==matchEpoch)return false;
