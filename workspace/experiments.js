@@ -462,8 +462,29 @@
     try {
       await send({type:"FF_LAUNCH", experimentId:currentExperiment,
         operationId:crypto.randomUUID()});
-      await read(currentExperiment);
-      notice(Object.keys(currentData?.branches||{}).length+" 个分支已创建并预填；请逐个核对内容后手动发送。");
+      const launchedId=currentExperiment;
+      await read(launchedId);
+      if(currentExperiment!==launchedId)return;
+      const count=Object.keys(currentData?.branches||{}).length;
+      // A successful tab launch does not prove that any target composer has
+      // accepted the frozen text. Only the exact acknowledgement is evidence.
+      notice("已打开 "+count+" 个分支标签页。预填尚待逐个核对；请在各标签确认内容后手动发送。");
+      for(const delay of [2000,6000,12000,20000]){
+        setTimeout(async()=>{
+          if(currentExperiment!==launchedId)return;
+          try{
+            await read(launchedId);
+            if(currentExperiment!==launchedId)return;
+            const branches=Object.values(currentData?.branches||{});
+            const acknowledged=branches.filter(b=>b.attempts.at(-1)?.evidence?.prefill==="exact_ack").length;
+            if(acknowledged===branches.length&&branches.length) {
+              if(delay===2000)notice("全部 "+acknowledged+" 个分支预填已核实。请核对后手动发送。");
+            } else if(delay===20000){
+              notice("已核实 "+acknowledged+"/"+branches.length+" 个分支的预填。未核实的分支可点击“重新预填此分支”；不会自动发送。",true);
+            }
+          }catch{if(delay===20000)notice("预填状态暂时无法读取，请点击“刷新实验”查看未确认分支。",true);}
+        },delay);
+      }
     } catch (e) { notice(e.message, true); await read(currentExperiment).catch(()=>{}); }
     finally { const value=currentData;button.disabled=!value||(Object.values(value.branches).some(b=>b.attempts.length>0)&&Object.values(value.branches).some(b=>b.status==="pending"||b.status==="done")); }
   });
