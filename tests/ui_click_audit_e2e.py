@@ -177,6 +177,15 @@ async def main():
                 assert await workspace.locator('#settings-tools-panel').is_visible()
                 assert await workspace.locator('#settings-live-panel').evaluate(
                     '(el)=>el.previousElementSibling?.id==="feature-open-live"')
+                assert await workspace.locator('.experiment-direct-entry').count()==0
+                assert await workspace.locator('#settings-open-experiments').count()==1
+                # The selector is optional: the active ChatGPT tab gets its own
+                # one-click entry when the workspace is a side panel.
+                assert await workspace.locator('#settings-tools-current').is_visible()
+                await chat.bring_to_front()
+                await workspace.evaluate("()=>document.querySelector('#settings-tools-current').click()")
+                await wait(chat, "()=>!!document.querySelector('#chatflow-page-tools')")
+                await workspace.bring_to_front()
                 passed('advanced_switches_and_open_actions_do_not_misroute_to_capture')
 
                 await workspace.locator('#feature-open-context').click()
@@ -291,6 +300,8 @@ async def main():
                 # 7. The remaining direct entries navigate to the correct area
                 # and no synthetic page has caused a send/write request.
                 await workspace.evaluate("()=>ChatFlowWorkspace.show('home')")
+                assert await workspace.locator('.brand-mark img').get_attribute('src')=='../icons/icon-32.png'
+                assert await workspace.locator('.brand').evaluate('(e)=>getComputedStyle(e).cursor')=='default'
                 assert await workspace.locator('.home-lead').count()==0
                 assert await workspace.locator('.first-run-tip').count()==0
                 for view in ('capture','archive','tasks','settings'):
@@ -303,6 +314,12 @@ async def main():
                         await workspace.locator('header [data-view="'+view+'"]').click()
                     assert await workspace.locator('#'+view+'-view').is_visible(), view
                 await workspace.locator('header [data-view="home"]').click()
+                assert await workspace.locator('#open-tools').count()==0
+                assert await workspace.locator('#open-experiments').count()==0
+                await workspace.locator('header [data-view="archive"]').click()
+                assert await workspace.locator('.brand').evaluate('(e)=>getComputedStyle(e).cursor')=='pointer'
+                await workspace.locator('.brand').click()
+                assert await workspace.locator('#home-view').is_visible()
                 await workspace.screenshot(path=str(OUT/'ui-click-home-light.png'),full_page=True)
                 assert not errors, errors
                 passed('home_archive_capture_tasks_and_settings_navigation_buttons_smoke')
