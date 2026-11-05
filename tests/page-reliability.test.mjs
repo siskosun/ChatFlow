@@ -36,6 +36,15 @@ test('active DOM scope refuses stale or conflicting threads; visibility alone st
   assert.equal(context.TLPageScope.current().status, 'confirmed');
   assert.equal(context.TLPageScope.current().root, active);
   state.roots = [active, root('source-A')]; assert.equal(context.TLPageScope.current().status, 'ambiguous');
+  // Distinct other-conversation and unmarked containers are not owners of
+  // the current source. Exactly one identity-bound root may be selected.
+  state.roots = [active, root('source-B')];
+  assert.equal(context.TLPageScope.current().status, 'confirmed');
+  assert.equal(context.TLPageScope.current().root, active);
+  state.roots = [active, new Element()];
+  assert.equal(context.TLPageScope.current().status, 'confirmed');
+  state.roots = [root('source-B'), new Element()];
+  assert.equal(context.TLPageScope.current().status, 'ambiguous');
   state.roots = [new Element()]; assert.equal(context.TLPageScope.current().status, 'unverified');
   state.roots = [root('source-B')]; assert.equal(context.TLPageScope.current().status, 'ambiguous');
 });

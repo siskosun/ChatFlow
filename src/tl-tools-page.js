@@ -113,12 +113,15 @@
       headers: request.token ? { Authorization: 'Bearer ' + request.token } : {}, cache: 'no-store', signal: request.controller.signal });
     C.check(response.ok, 'TOOLS_HTTP_' + response.status);
     C.check(response.body, 'TOOLS_RESPONSE_MISSING');
+    const limit = 32 * 1024 ** 2;
+    const declared = Number(response.headers.get('content-length')||0);
+    C.check(!declared || (Number.isSafeInteger(declared) && declared<=limit), 'TOOLS_RESPONSE_LIMIT');
     const reader = response.body.getReader(), parts = []; let size = 0;
     try {
       while (true) {
         ensure(session); const result = await reader.read(); ensure(session);
         if (result.done) break;
-        size += result.value.length; C.check(size <= 8 * 1024 ** 2, 'TOOLS_RESPONSE_LIMIT'); parts.push(result.value);
+        size += result.value.length; C.check(size <= limit, 'TOOLS_RESPONSE_LIMIT'); parts.push(result.value);
       }
     } catch (error) { try { await reader.cancel(); } catch { /* original failure retained */ } throw error; }
     finally { reader.releaseLock(); }
@@ -145,7 +148,7 @@
     session.jump += 1; session.controller?.abort(); session.navigationController?.abort();
     const request = { controller: new AbortController(), token: null };
     session.request = request; session.controller = request.controller; session.selected.clear();
-    const timer = setTimeout(() => request.controller.abort(), 10000);
+    const timer = setTimeout(() => request.controller.abort(), 30000);
     let messages, coverage, label;
     session.list.replaceChildren(); session.prev.disabled = session.next.disabled = true;
     session.matches = []; session.count.textContent = ''; session.status.textContent = '正在读取当前对话…';
@@ -165,16 +168,58 @@
     if (!current(session) || session.request !== request) return;
     session.messages = messages; session.coverage = coverage; session.coverageLabel = label;
     session.coverageNode.textContent = label + ' · ' + messages.length + ' 条';
-    session.status.textContent = session.loadError ? '对话读取未完成，仅显示这次页面中已经加载的内容，不能视为完整历史。' : '';
+    session.retry.hidden=!session.loadError;
+    session.status.textContent = session.loadError ? (messages.length?'只显示已加载内容，未取得完整历史。':'本次未读取到可确认的消息。')+' 可重试完整读取（'+session.loadError+'）。' : '';
     session.turns = K.groupExportMessagesIntoTurns(messages); render(session);
   }
   function reportJumpError(session, error) {
     if (!current(session)) return;
     session.status.textContent = '定位未完成，请重新打开这段对话后再试。';
   }
+  // Extract a useful outline from retrieved answer text without claiming
+  // those headings are mounted or navigable in the ChatGPT DOM.
+  function textOutline(value) {
+    const output=[];let fence=null;
+    for(const line of String(value||'').split(/\r?\n/)){
+      const trimmed=line.trim();
+      const mark=/^(`{3,}|~{3,})/.exec(trimmed);
+      if(mark){if(!fence)fence=mark[1][0];else if(fence===mark[1][0])fence=null;continue;}
+      if(fence)continue;
+      const m=/^ {0,3}(#{1,6})[ \t]+(.+?)\s*#*\s*$/.exec(line);
+      if(!m)continue;
+      const title=m[2].replace(/\s+/g,' ').trim();
+      if(title&&title.length<=250)output.push({level:m[1].length,text:title});
+      if(output.length>=80)break;
+    }
+    return output;
+  }
+  // When the API is unavailable, a rendered answer may still contain real
+  // heading elements even though innerText no longer contains Markdown '#'.
+  // Observe only a source-scoped loaded message; never certify these as
+  // full-history or remote identity evidence.
+  function visibleOutline(message) {
+    if(!message.domNode?.isConnected || !message.observedLease ||
+       !S.unchanged(message.observedLease,false))return [];
+    const sc=scope();
+    if(!sc.root || sc.status==='ambiguous' || !S.contains(sc,message.domNode))return [];
+    const headings=message.domNode.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    const result=[];
+    for(const el of headings){
+      if(!S.contains(sc,el) || el.closest('pre,code,[hidden],[inert],[aria-hidden="true"]'))continue;
+      const title=String(el.textContent||'').replace(/\s+/g,' ').trim();
+      if(!title || title.length>250)continue;
+      result.push({level:Number(el.tagName.slice(1)),text:title});
+      if(result.length>=80)break;
+    }
+    return result;
+  }
   function headingMenu(session, message) {
+    // DOM-only innerText may include '# headings' inside code blocks. Prefer
+    // actual rendered heading elements rather than reparsing that flattened text.
+    const outline=message.domNode?visibleOutline(message):textOutline(message.text);
+    if(!outline.length)return null;
     const details=n('details',null,{class:'cf-headings'});
-    const summary=n('summary','\u56de\u7b54\u7ae0\u8282');
+    const summary=n('summary','提纲（'+outline.length+'） · '+outline[0].text.slice(0,30));
     const list=n('div',null,{class:'cf-heading-list'});
     const load=n('button','\u5b9a\u4f4d\u56de\u7b54\u5e76\u8bfb\u53d6\u7ae0\u8282',{type:'button',class:'cf-read-headings'});
     const hint=n('p',null,{class:'hint','aria-live':'polite'});
@@ -182,10 +227,13 @@
       ensure(session);list.replaceChildren();
       const sc=scope(),match=resolve(session,message,sc);
       if(match?.confidence!=='verified_message_id') {
-        hint.textContent='\u56de\u7b54\u5c1a\u672a\u6302\u8f7d\u6216\u6d88\u606f\u8eab\u4efd\u672a\u786e\u8ba4\u3002';return;
+        hint.textContent='文本提纲可查看；原消息尚未定位，不能直接跳转章节。';
+        for(const entry of outline)list.append(n('div',entry.text,{class:'cf-outline','data-level':String(entry.level)}));
+        return;
       }
       const entries=globalThis.TLHeadings.read(match.el,node=>S.contains(sc,node));
-      hint.textContent=entries.length ? entries.length+' \u4e2a\u7ae0\u8282' : '\u6b64\u56de\u7b54\u6ca1\u6709\u53ef\u5b9a\u4f4d\u7684\u6807\u9898\u3002';
+      hint.textContent=entries.length ? entries.length+' 个可定位章节' : '页面标题未挂载，仅展示文本提纲。';
+      if(!entries.length)for(const entry of outline)list.append(n('div',entry.text,{class:'cf-outline','data-level':String(entry.level)}));
       for(const entry of entries) {
         const saved=globalThis.TLHeadings.descriptor(entry);
         const button=n('button',entry.text,{type:'button',class:'cf-heading','data-level':String(entry.level)});
@@ -242,11 +290,12 @@
       button.onclick = () => { session.cursor = session.matches.indexOf(item); jump(session, item).catch(error => reportJumpError(session, error)); };
       row.append(check, button); session.list.append(row);
       const answers=item.role==='assistant'?[item]:(turn?.assistantMessages||[]).map(entry=>entry.message);
-      for(const answer of answers)session.list.append(headingMenu(session,answer));
+      for(const answer of answers){const menu=headingMenu(session,answer);if(menu)session.list.append(menu);}
     }
     if (session.matches.length > 200) session.list.append(n('p', '显示前 200 条；请缩小搜索范围。'));
   }
   const STYLE = `:host{all:initial;position:fixed;right:18px;top:80px;z-index:2147483646;width:min(340px,calc(100vw - 32px));font:14px/1.5 system-ui;color:#11100e;color-scheme:light}*{box-sizing:border-box}.panel{background:#fffdf5;border:2px solid #11100e;border-radius:14px;box-shadow:6px 6px 0 #11100e;padding:17px;max-height:calc(100vh - 160px);overflow:auto}header,.controls,.row{display:flex;gap:8px;align-items:center}header{justify-content:space-between;margin-bottom:12px}h2{font-size:19px;font-weight:830;letter-spacing:-.04em;margin:0}button,input,select{font:inherit;color:inherit}button{min-height:44px;padding:8px 10px;border:1.5px solid #11100e;border-radius:9px;background:#fbf4e0;cursor:pointer;font-weight:700}button:hover:not(:disabled){background:#c9b6ff}button:disabled{opacity:.56}input[type=search],select{width:100%;padding:10px;border:1.5px solid #11100e;border-radius:9px;margin:7px 0;background:#fffdf5}input[type=checkbox]{flex:none;width:18px;height:18px;accent-color:#ff7a66}.row{border-bottom:1px solid #d6cbbb}.row button{flex:1;text-align:left;border:0;overflow-wrap:anywhere;min-width:0;background:transparent}.row button:hover:not(:disabled){background:#f4e6c9}.controls{justify-content:space-between}.hint,small{color:#514940;font-size:12px}#list{max-height:38vh;overflow:auto;margin:8px 0}p{overflow-wrap:anywhere}details{margin-top:12px}.cf-headings{margin:0 0 8px 26px}.cf-heading-list{display:flex;flex-direction:column;gap:3px}.cf-heading{text-align:left;overflow-wrap:anywhere}.cf-headings summary{font-size:12px}summary{cursor:pointer;min-height:44px;padding-top:10px}mark{background:#ff7a66;color:#11100e}button:focus-visible,input:focus-visible,summary:focus-visible,select:focus-visible{outline:3px solid #8369ef;outline-offset:3px}@media(prefers-color-scheme:dark){:host{color:#fff3df;color-scheme:dark}.panel{background:#24231e;border-color:#fff3df;box-shadow:6px 6px 0 #0e0e0c}button,input[type=search],select{background:#302c28;color:#fff3df;border-color:#fff3df}.hint,small{color:#e1d3bf}.row{border-color:#555047}mark{background:#ff947f;color:#11100e}.row button:hover:not(:disabled){background:#43394e}}`;
+  const UX_STYLE=`.panel{padding:13px;max-height:calc(100vh - 60px);overflow-y:auto}.panel header{margin-bottom:10px}.panel header button{min-width:36px;width:39px;height:40px;min-height:40px;padding:0;font-size:24px}.panel h2{font-size:19px}.panel .controls button{min-height:40px;padding:7px 11px}.panel .controls{justify-content:space-between;gap:10px;margin:10px 0}.panel #list{max-height:40vh;overflow:auto}.panel .row{align-items:flex-start;border-bottom:1px solid #d6cbbb}.panel .row button{font-weight:540;padding:7px 5px;min-height:40px}.panel .cf-headings{margin:2px 0 9px 21px;border-left:2px solid #e9e0d4;padding-left:8px}.panel .cf-headings summary{min-height:34px;padding:5px 0;font-size:13px;font-weight:650;color:#514940}.panel .cf-outline{font-size:13px;padding:4px 0;color:#514940;overflow-wrap:anywhere}.panel .cf-headings .cf-read-headings{font-size:12px;min-height:35px;padding:5px 9px;background:#e9e5ef}.panel .cf-retry{width:100%;margin:6px 0 12px;background:#dde9dd}.panel .hint{line-height:1.55}.panel [role=status]{margin:9px 0;white-space:normal}.panel input[type=search]{margin:0}@media(prefers-color-scheme:dark){.panel .cf-headings summary,.panel .cf-outline{color:#e3d5c3}.panel .cf-headings{border-color:#575046}.panel .cf-headings .cf-read-headings,.panel .cf-retry{background:#353d35;color:#fff3df;border-color:#e3d5c3}}`;
   function show(url) {
     C.check(canonical() === url, 'TOOLS_SOURCE_CHANGED'); close();
     const host = n('div', null, { id: 'chatflow-page-tools' }), shadow = host.attachShadow({ mode: 'open' });
@@ -313,8 +362,10 @@
     const refresh = n('button', '刷新当前对话', { type: 'button' });
     refresh.onclick = () => { session.jump += 1; session.loadError = null; load(session).catch(error => reportJumpError(session, error)); };
     extra.append(summary, format, exportButton, n('p', '只导出勾选回合，包含来源身份与覆盖范围。', { class: 'hint' }), formulas, copyFormula, fallback, refresh);
-    panel.append(header, session.query, session.coverageNode, controls, session.list, session.status, extra);
-    shadow.append(n('style', STYLE), panel); document.documentElement.append(host); session.query.focus();
+    session.retry=n('button','重试读取',{type:'button',class:'cf-retry',hidden:''});
+    session.retry.onclick=()=>{session.loadError=null;load(session).catch(error=>reportJumpError(session,error));};
+    panel.append(header, session.query, session.coverageNode, controls, session.list, session.status, session.retry, extra);
+    shadow.append(n('style', STYLE),n('style', UX_STYLE), panel); document.documentElement.append(host); session.query.focus();
     panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
     session.routeWatch = setInterval(() => { if (!current(session)) close(); }, 200);
     load(session).catch(error => reportJumpError(session, error)); return session;

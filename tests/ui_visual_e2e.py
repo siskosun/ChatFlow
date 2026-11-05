@@ -47,6 +47,14 @@ async def main():
        await page.evaluate('v=>ChatFlowWorkspace.show(v)',view);await page.wait_for_timeout(160)
        if view=='archive':
         await page.locator('.archive-button').first.click();await page.locator('#detail h2').wait_for()
+        # The user's explicit expand state may survive reselecting the
+        # same archive. Close it first to verify lazy rendering, then reopen.
+        history=page.locator('#detail details[data-archive-history]')
+        if await history.evaluate('(e)=>e.open'):
+         await history.locator(':scope > summary').click()
+         await page.wait_for_function("()=>{const e=document.querySelector('#detail details[data-archive-history]');return e&&!e.open&&!document.querySelector('#detail .message');}")
+        assert await page.locator('#detail .message').count()==0, 'Archive body should be lazy while closed'
+        await page.locator('#detail details[data-archive-history] > summary').click()
         header=await page.locator('#detail .message strong').first.inner_text()
         assert header=='ChatGPT · 第 1 条',header
        if view=='tasks':await page.locator('#task-mode-return').click()

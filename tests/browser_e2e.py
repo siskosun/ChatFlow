@@ -503,6 +503,9 @@ async def main():
             passed('missing_chatgpt_attachment_input_keeps_verified_draft_and_prompts_manual_upload')
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('.archive-button').filter(has_text=cap['snapshot']['title']).first.click()
+            assert await workspace.locator('#detail details[data-archive-history]').evaluate('(e)=>!e.open')
+            assert await workspace.locator('#detail .message').count()==0
+            await workspace.locator('#detail details[data-archive-history] > summary').click()
             await workspace.locator('.message pre').first.wait_for(state='visible',timeout=5000)
             first_passage_text='known fact at position 0: 0'
             first_passage_pre=workspace.locator('.message pre').filter(has_text=first_passage_text).first
@@ -572,11 +575,11 @@ async def main():
             await workspace.get_by_role('button',name='继续到新对话').click()
             assert await workspace.get_by_role('heading',name='继续到新对话').is_visible()
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
-            await workspace.locator('#handoff-view').get_by_role('button',name='准备历史与文件',exact=True).click()
+            await workspace.locator('#handoff-view').get_by_role('button',name='生成接续材料',exact=True).click()
             await wait_async(workspace,'async()=>!document.querySelector("#handoff-result").hidden&&document.querySelector("#open-target")&&!document.querySelector("#open-target").disabled',timeout=30000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.locator('#handoff-view').get_by_role('button',name='打开新对话',exact=True).is_visible()
-            assert await workspace.locator('#staging-details').evaluate('(e)=>e.open')
+            assert await workspace.locator('#staging-details').evaluate('(e)=>!e.open')
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
@@ -595,8 +598,8 @@ async def main():
               await TLStore.set('handoffs',{...h,state:'injection_blocked',lastError:'USER_DRAFT_PRESENT'});
             }""",prepared_id)
             await wait_async(workspace,'()=>!document.querySelector("#prepare").hidden&&document.querySelector("#open-target").hidden',timeout=12000)
-            assert await workspace.locator('#handoff-view').get_by_role('button',name='重新准备历史与文件',exact=True).is_visible()
-            await workspace.locator('#handoff-view').get_by_role('button',name='重新准备历史与文件',exact=True).click()
+            assert await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).is_visible()
+            await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
             # A previously prepared package must not survive a source-branch change.
