@@ -35,7 +35,9 @@
       const response = await api.tabs.sendMessage(msg.tabId, { type: 'tl:showTools', url: identity.url }, { documentId });
       C.check(response?.ok, 'TOOLS_PAGE_CHANGED'); await api.tabs.update(msg.tabId, { active: true }); return { opened: true };
     }
-    await api.scripting.executeScript({ target: { tabId: msg.tabId }, files: ['src/tl-page-scope.js'] });
+    // The selected tab may have been opened before extension installation.
+    // Page scope requires TLCore even if automatic content scripts are absent.
+    await api.scripting.executeScript({ target: { tabId: msg.tabId }, files: ['src/tl-core.js','src/tl-page-scope.js'] });
     const read = await api.scripting.executeScript({ target: { tabId: msg.tabId }, func: () => {
       const S = globalThis.TLPageScope, lease = S?.freeze();
       const selection = window.getSelection(), anchor = selection?.anchorNode?.parentElement, focus = selection?.focusNode;
