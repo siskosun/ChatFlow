@@ -374,7 +374,9 @@
    info.append(controls);row.append(check,info);passageSection.append(row);
   }
   el.append(passageSection);
-  const d=node('details');d.open=true;d.append(node('summary','历史消息（'+activeNodes.length+'）'));
+  // Keep large message bodies out of the default archive overview. The user
+  // can expand the full history when selecting text or inspecting a message.
+  const d=node('details');d.open=false;d.dataset.archiveHistory='true';d.append(node('summary','查看历史消息（'+activeNodes.length+' 条）'));
   const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m])),messages=activeNodes.map(n=>byNode.get(n)).filter(Boolean),messageElements=new Map(),rangesByColor=new Map();
   for(const color of ['yellow','green','blue','pink'])rangesByColor.set(color,[]);
   for(const [index,m] of messages.slice(0,messageLimit).entries()){
