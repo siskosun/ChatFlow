@@ -30,7 +30,7 @@ test('source creation reads only selected message and returns verified identity,
  const h=setup(),r=await h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_A});
  assert.equal(r.source.url,URL_A);assert.equal(r.source.messageId,'m1');assert.equal(r.source.nodeId,null);assert.equal(r.selection,'selected synthetic text');
  assert.equal(r.selectionEvidence,'confirmed');
- assert.deepEqual(h.events,[['script',['src/tl-page-scope.js']],['script','selection'],['validate',['doc-A'],[URL_A,7]]]);
+ assert.deepEqual(h.events,[['script',['src/tl-core.js','src/tl-page-scope.js']],['script','selection'],['validate',['doc-A'],[URL_A,7]]]);
 });
 test('source selector mismatch and script navigation race fail before associating a task',async()=>{
  const h=setup();await assert.rejects(h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_B}),/TASK_SOURCE_CHANGED/);assert.equal(h.events.length,0);
