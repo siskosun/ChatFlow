@@ -187,9 +187,10 @@ async def main():
     }""")
     passed('ambiguous_page_selection_fails_with_clear_message_instead_of_silent_wait')
 
+    # A rejected selection leaves the user-armed receiver waiting. Clicking
+    # the same control here would DISARM it, so test the continued listener.
+    assert '停止接收' in await w.locator('#task-use-selection').inner_text()
     # Events from a different open ChatGPT conversation must not be imported.
-    await w.locator('#task-use-selection').click()
-    await poll(w,"()=>document.querySelector('#task-use-selection').textContent.includes('停止接收')")
     await b.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
       const node=el.firstChild,range=document.createRange();
       range.setStart(node,0);range.setEnd(node,node.textContent.length);
