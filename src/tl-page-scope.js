@@ -136,7 +136,55 @@
     if (!unchanged(lease, requireRoot)) throw new Error('PAGE_SCOPE_CHANGED');
   }
 
+  // Deliberately distinct from broad conversation capture. Users may select
+  // a single message on newer ChatGPT layouts that do not expose the old
+  // .thread-scroll-container / unique-main locator. Such text can create an
+  // UNVERIFIED DRAFT only, never confirmed attachment or conversation evidence.
+  const TURN_SELECTORS = '[data-testid^="conversation-turn"],[data-message-id],[data-turn-key],[data-message-author-role]';
+  function selectedMessage(maxLength = 20000) {
+    const selection = globalThis.getSelection?.();
+    if (!selection || selection.isCollapsed || !selection.anchorNode || !selection.focusNode)
+      return { status: 'empty' };
+    const el = node => node instanceof Element ? node : node?.parentElement;
+    const anchor = el(selection.anchorNode), focus = el(selection.focusNode);
+    // No arbitrary page text, form input, sidebar copy or native selection menu.
+    const own = x => x?.closest('[data-testid^="conversation-turn"]') ||
+      x?.closest('[data-message-id],[data-turn-key],[data-message-author-role]');
+    const message = own(anchor);
+    if (!message || message !== own(focus) || !message.contains(anchor) || !message.contains(focus) ||
+        !isVisible(message) || !isVisible(anchor) || !isVisible(focus) ||
+        anchor.closest('textarea,input,[contenteditable="true"],[role="textbox"]') ||
+        focus.closest('textarea,input,[contenteditable="true"],[role="textbox"]'))
+      return { status: 'invalid', reason: 'single-message' };
+    const lease = freeze();
+    const root = (lease.root?.contains(message) &&
+      (lease.status === 'confirmed' || lease.status === 'unverified'))
+      ? lease.root : message.closest('main,[role="main"],.thread-scroll-container');
+    if (!root || !root.contains(message) || !isVisible(root))
+      return { status: 'invalid', reason: 'scope-unavailable' };
+    // A marker explicitly identifying a DIFFERENT conversation is a refusal,
+    // even when the selected message itself is visible on this tab.
+    for (let node = message; node && node !== root.parentElement; node = node.parentElement) {
+      const marker = node.getAttribute?.(ID_ATTR);
+      if (marker && marker !== lease.conversationId)
+        return { status: 'invalid', reason: 'scope-unavailable' };
+    }
+    const text = String(selection);
+    if (!text.trim() || !unchanged(lease, false) || !message.isConnected)
+      return { status: 'empty' };
+    const confirmed = lease.status === 'confirmed' && lease.root === root &&
+      contains(lease, anchor) && contains(lease, focus) && contains(lease, message);
+    return { status: 'selected', text: text.length > maxLength ? '' : text,
+      length: text.length, tooLong: text.length > maxLength,
+      evidence: confirmed ? 'confirmed' : 'unverified',
+      // DOM ids are hints, not authenticated proof; don't claim confirmation
+      // when only the selected-message compatibility path was used.
+      messageId: confirmed ? (message.getAttribute('data-message-id') || null) : null,
+      generation: lease.generation, url: location.origin + location.pathname };
+  }
+
   globalThis.TLPageScope = Object.freeze({
-    current, contains, within, isVisible, identities, freeze, unchanged, assert
+    current, contains, within, isVisible, identities, freeze, unchanged, assert,
+    selectedMessage
   });
 })();
