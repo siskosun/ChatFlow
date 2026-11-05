@@ -47,20 +47,19 @@
  // One experiment tab across all workspace entrances. The button reflects the
  // actual browser tab state, not whether the last click returned successfully.
  const experimentUrl=chrome.runtime.getURL('workspace/experiments.html');
- let experimentTogglePending=false,experimentSyncTimer=null,experimentLastTabId=null;
+ let experimentTogglePending=false,experimentSyncTimer=null;
  async function experimentTabs(){
   const tabs=await chrome.tabs.query({});
+  // Tab IDs survive navigation: never mistake a redirected user tab for an experiment.
   return tabs.filter(t=>Number.isInteger(t.id)&&(
    t.url?.split(/[?#]/,1)[0]===experimentUrl ||
-   t.pendingUrl?.split(/[?#]/,1)[0]===experimentUrl ||
-   t.id===experimentLastTabId));
+   t.pendingUrl?.split(/[?#]/,1)[0]===experimentUrl));
  }
  function experimentButtons(){
   return ['home-experiment','settings-open-experiments','open-experiments'].map($).filter(Boolean);
  }
  async function refreshExperimentButtons(){
   const tabs=await experimentTabs(),open=tabs.length>0;
-  if(!open)experimentLastTabId=null;
   for(const button of experimentButtons()){
    const text=open?'关闭并行实验':'打开并行实验';
    const strong=button.id==='home-experiment'?button.querySelector('strong'):null;
@@ -79,10 +78,8 @@
    const existing=await experimentTabs();
    if(existing.length){
     await chrome.tabs.remove(existing.map(tab=>tab.id));
-    experimentLastTabId=null;
    }else{
-    const tab=await chrome.tabs.create({url:experimentUrl});
-    experimentLastTabId=tab.id;
+    await chrome.tabs.create({url:experimentUrl});
    }
   }finally{
    experimentTogglePending=false;
