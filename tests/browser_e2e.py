@@ -681,7 +681,8 @@ async def main():
             await experiment_page.locator('#ff-list button').first.wait_for(state='visible',timeout=30000)
             await experiment_page.locator('#ff-list button').first.click()
             await experiment_page.locator('#ff-launch').wait_for(state='visible')
-            frozen=await experiment_page.locator('#ff-text').inner_text()
+            frozen=(await experiment_page.locator('#ff-text').text_content()) or ''
+            assert frozen.strip(), 'Frozen experiment material must remain nonempty even when its details are collapsed'
             existing=set(ctx.pages)
             await experiment_page.locator('#ff-launch').click()
             branch_pages=[]
@@ -731,7 +732,8 @@ async def main():
                 await experiment_page.locator('#ff-branch-count').select_option(str(branch_count))
                 await experiment_page.locator('#ff-save').click()
                 await experiment_page.locator('#ff-launch').wait_for(state='visible')
-                frozen_k=await experiment_page.locator('#ff-text').inner_text()
+                frozen_k=(await experiment_page.locator('#ff-text').text_content()) or ''
+                assert frozen_k.strip(), 'Frozen K='+str(branch_count)+' material must be nonempty'
                 existing_k=set(ctx.pages)
                 await experiment_page.locator('#ff-launch').click()
                 pages_k=[]
