@@ -276,7 +276,7 @@ async def main():
             proof=await trusted_paste(workspace,'#task-result-text',result,'#task-save-result','#task-result-count')
             passed('trusted_clipboard_paste_preserves_over_limit_task_result',proof)
             experiment_page=await context.new_page();experiment_page.on('pageerror',lambda e:page_errors.append(str(e)));await experiment_page.goto(base+'/workspace/experiments.html')
-            await poll(experiment_page,'()=>!document.querySelector("#ff-notice").textContent.includes("正在检查")&&!document.querySelector("#ff-enable").disabled');await experiment_page.locator('#ff-enable').check();await experiment_page.locator('#ff-local').wait_for(state='visible')
+            await poll(experiment_page,'()=>!document.querySelector("#ff-notice").textContent.includes("正在检查")&&!document.querySelector("#ff-enable").disabled');await experiment_page.locator('#ff-local').wait_for(state='visible')
             proof=await trusted_paste(experiment_page,'#ff-p','汉'*8001+'-EXPERIMENT-TAIL','#ff-save','#ff-bytes')
             assert proof['utf8Bytes']>24000 and '超限' in await experiment_page.locator('#ff-bytes').inner_text(),proof
             passed('trusted_clipboard_paste_preserves_experiment_input_above_UTF8_budget',proof)
