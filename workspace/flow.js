@@ -228,45 +228,68 @@
   ['passages','重点片段与分支','在档案页打开历史消息，选文保存重点片段。'],
   ['tools','对话搜索与时间轴','在原聊天页打开搜索和导航工具。']
  ];
- function openFeature(key){
+ // Feature toggles only change preferences; an explicit action opens the
+ // relevant feature without unexpectedly navigating to the capture screen.
+ const livePanel=n('section',null,{id:'settings-live-panel',class:'feature-inline-tools',hidden:''});
+ livePanel.append(n('strong','实时缓存需绑定一段来源对话'),n('p','请选择来源，再在保存流程中为该对话开启实时缓存。'),
+  button('前往来源设置','settings-live-configure',()=>ChatFlowWorkspace.show('capture')));
+ const toolsPanel=n('section',null,{id:'settings-tools-panel',class:'feature-inline-tools',hidden:''});
+ const toolsSource=n('select',null,{id:'settings-tools-source'}),toolsOpen=button('在原对话打开搜索与时间轴','settings-tools-open',async()=>{
+  const id=Number(toolsSource.value),url=toolsSource.selectedOptions[0]?.dataset.sourceUrl;
+  if(!id||!url)throw Error('请先选择一段已打开的 ChatGPT 对话。');
+  await call('tl:openTools',{tabId:id,expectedUrl:url});
+  say('已在所选对话中打开搜索与时间轴。');
+ });
+ toolsPanel.append(n('strong','打开哪段对话的搜索与时间轴？'),n('label','来源对话',{for:'settings-tools-source'}),toolsSource,toolsOpen);
+ async function openFeature(key){
   if(key==='context'||key==='passages'){
    ChatFlowWorkspace.show('archive');
-   say(key==='passages'?'已打开档案：选择一份档案，就能选文保存重点片段。':'已打开档案：勾选需要组合的对话。');return;
+   say(key==='passages'?'请选择一份档案，在消息中选择并保存重点片段。':'请选择需要组合的本地档案。');return;
   }
-  ChatFlowWorkspace.show('capture');
   if(key==='live'){
-   document.querySelector('#capture-view details.advanced')?.setAttribute('open','');
-   say('选择来源后，可在“更多设置”中为这一段对话开启实时缓存。');return;
+   livePanel.hidden=false;toolsPanel.hidden=true;
+   say('已展开实时缓存说明。只有明确选择来源并开始保存才会启动缓存。');return;
   }
   if(key==='diagnostics'){
-   document.querySelector('#capture-view details.advanced')?.setAttribute('open','');
-   $('quota')?.click();say('已打开存储诊断。');return;
+   diagnosticDetails.open=true;
+   const q=await navigator.storage.estimate();
+   $('quota').textContent='本地已用 '+(q.usage||0).toLocaleString()+' B'+(q.quota?' / 可用配额 '+q.quota.toLocaleString()+' B':'');
+   say('已展开本地存储与文件诊断。');return;
   }
   if(key==='tools'){
-   const id=Number($('source').value),url=$('source').selectedOptions[0]?.dataset.sourceUrl;
-   if(!id||!url){say('请选择已打开的 ChatGPT 对话，再点击“打开此对话的搜索与时间轴”。',true);return;}
-   safe(async()=>{await call('tl:openTools',{tabId:id,expectedUrl:url});say('已在原对话打开搜索与时间轴。');});
+   toolsPanel.hidden=false;livePanel.hidden=true;
+   const rows=await call('tl:sources'),old=toolsSource.value;
+   toolsSource.replaceChildren(new Option('选择来源对话',''));
+   const names=displayLabels(rows,row=>row.title,'标签页');
+   rows.forEach((row,index)=>{const option=new Option(names[index],String(row.id));option.dataset.sourceUrl=row.url;toolsSource.add(option);});
+   if(rows.some(row=>String(row.id)===old))toolsSource.value=old;
+   else if(rows.length===1)toolsSource.value=String(rows[0].id);
+   toolsOpen.disabled=!toolsSource.value;
+   say(rows.length?'请选择要打开搜索与时间轴的对话。':'请先在浏览器标签页打开并登录 ChatGPT 对话。',!rows.length);
   }
  }
+ toolsSource.addEventListener('change',()=>{toolsOpen.disabled=!toolsSource.value;});
+ diagnosticDetails.append($('quota'),$('persist'));
  for(const[key,title,description]of featureRows){
   const input=n('input',null,{type:'checkbox',id:'pref-'+key}),l=n('label',null,{class:'preference-row'}),copy=n('span',null,{class:'preference-copy'});
   copy.append(n('span',title,{class:'preference-title'}));
   const detail=n('details',null,{class:'preference-help'});detail.append(n('summary','用途'),n('p',description));
-  const action=button('打开功能','feature-open-'+key,()=>openFeature(key),'quiet preference-open');
+  const captions={context:'选择档案',live:'设置来源',diagnostics:'查看诊断',passages:'打开档案',tools:'选择对话'};
+  const action=button(captions[key],'feature-open-'+key,()=>openFeature(key),'quiet preference-open');
   action.hidden=!prefs[key];l.append(copy,input);settingsBox.append(l,action,detail);
   input.addEventListener('change',()=>safe(async()=>{
    const old=prefs[key],next=input.checked;input.disabled=true;
    try{
     await chrome.storage.local.set({cfPreferences:{...prefs,[key]:next}});
     prefs[key]=next;applyPreferences();action.hidden=!next;
-    if(next){say('已开启“'+title+'”，正在打开功能。');openFeature(key);}
+    if(next)say('已开启“'+title+'”。点击“'+action.textContent+'”继续。');
     else say('已关闭“'+title+'”。');
    }catch(error){prefs[key]=old;input.checked=old;applyPreferences();action.hidden=!old;throw error;}
    finally{input.disabled=false;}
   }));
  }
  const experimentInfo=n('div',null,{class:'experiment-direct-entry'});
- experimentInfo.append(n('strong','并行实验'),button('打开并行实验','settings-open-experiments',()=>chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')}),'primary'));
+ experimentInfo.append(n('strong','并行实验'),button('打开并行实验','settings-open-experiments',()=>ChatFlowExperimentTabs.toggle(),'quiet'));
  const backup=n('details',null,{class:'advanced'});backup.append(n('summary','任务备份与恢复'));
  const backupButton=button('下载任务备份','task-backup',async()=>{
   backupButton.disabled=true;let url=null,downloadId=null;
@@ -288,7 +311,7 @@
   }catch(e){if(!downloadId&&url)URL.revokeObjectURL(url);throw e;}
   finally{backupButton.disabled=false;}
  });backup.append(backupButton);
- const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复未完成，请检查备份文件；如持续失败，可在高级功能中查看诊断信息。'),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,experimentInfo,backup,settingsStatus);main.append(settings);
+ const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复未完成，请检查备份文件；如持续失败，可在高级功能中查看诊断信息。'),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,livePanel,toolsPanel,experimentInfo,backup,settingsStatus);main.append(settings);
  function applyPreferences(){for(const[k,v]of Object.entries(prefs)){document.body.classList.toggle('feature-'+k,!!v);$('pref-'+k).checked=!!v;const action=$('feature-open-'+k);if(action)action.hidden=!v;}if(!prefs.live)$('live').checked=false;}
  document.addEventListener('chatflow:view',e=>{if(e.detail!=='tasks')stopSelectionWatch();invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
  async function claimQuickSelection(){
