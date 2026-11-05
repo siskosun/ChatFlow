@@ -64,6 +64,8 @@ async def main():
                 base = 'chrome-extension://' + worker.url.split('/')[2] + '/workspace/'
                 chat = await context.new_page()
                 await chat.goto(SOURCE)
+                native_ask_before=await chat.locator('#native-ask').text_content()
+                assert native_ask_before and native_ask_before.strip(), 'Native ask control missing from fixture'
                 workspace = await context.new_page()
                 workspace.on('pageerror', lambda e: errors.append('workspace: ' + str(e)))
                 await workspace.goto(base + 'index.html')
@@ -219,7 +221,8 @@ async def main():
                 }""")
                 assert position['own']['left'] >= position['ask']['right']-2, position
                 assert abs(position['own']['top']-position['ask']['top'])<8, position
-                assert (await chat.locator('#native-ask').text_content() or '').strip()=='向 ChatGPT 提问'
+                native_ask_after=await chat.locator('#native-ask').text_content()
+                assert native_ask_after==native_ask_before,{'before':repr(native_ask_before),'after':repr(native_ask_after)}
                 await chat.evaluate('()=>getSelection().removeAllRanges()')
                 await wait(chat, "()=>document.querySelector('#chatflow-selected-action')?.hidden===true")
                 passed('selected_text_action_aligns_with_observable_native_quote_without_replacing_it')
