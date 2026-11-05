@@ -52,8 +52,8 @@ for(const html of ['workspace/index.html','workspace/experiments.html']){
 const tools=[...read('src/tl-task-service.js').matchAll(/files:\s*\[([^\]]+)\]/g)].map(m=>[...m[1].matchAll(/['"]([^'"]+\.js)['"]/g)].map(x=>x[1])).find(xs=>xs.includes('src/tl-tools-page.js'));
 assert.ok(tools,'Explicit optional-tools load order required');checkOrder('optional tools',tools);
 // The on-demand task-source path also runs on tabs predating extension install.
-const taskSourceScripts=[...read('src/tl-task-service.js').matchAll(/files:\\s*\\[([^\\]]+)\\]/g)]
- .map(m=>[...m[1].matchAll(/['"]([^'"]+\\.js)['"]/g)].map(x=>x[1]))
+const taskSourceScripts=[...read('src/tl-task-service.js').matchAll(/files:\s*\[([^\]]+)\]/g)]
+ .map(m=>[...m[1].matchAll(/['"]([^'"]+\.js)['"]/g)].map(x=>x[1]))
  .find(xs=>xs.includes('src/tl-page-scope.js')&&!xs.includes('src/tl-tools-page.js'));
 assert.ok(taskSourceScripts,'Task source injection list is required');
 checkOrder('task source scope',taskSourceScripts);
