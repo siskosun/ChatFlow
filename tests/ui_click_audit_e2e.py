@@ -255,7 +255,15 @@ async def main():
                     const range=document.createRange();range.setStart(node,0);
                     range.setEnd(node,node.textContent.length);
                     const box=range.getBoundingClientRect(),ask=document.getElementById('native-ask');
-                    ask.style.left=box.left+'px';ask.style.top=Math.max(4,box.top-45)+'px';
+                    // Populate a long-thread DOM with more than 450 unrelated controls.
+                    // The real quote popover is usually appended after those controls.
+                    for(let i=0;i<600;i++){
+                        const decoy=document.createElement('button');
+                        decoy.type='button';decoy.hidden=true;decoy.textContent='unrelated';
+                        ask.before(decoy);
+                    }
+                    ask.style.left=(box.left+24)+'px';
+                    ask.style.top=Math.min(innerHeight-50,box.bottom+12)+'px';
                     const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
                 }""")
                 await wait(chat, """()=>{const host=document.querySelector('#chatflow-selected-action');
