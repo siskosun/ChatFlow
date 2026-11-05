@@ -211,8 +211,44 @@ async function applyHandoffEvidence(msg,sender){
   lastError:code,reportedAt:new Date().toISOString()};
  await S.set('handoffs',updated);return updated;
 }
+const QUICK_SELECTION_KEY = 'cfPendingSelectedTask';
+async function quickSelection(msg,sender){
+ C.check(trusted(sender)&&Number.isInteger(sender?.tab?.id)&&sender.documentId,'SOURCE_LOCK_REQUIRED');
+ C.check(typeof msg.text==='string'&&msg.text.trim()&&msg.text.length<=20000,'TASK_TEXT_LIMIT');
+ const source=C.chatUrl(sender.url||sender.tab.url),declared=C.chatUrl(msg.url);
+ C.check(source.url===declared.url,'TASK_SOURCE_CHANGED');
+ // Preserve Chromium's trusted user activation: open before the first await.
+ // Tab/document identity and payload are still validated before persistence.
+ const opened=api.sidePanel.open({tabId:sender.tab.id});
+ const tab=await api.tabs.get(sender.tab.id);
+ C.check(C.chatUrl(tab.url).url===source.url,'TASK_SOURCE_CHANGED');
+ const pending={tabId:sender.tab.id,documentId:sender.documentId,url:source.url,
+  text:msg.text,at:Date.now(),nonce:C.id(),evidence:msg.evidence==='confirmed'?'confirmed':'unverified',
+  messageId:msg.evidence==='confirmed'?msg.messageId||null:null};
+ try { await api.storage.session.set({[QUICK_SELECTION_KEY]:pending});await opened; }
+ catch(error){await api.storage.session.remove(QUICK_SELECTION_KEY).catch(()=>{});throw error;}
+ return {opened:true};
+}
+async function claimQuickSelection(sender){
+ workspace(sender);
+ const pending=(await api.storage.session.get(QUICK_SELECTION_KEY))[QUICK_SELECTION_KEY];
+ if(!pending)return null;
+ if(!Number.isInteger(pending.tabId)||Date.now()-pending.at>90000||Date.now()-pending.at<0){await api.storage.session.remove(QUICK_SELECTION_KEY);return null;}
+ let tab;try{tab=await api.tabs.get(pending.tabId);}catch{return null;}
+ try{if(C.chatUrl(tab.url).url!==pending.url)return null;}catch{return null;}
+ // Check the exact document, not just a URL that may have reloaded in place.
+ try{
+  const rows=await api.scripting.executeScript({target:{tabId:pending.tabId,documentIds:[pending.documentId]},func:()=>location.origin+location.pathname});
+  if(!rows.some(row=>row.frameId===0&&row.documentId===pending.documentId&&row.result===pending.url))return null;
+ }catch{return null;}
+ return {tabId:pending.tabId,url:pending.url,text:pending.text,nonce:pending.nonce,evidence:pending.evidence,
+   messageId:pending.messageId,documentId:pending.documentId};
+}
 async function handle(msg,sender){
  C.check(trusted(sender),'FOREIGN_EXTENSION');
+ if(msg.type==='tl:ackQuickSelection'){workspace(sender);const stored=(await api.storage.session.get(QUICK_SELECTION_KEY))[QUICK_SELECTION_KEY];if(stored?.nonce===msg.nonce)await api.storage.session.remove(QUICK_SELECTION_KEY);return {acknowledged:true};}
+ if(msg.type==='tl:quickSelection')return quickSelection(msg,sender);
+ if(msg.type==='tl:claimQuickSelection')return claimQuickSelection(sender);
  if(msg.type==='tl:retryBoot'){workspace(sender);return retryBoot();}
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');
  if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type))return serializeHandoffWrite(()=>applyHandoffEvidence(msg,sender));
