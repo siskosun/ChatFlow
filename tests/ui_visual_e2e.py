@@ -53,7 +53,7 @@ async def main():
        value=await page.evaluate(CHECK);value.update({'view':view,'scheme':scheme,'result':'fail' if value['documentWidth']>width+2 or value['failures'] else 'pass'})
        if (width==360 and scheme=='dark') or (width==1440 and scheme=='light'):await page.screenshot(path=str(OUT/f'ui-{view}-{scheme}-{width}.png'),full_page=True)
        report['cases'].append(value)
-    experiment=await context.new_page();experiment.on('pageerror',lambda e:report['errors'].append(str(e)));await experiment.goto(base+'experiments.html');await experiment.wait_for_function("()=>!document.querySelector('#ff-notice').textContent.includes('正在检查')&&!document.querySelector('#ff-enable').disabled");await experiment.locator('#ff-enable').check();await experiment.wait_for_function("()=>document.querySelector('#ff-enable').checked&&!document.querySelector('#ff-enable').disabled&&!document.querySelector('#ff-local').hidden");await experiment.locator('#ff-p').fill('合成比较任务')
+    experiment=await context.new_page();experiment.on('pageerror',lambda e:report['errors'].append(str(e)));await experiment.goto(base+'experiments.html');await experiment.wait_for_function("()=>!document.querySelector('#ff-notice').textContent.includes('正在检查')&&!document.querySelector('#ff-enable').disabled");await experiment.wait_for_function("()=>!document.querySelector('#ff-local').hidden");await experiment.locator('#ff-p').fill('合成比较任务')
     await experiment.locator('#ff-save').click()
     await experiment.locator('#ff-detail').wait_for(state='visible')
     experiments_ui=await experiment.evaluate("""() => {

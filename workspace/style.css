@@ -298,3 +298,44 @@ main{max-width:760px;padding:16px 22px 34px}
  .top{flex-wrap:wrap}
  .header-actions{width:100%;justify-content:flex-end}
 }
+
+/* Compact, accessible dismissal: close affordance must never grow like a CTA. */
+#status.error,#task-status.error,#settings-status.error,#ff-notice[data-error="true"] {
+  display:flex;align-items:flex-start;gap:8px;line-height:1.55;position:relative;
+  overflow-wrap:anywhere;min-width:0;
+}
+.status-dismiss,button.status-dismiss {
+  display:inline-grid!important;place-items:center!important;flex:0 0 26px!important;
+  width:26px!important;min-width:26px!important;max-width:26px!important;
+  height:26px!important;min-height:26px!important;max-height:26px!important;
+  padding:0!important;margin:0 0 0 auto!important;
+  background:transparent!important;border:1px solid currentColor!important;
+  border-radius:50%!important;color:inherit!important;font:18px/1 system-ui!important;
+  cursor:pointer;box-shadow:none!important;opacity:.82;white-space:nowrap;
+}
+.status-dismiss:hover,.status-dismiss:focus-visible{opacity:1;background:rgba(0,0,0,.04)!important}
+/* Small guidance is optional; task actions, headings and state carry usability. */
+.home-footnote,.journey-note,.task-explainer,.experiment-explainer>.hint{display:none!important}
+#task-status:not(:empty),#status:not(:empty){font-size:14px;line-height:1.55}
+/* Strong feedback instead of disappearing instructions for selected text. */
+.selection-stage{display:flex;flex-direction:column;gap:8px;padding:14px 15px;margin:8px 0 18px;
+ border:1px solid var(--accent);border-radius:12px;background:var(--tint);color:var(--ink)}
+.selection-stage strong{font-weight:700;font-size:15px;line-height:1.5}
+.selection-stage[data-phase="error"]{border-color:var(--error-line);background:var(--error-bg)}
+.selection-stage[data-phase="received"]{border-color:var(--ok)}
+.selection-stage-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.selection-stage-actions a,.selection-stage-actions button{font-size:14px;font-weight:620}
+.selection-stage-actions a{color:var(--accent);padding:7px 0;min-height:34px}
+.selection-stage-actions button{min-height:34px;padding:6px 12px}
+/* Feature switches surface their tools instead of quietly hiding/showing CSS. */
+.preference-row{margin:0!important;padding:14px 0 3px!important}
+.preference-row .preference-title{font-size:15px;font-weight:700}
+.preference-hint{display:none!important}
+.preference-open{margin:3px 0 15px!important;min-height:38px;padding:8px 14px;font-size:14px;border-color:var(--accent);color:var(--accent)}
+.preference-help{margin:0 0 12px;font-size:13px;color:var(--muted)}
+.preference-help summary{display:inline-block;cursor:pointer;padding:4px 0}
+.preference-help p{margin:5px 0 7px}
+.experiment-direct-entry{display:flex;align-items:center;justify-content:space-between;gap:13px;
+ background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:15px;margin-top:13px}
+.experiment-direct-entry strong{font-size:16px}
+.experiment-direct-entry button{min-height:38px;font-size:14px;padding:8px 12px}

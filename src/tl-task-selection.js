@@ -19,33 +19,20 @@
    if(location.origin+location.pathname!==expected){
     send({type:'stopped',reason:'source-changed'});stop();return;
    }
-   const lease=S.freeze();
-   // A uniquely visible thread without an explicit DOM conversation marker
-   // is usable as a user-selected draft, but never claimed as verified.
-   if(!lease.root||!['confirmed','unverified'].includes(lease.status)){
-    send({type:'stopped',reason:'scope-unavailable'});stop();return;
-   }
-   const selection=window.getSelection();
-   if(!selection||selection.isCollapsed||!selection.anchorNode||!selection.focusNode)return;
-   const anchor=selection.anchorNode,focus=selection.focusNode;
-   const el=anchor instanceof Element?anchor:anchor.parentElement;
-   const message=el?.closest('[data-message-id],[data-turn-key],[data-message-author-role]');
-   if(!message||!message.contains(focus)||
-      !S.contains(lease,anchor)||!S.contains(lease,focus)||!S.contains(lease,message)){
-    if(lastHint!=='single-message'){send({type:'hint',reason:'single-message'});lastHint='single-message';}
+   const record=S.selectedMessage(MAX);
+   if(record.status==='empty')return;
+   if(record.status!=='selected'){
+    const reason=record.reason==='scope-unavailable'?'scope-unavailable':'single-message';
+    if(lastHint!==reason){send({type:'hint',reason});lastHint=reason;}
     return;
    }
    lastHint='';
-   const value=String(selection);
-   if(!value.trim()||!S.unchanged(lease))return;
-   const tooLong=value.length>MAX;
-   const fingerprint=lease.generation+'|'+(message.getAttribute('data-message-id')||'')+'|'+value;
+   const fingerprint=record.generation+'|'+(record.messageId||'')+'|'+record.text;
    if(fingerprint===previous)return;
    previous=fingerprint;
    send({type:'selection',url:expected,
-    text:tooLong?'':value,length:value.length,tooLong,
-    evidence:lease.status==='confirmed'?'confirmed':'unverified',
-    messageId:message.getAttribute('data-message-id')||null});
+    text:record.text,length:record.length,tooLong:record.tooLong,
+    evidence:record.evidence,messageId:record.messageId});
   }
   function schedule(){if(!active)return;clearTimeout(timer);timer=setTimeout(read,180);}
   port.onMessage.addListener(msg=>{

@@ -32,6 +32,32 @@ async def wait_async(page, expression, arg=None, timeout=30000):
             raise TimeoutError('Resolved asynchronous predicate did not become true: '+expression)
         await asyncio.sleep(0.1)
 
+async def assert_exact_experiment_prefill(branch_page, frozen, experiment_page):
+    """Fail with page and branch evidence instead of an opaque prefill timeout."""
+    try:
+        await branch_page.wait_for_function(
+            "(expected)=>{const e=document.querySelector('#prompt-textarea');"
+            "return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",
+            arg=frozen, timeout=30000)
+    except Exception as error:
+        try:
+            state=await branch_page.evaluate("""()=>({
+              url:location.href, readyState:document.readyState,
+              composer:[...document.querySelectorAll('#prompt-textarea')].map(e=>({
+                length:String(e.value||e.innerText||e.textContent||'').length,
+                prefix:String(e.value||e.innerText||e.textContent||'').slice(0,100)})),
+              notice:document.querySelector('#chatflow-experiment-notice')?.innerText?.slice(0,350)||null
+            })""")
+        except Exception as inspect_error:
+            state={'inspectionError':str(inspect_error)}
+        try:
+            branch_state=(await experiment_page.locator('#ff-branch-boxes').inner_text())[:1200]
+        except Exception as inspect_error:
+            branch_state=str(inspect_error)
+        raise AssertionError(
+            'Exact prefill absent in one synthetic branch: '+repr({
+                'expectedLength':len(frozen),'page':state,'branches':branch_state})) from error
+
 def xlsx_fixture():
     b=io.BytesIO()
     with zipfile.ZipFile(b,'w',zipfile.ZIP_DEFLATED) as z:
@@ -161,7 +187,7 @@ async def main():
             assert await workspace.locator('#source-empty-help').count()==1
             assert await workspace.locator('#source-empty-help a').get_attribute('href')=='https://chatgpt.com/'
             passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
-            assert await workspace.locator('#home-view .flow-choice').count()==2
+            assert await workspace.locator('#home-view .flow-choice').count()==3
             assert await workspace.locator('#home-view').is_visible()
             assert not await workspace.locator('.context-toolbar').is_visible()
             await workspace.locator('#home-view [data-view="capture"]').click()
@@ -217,9 +243,15 @@ async def main():
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
             passed('ux_home_one_primary_action_and_clear_save_task',{'widths':[320,360,1280],'primary_actions':1})
-            await workspace.locator('[data-view="settings"]').click()
             for feature in ['context','live','diagnostics','passages']:
+                await workspace.locator('[data-view="settings"]').click()
                 await workspace.locator('#pref-'+feature).check()
+                # Enabling a feature now takes the user to its actual work area.
+                target='archive' if feature in ['context','passages'] else 'capture'
+                await workspace.locator('#'+target+'-view').wait_for(state='visible')
+                assert await workspace.locator('#pref-'+feature).is_checked()
+                assert (await workspace.evaluate('key=>chrome.storage.local.get("cfPreferences").then(v=>v.cfPreferences?.[key])',feature)) is True
+            await workspace.locator('[data-view="settings"]').click()
             await workspace.locator('#settings-view [data-view="home"]').click()
             await workspace.locator('#home-view [data-view="capture"]').click()
             # A conversation opened after the workspace must appear without manual refresh.
@@ -234,7 +266,10 @@ async def main():
             assert await workspace.evaluate('window.fixtureAsyncReady') is True
             passed('async_database_waiter_awaits_resolved_predicate')
             await workspace.locator('#capture').scroll_into_view_if_needed()
-            await workspace.locator('details.advanced summary').first.click()
+            # A preference may have opened these settings already. Do not
+            # toggle an open panel closed before interacting with its controls.
+            if not await workspace.locator('#allow-media').is_visible():
+                await workspace.locator('#capture-view details.advanced summary').click()
             await workspace.locator('#allow-media').uncheck();await workspace.locator('#capture').click()
             await wait_async(workspace,'async()=>{const xs=await TLStore.all("captures");return xs.length>0&&xs[0].snapshot&&["ready","partial"].includes(xs[0].state)}',timeout=90000)
             captures=await workspace.evaluate('TLStore.all("captures")');cap=captures[0];cid=cap['id']
@@ -621,7 +656,12 @@ async def main():
             passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
-            await experiment_page.locator('#ff-enable').wait_for(state='visible')
+            await experiment_page.locator('#ff-create').wait_for(state='visible')
+            assert await experiment_page.locator('#ff-bytes').is_hidden(), 'Byte counts are not needed before a limit warning'
+            assert await experiment_page.locator('#ff-import-file').is_hidden(), 'JSON import belongs in advanced backups'
+            await experiment_page.locator('.experiment-options summary').click()
+            assert await experiment_page.locator('#ff-import-file').is_visible()
+            await experiment_page.locator('.experiment-options summary').click()
             assert await experiment_page.locator('#ff-notice').get_attribute('role')=='status'
             await wait_async(experiment_page,'()=>document.querySelector("#ff-notice").textContent===""')
             assert await experiment_page.locator('#ff-action-status').count()==0
@@ -631,13 +671,14 @@ async def main():
             await experiment_page.keyboard.press('Tab')
             assert await experiment_page.evaluate("document.activeElement.classList.contains('back')")
             await experiment_page.keyboard.press('Tab')
-            assert await experiment_page.evaluate("document.activeElement.id==='ff-enable'")
+            assert await experiment_page.evaluate("document.activeElement.id==='ff-p'")
             for width in [320,360,480,768,1280]:
                 await experiment_page.set_viewport_size({'width':width,'height':900})
                 assert await experiment_page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await experiment_page.screenshot(path=str(OUT/f'ux-experiments-{width}.png'),full_page=True)
-            await experiment_page.locator('#ff-enable').check()
             await experiment_page.locator('#ff-create').wait_for(state='visible')
+            assert await experiment_page.locator('#ff-local').is_visible()
+            await experiment_page.locator('#ff-optional-material summary').click()
             await experiment_page.locator('#ff-w0').fill('frozen shared material')
             await experiment_page.locator('#ff-p').fill('compare two independent answers')
             await experiment_page.locator('#ff-branch-count').select_option('2')
@@ -645,7 +686,8 @@ async def main():
             await experiment_page.locator('#ff-list button').first.wait_for(state='visible',timeout=30000)
             await experiment_page.locator('#ff-list button').first.click()
             await experiment_page.locator('#ff-launch').wait_for(state='visible')
-            frozen=await experiment_page.locator('#ff-text').inner_text()
+            frozen=(await experiment_page.locator('#ff-text').text_content()) or ''
+            assert frozen.strip(), 'Frozen experiment material must remain nonempty even when its details are collapsed'
             existing=set(ctx.pages)
             await experiment_page.locator('#ff-launch').click()
             branch_pages=[]
@@ -655,7 +697,7 @@ async def main():
                 await asyncio.sleep(0.25)
             assert len(branch_pages)==2,[(p.url for p in ctx.pages)]
             for branch_page in branch_pages:
-                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen,timeout=30000)
+                await assert_exact_experiment_prefill(branch_page,frozen,experiment_page)
                 assert await branch_page.evaluate('window.sends||0')==0
             await experiment_page.locator('#ff-refresh').click()
             await experiment_page.locator('#ff-list button').first.click()
@@ -689,12 +731,14 @@ async def main():
             passed('experiment_refresh_updates_current_capture_status_without_reselecting')
             passed('parallel_experiment_k2_manual_send_capture_completion_and_blind_comparison')
             for branch_count in [3,4]:
+                await experiment_page.locator('#ff-optional-material summary').click() if not await experiment_page.locator('#ff-optional-material').evaluate('(e)=>e.open') else None
                 await experiment_page.locator('#ff-w0').fill('shared material for K='+str(branch_count))
                 await experiment_page.locator('#ff-p').fill('compare independent branches K='+str(branch_count))
                 await experiment_page.locator('#ff-branch-count').select_option(str(branch_count))
                 await experiment_page.locator('#ff-save').click()
                 await experiment_page.locator('#ff-launch').wait_for(state='visible')
-                frozen_k=await experiment_page.locator('#ff-text').inner_text()
+                frozen_k=(await experiment_page.locator('#ff-text').text_content()) or ''
+                assert frozen_k.strip(), 'Frozen K='+str(branch_count)+' material must be nonempty'
                 existing_k=set(ctx.pages)
                 await experiment_page.locator('#ff-launch').click()
                 pages_k=[]
@@ -704,7 +748,7 @@ async def main():
                     await asyncio.sleep(0.25)
                 assert len(pages_k)==branch_count,{'expected':branch_count,'actual':len(pages_k)}
                 for branch_page in pages_k:
-                    await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen_k,timeout=30000)
+                    await assert_exact_experiment_prefill(branch_page,frozen_k,experiment_page)
                     assert await branch_page.evaluate('window.sends||0')==0
                 passed('parallel_experiment_k'+str(branch_count)+'_opens_exact_branch_count_with_identical_prefill_and_no_send',{'branches':branch_count})
                 for index,branch_page in enumerate(pages_k):
@@ -735,7 +779,14 @@ async def main():
                 for page in pages_k:await page.close()
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
+            # Details visibility can lag behind checkbox visibility checks.
+            # Open the actual disclosure before interacting with its control.
+            options = experiment_page.locator('.experiment-options')
+            if not await options.evaluate('(el) => el.open'):
+                await options.locator('summary').click()
+            await experiment_page.locator('#ff-enable').wait_for(state='visible')
             await experiment_page.locator('#ff-enable').uncheck()
+            assert not await experiment_page.locator('#ff-enable').is_checked()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
         except Exception as e:

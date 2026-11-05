@@ -49,14 +49,17 @@
     // would obscure a browser viewport and repeat the same text.
     const el=$("ff-notice"),value=String(error?readableError(message):message||'');
     clearTimeout(el._chatflowTimer);el.replaceChildren(document.createTextNode(value));el.dataset.error=String(error);
-    if(value&&error){const close=document.createElement('button');close.type='button';close.textContent='关闭提示';close.className='status-dismiss';close.setAttribute('aria-label','关闭当前错误提示');close.addEventListener('click',()=>{el.textContent='';el.dataset.error='false';});el.append(close);}
+    if(value&&error){const close=document.createElement('button');close.type='button';close.textContent='×';close.className='status-dismiss';close.setAttribute('aria-label','关闭当前错误提示');close.addEventListener('click',()=>{el.textContent='';el.dataset.error='false';});el.append(close);}
     else if(value)el._chatflowTimer=setTimeout(()=>{if(el.textContent===value)el.textContent='';},4500);
   }
   function bytes() {
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
     const size = ChatFlowExperimentCore.byteLength(value);
-    $("ff-bytes").textContent = "最终发送文本：" + size.toLocaleString() +
-      " / 24,000 UTF-8 字节" + (size>ChatFlowExperimentCore.MAX_BYTES?" · 超限；全文已保留，请缩短后继续。":"");
+    const hint=$("ff-bytes"),overLimit=size>ChatFlowExperimentCore.MAX_BYTES;
+    hint.hidden=!overLimit && size<ChatFlowExperimentCore.MAX_BYTES*0.8;
+    hint.textContent=overLimit
+      ? "内容超限，全文已保留。请缩短后再保存。"
+      : "内容较长，接近任务长度上限。";
     for(const id of inputs)$(id).setAttribute('aria-invalid',String(size>ChatFlowExperimentCore.MAX_BYTES));
     $("ff-save").disabled = createBusy || size > ChatFlowExperimentCore.MAX_BYTES || !$("ff-p").value.trim();
   }
@@ -278,7 +281,7 @@
       b.status === "pending" || b.status === "done");
     $("ff-branches").hidden = false;
     $("ff-launch").disabled = launched && blocked;
-    $("ff-launch").textContent = launched ? "重新发起（仅当所有分支都非进行中且未完成）" : "发起 "+Object.keys(value.branches).length+" 个分支标签";
+    $("ff-launch").textContent = launched ? "重新发起分支（已有结果时不可操作）" : "打开 "+Object.keys(value.branches).length+" 个聊天并预填任务";
     // P4: render every branch's operations, not just A/B.
     const branchBoxes = $("ff-branch-boxes");
     branchBoxes.replaceChildren();
@@ -348,10 +351,12 @@
   async function refresh() {
     const status = await send({type:"FF_STATUS"});
     $("ff-enable").checked = status.enabled === true;
-    $("ff-local").hidden = status.enabled !== true;
+    // The setup form is a real working surface even before the first opt-in.
+    // Saving a task is the explicit consent to enable local-only experiments.
+    $("ff-local").hidden = false;
     if (status.enabled) await list();
-    else $("ff-detail").hidden = true;
-    notice(status.enabled ? "并行实验已启用；发送仍由你手动完成。" : "");
+    else { $("ff-detail").hidden = true;$("ff-list").textContent = "填好任务并保存即可开始。"; }
+    notice("");
     bytes();
   }
   $("ff-enable").addEventListener("change", async event => {
@@ -381,6 +386,10 @@
     $("ff-save").disabled = true;
     try {
       const w0 = $("ff-w0").value, p = $("ff-p").value;
+      if (!$("ff-enable").checked) {
+        await send({type:"FF_SET_ENABLED",enabled:true,ack:"local-only-no-send"});
+        $("ff-enable").checked = true;
+      }
       if (!pendingCreate || pendingCreate.w0 !== w0 || pendingCreate.p !== p)
         pendingCreate = await createIntent(w0,p);
       const intent = pendingCreate;
@@ -393,7 +402,8 @@
       // new create. Keep the same durable ID until the result is visible.
       acknowledgeIntent(intent.operationId);
       if (pendingCreate?.operationId === intent.operationId) pendingCreate = null;
-      notice("已冻结并保存到独立本地数据库；没有打开或发送网页消息。");
+      notice("任务已保存。下一步点击“打开聊天并预填任务”。不会自动发送。 ");
+      $("ff-branches").scrollIntoView({block:"start",behavior:"auto"});
     } catch (error) {
       notice(saved ? "实验已保存，但刷新页面显示失败。保留原输入再次操作可恢复本次结果。" : error.message,true);
     } finally {createBusy = false; bytes();}
@@ -455,8 +465,29 @@
     try {
       await send({type:"FF_LAUNCH", experimentId:currentExperiment,
         operationId:crypto.randomUUID()});
-      await read(currentExperiment);
-      notice(Object.keys(currentData?.branches||{}).length+" 个分支已创建并预填；请逐个核对内容后手动发送。");
+      const launchedId=currentExperiment;
+      await read(launchedId);
+      if(currentExperiment!==launchedId)return;
+      const count=Object.keys(currentData?.branches||{}).length;
+      // A successful tab launch does not prove that any target composer has
+      // accepted the frozen text. Only the exact acknowledgement is evidence.
+      notice("已打开 "+count+" 个分支标签页。预填尚待逐个核对；请在各标签确认内容后手动发送。");
+      for(const delay of [2000,6000,12000,20000]){
+        setTimeout(async()=>{
+          if(currentExperiment!==launchedId)return;
+          try{
+            await read(launchedId);
+            if(currentExperiment!==launchedId)return;
+            const branches=Object.values(currentData?.branches||{});
+            const acknowledged=branches.filter(b=>b.attempts.at(-1)?.evidence?.prefill==="exact_ack").length;
+            if(acknowledged===branches.length&&branches.length) {
+              if(delay===2000)notice("全部 "+acknowledged+" 个分支预填已核实。请核对后手动发送。");
+            } else if(delay===20000){
+              notice("已核实 "+acknowledged+"/"+branches.length+" 个分支的预填。未核实的分支可点击“重新预填此分支”；不会自动发送。",true);
+            }
+          }catch{if(delay===20000)notice("预填状态暂时无法读取，请点击“刷新实验”查看未确认分支。",true);}
+        },delay);
+      }
     } catch (e) { notice(e.message, true); await read(currentExperiment).catch(()=>{}); }
     finally { const value=currentData;button.disabled=!value||(Object.values(value.branches).some(b=>b.attempts.length>0)&&Object.values(value.branches).some(b=>b.status==="pending"||b.status==="done")); }
   });

@@ -34,6 +34,21 @@
       border:1px solid var(--line);border-radius:10px;background:var(--code-bg);padding:14px;font:13px/1.55 ui-monospace,Consolas,monospace}
     .mono{font:13px/1.55 ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
     .surface input[type=file]{max-width:100%}
+    .experiment-path{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0 12px}
+    .experiment-path span{display:grid;place-items:center;min-height:47px;padding:9px 5px;background:var(--tint);border-radius:10px;font-size:14px;font-weight:690;text-align:center}
+    .experiment-status{border:none;box-shadow:none;padding:0;margin:0}
+    .experiment-status:has(#ff-notice:empty){display:none}
+    .experiment-meta{font-size:15px;font-weight:650}
+    .experiment-optional{margin:13px 0 18px;border:1px solid var(--line);border-radius:10px;padding:0 12px}
+    .experiment-optional summary,.experiment-review summary,.experiment-options summary{cursor:pointer;padding:12px 3px;font-size:14px;font-weight:650}
+    .experiment-optional textarea{min-height:115px;margin-bottom:13px}
+    .experiment-review{border:1px solid var(--line);border-radius:10px;padding:0 10px;margin-bottom:12px}
+    .experiment-options{margin:20px 0;padding:0 14px;border:1px solid var(--line);border-radius:11px;background:var(--paper)}
+    #ff-save,#ff-launch{min-height:49px;font-size:15px}
+    #ff-p{min-height:125px;font-size:16px}
+    #ff-notice{font-size:15px;line-height:1.55}
+    .subtle{font-size:14px}
+    @media(max-width:400px){.experiment-path span{font-size:12px;padding:8px 3px}}
     #ff-branch-boxes>*,#ff-columns>*{min-width:0}
     @media(max-width:620px){body{padding:12px 14px 32px}.grid{grid-template-columns:minmax(0,1fr)}.surface{padding:15px}}
   
@@ -60,39 +75,34 @@
 </head>
 <body>
   <nav class="topbar" aria-label="ChatFlow 导航"><a class="brand" href="index.html">ChatFlow</a><a class="back" href="index.html">返回主工作区</a></nav>
-  <header><h1>并行对照实验</h1>
-    <p class="subtle">对 2—4 个独立聊天使用相同材料，结果由你比较。发送始终手动完成。</p>
-  </header>
-  <section class="surface" aria-label="功能开关">
-    <label class="line" for="ff-enable"><input type="checkbox" id="ff-enable"/>启用并行实验</label>
-    <p id="ff-notice" role="status" aria-live="polite">正在检查本地状态…</p>
-  </section>
+  <header><h1>同一任务，对比多个回答</h1></header>
+  <nav class="experiment-path" aria-label="使用步骤"><span>1 · 写任务</span><span>2 · 发到各聊天</span><span>3 · 比较答案</span></nav>
+  <section class="surface experiment-status" aria-label="操作状态"><p id="ff-notice" role="status" aria-live="polite">正在准备…</p></section>
   <div id="ff-local" hidden>
     <section class="surface" aria-label="新建冻结实验">
-      <h2><span class="step-indicator" aria-hidden="true">01</span>新建实验</h2>
+      <h2><span class="step-indicator" aria-hidden="true">01</span>先写任务</h2>
       <form id="ff-create">
-        <div class="grid">
-          <div><label for="ff-w0">共同材料（可选）</label><textarea id="ff-w0" spellcheck="false" placeholder="各条未来分支共同使用的背景资料"></textarea></div>
-          <div><label for="ff-p">任务指令</label><textarea id="ff-p" required spellcheck="false" placeholder="写下各条分支要执行的同一任务"></textarea></div>
-        </div>
-        <p id="ff-bytes" class="subtle" aria-live="polite">最终发送文本：0 / 24,000 UTF-8 字节</p>
-        <label class="line" for="ff-branch-count">并行分支数（2–4）
-          <select id="ff-branch-count"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+        <label for="ff-p">你想让几个聊天完成什么任务？</label>
+        <textarea id="ff-p" required spellcheck="false" placeholder="例如：比较两个方案的优缺点，给出建议。"></textarea>
+        <details id="ff-optional-material" class="experiment-optional"><summary>加入共同背景材料（可选）</summary>
+          <label for="ff-w0">所有分支都会收到这份材料</label>
+          <textarea id="ff-w0" spellcheck="false" placeholder="粘贴补充背景；也可以留空"></textarea>
+        </details>
+        <p id="ff-bytes" class="subtle" role="status" aria-live="polite" hidden></p>
+        <label class="line" for="ff-branch-count">对比几个回答？
+          <select id="ff-branch-count"><option value="2">2 个</option><option value="3">3 个</option><option value="4">4 个</option></select>
         </label>
-        <button id="ff-save" type="submit">保存实验</button>
+        <button id="ff-save" class="primary" type="submit">保存任务，进入下一步</button>
       </form>
     </section>
-    <section class="surface" aria-label="实验列表"><h2><span class="step-indicator" aria-hidden="true">02</span>已保存的实验</h2>
+    <section class="surface" aria-label="实验列表"><h2><span class="step-indicator" aria-hidden="true">02</span>之前的任务</h2>
       <button class="secondary" id="ff-refresh" type="button">刷新列表</button>
-      <label class="line">恢复实验 JSON
-        <input type="file" id="ff-import-file" accept="application/json,.json"/>
-      </label>
       <div id="ff-list"></div>
     </section>
     <section class="surface" id="ff-detail" hidden aria-label="冻结结果">
-      <h2><span class="step-indicator" aria-hidden="true">03</span>实验材料</h2>
-      <p id="ff-meta" class="subtle"></p>
-      <pre id="ff-text"></pre>
+      <h2><span class="step-indicator" aria-hidden="true">03</span>当前任务</h2>
+      <p id="ff-meta" class="experiment-meta"></p>
+      <details class="experiment-review"><summary>查看已固定的任务内容</summary><pre id="ff-text"></pre></details>
       <details class="technical-details">
         <summary>技术信息（仅用于核对或故障排查）</summary>
         <p id="ff-tech-revision" class="subtle"></p>
@@ -102,12 +112,12 @@
       </details>
     </section>
     <section class="surface" id="ff-branches" hidden aria-label="分支执行">
-      <h2><span class="step-indicator" aria-hidden="true">04</span>分支执行</h2>
-      <button class="secondary" id="ff-launch" type="button">发起分支（K 个新标签）</button>
+      <h2><span class="step-indicator" aria-hidden="true">04</span>打开聊天，逐个发送</h2>
+      <button class="primary" id="ff-launch" type="button">打开聊天并预填任务（不会发送）</button>
       <div id="ff-branch-boxes"></div>
     </section>
     <section class="surface" id="ff-compare" hidden aria-label="去标签对照与裁决">
-      <h2><span class="step-indicator" aria-hidden="true">05</span>比较结果</h2>
+      <h2><span class="step-indicator" aria-hidden="true">05</span>比较回答</h2>
       <p class="subtle" id="ff-compare-note"></p>
       <button class="secondary" id="ff-compare-btn" type="button">生成去标签对照（所有分支完成后）</button>
       <div id="ff-columns"></div>
@@ -132,6 +142,12 @@
       <button class="secondary" id="ff-export" type="button" hidden>导出自包含 JSON（仅导出）</button>
     </section>
   </div>
+  <details class="experiment-options"><summary>实验设置与备份</summary>
+    <label for="ff-enable" class="line"><input type="checkbox" id="ff-enable"/>允许在本浏览器使用并行实验</label>
+    <label class="line">恢复实验备份
+      <input type="file" id="ff-import-file" accept="application/json,.json"/>
+    </label>
+  </details>
   <p class="subtle" id="ff-version-note" hidden></p>
 
   <script src="../src/experiment-core.js"></script><script src="../src/experiment-db.js"></script><script src="experiments.js"></script>

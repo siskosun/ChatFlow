@@ -13,7 +13,7 @@
  function status(text,error=false){
   const el=$('status'),value=String(text||'').trim();clearTimeout(statusTimeout);
   el.replaceChildren(document.createTextNode(value));el.classList.toggle('error',!!error&&!!value);
-  if(value&&error){const close=node('button','关闭提示','status-dismiss');close.type='button';close.setAttribute('aria-label','关闭当前错误提示');close.onclick=()=>status('');el.append(close);}
+  if(value&&error){const close=node('button','×','status-dismiss');close.type='button';close.setAttribute('aria-label','关闭当前错误提示');close.onclick=()=>status('');el.append(close);}
   else if(value)statusTimeout=setTimeout(()=>{if(el.textContent===value)status('');},4500);
  }
  function node(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;}
