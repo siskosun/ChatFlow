@@ -8,7 +8,7 @@
  Object.assign(errors,{API_JSON_RESPONSE_TOO_LARGE:'对话数据超过安全读取上限，已在解析前停止；未保存不完整数据。',API_JSON_LENGTH_MISMATCH:'API 响应字节数与声明不符，本次读取已停止。',API_JSON_NOT_JSON:'ChatGPT 返回了非 JSON 页面，请确认登录状态并重试。',API_JSON_BODY_MISSING:'对话接口返回空响应体，本次读取已停止。',TOOLS_SOURCE_UNVERIFIED:'当前页面内容来源尚未确认，不能将这些内容作为已核验的对话导出或公式。',SOURCE_CONVERSATION_CHANGED:'来源对话已切换，请重新选择后保存。',SOURCE_DOCUMENT_CHANGED:'来源页面已刷新，请重新选择后保存。',SOURCE_NAVIGATED:'来源对话已切换，采集已停止。',SOURCE_LOCK_REQUIRED:'请重新打开 ChatFlow，再选择来源对话。',DOCUMENT_ID_UNAVAILABLE:'无法确认来源页面，请刷新后重试。',CAPTURE_SESSION_NOT_FOUND:'采集已停止，请重新保存。',LOCAL_FILE_INTEGRITY_FAILED:'本地文件校验失败，未生成备份。请重新保存该文件。',ARCHIVE_SOURCE_MISMATCH:'备份来源与正文不一致，恢复已停止。',ARCHIVE_METADATA_TOO_LARGE:'对话或清单超过备份容量，未生成备份；本地内容仍保留。',HANDOFF_INSTRUCTIONS_TOO_LONG:'接续目标超过 4,000 个字符；全文已保留，请缩短后继续。',INVALID_CONTEXT_QUERY:'筛选关键词超过 500 个字符；全文已保留，请缩短后继续。'});
  Object.assign(errors,{RESTORE_DATABASE_READBACK_FAILED:'档案已导入，但数据库回读失败；请保留原备份。',RESTORE_SNAPSHOT_READBACK_FAILED:'档案已导入，但正文结构回读不一致；请保留原备份。',RESTORE_ASSET_READBACK_FAILED:'档案已导入，但附件清单回读不一致；请保留原备份。',RESTORE_PASSAGE_READBACK_FAILED:'档案已导入，但重点片段回读不一致；请保留原备份。',RESTORE_BLOB_READBACK_FAILED:'档案已导入，但文件字节回读不一致；请保留原备份。',RESTORE_RECEIPT_WRITE_FAILED:'档案已导入并完成读回，但无法保存验证回执；请保留原备份。'});
  Object.assign(errors,{INVALID_CONTEXT_SOURCES:'上下文来源选择无效，请重新选择本地档案。',CONTEXT_SOURCE_NOT_READY:'所选档案尚未准备好，请完成保存或换一份档案。',PASSAGE_SELECTION_REQUIRED:'请先选择要使用的重点片段。',PASSAGE_REANCHOR_SOURCE_MISMATCH:'片段所在对话已经变化，请返回原档案重新定位。',USER_CONFIRMATION_REQUIRED:'请先勾选人工核对确认；这并不代表模型已读取附件。',HANDOFF_NOT_PREPARED:'接续包尚未准备，请先检查历史与文件。',REGENERATE_HANDOFF_AFTER_CHANGES:'接续选项已经变化，请重新准备历史与文件。',EXTENSION_UNAVAILABLE:'扩展后台暂时无响应，请刷新工作区；如仍失败，请重启扩展。',HANDOFF_ALREADY_OPENED:'已经打开此接续包的新聊天，不会重复打开。',NO_VISIBLE_MESSAGES:'当前对话没有可访问的消息，不能生成快照。',SAVE_SCOPE_CHANGED:'保存期间文件范围已更改；未使用过期选择，请重新开始保存。',LIVE_SAVE_MODE_CHANGED:'保存期间实时缓存选项已更改；请重新开始保存。',TAB_CLOSED:'来源标签页已关闭，请重新选择对话。',DOCUMENT_ID_INVALID:'原页面已重载，请重新打开来源对话。',INJECT_FAILED:'无法注入读取脚本，请检查扩展网站权限。',IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS:'本地存储升级被其他 ChatFlow 窗口阻挡；请关闭其他扩展工作区后重试。',STARTUP_FAILED:'扩展启动未完成，请检查存储权限并重新打开工作区。',FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。'});
- function explain(e){const key=String(e?.message||e||'');if(Object.hasOwn(errors,key))return errors[key];if(/^HTTP_\d+$/.test(key))return '远端文件当前不可取得（'+key+'）；不能据此认定文件已永久删除。';return /^[A-Z][A-Z0-9_]{2,100}$/.test(key)?'操作未完成（'+key+'），请检查状态后重试。':'操作未完成，请检查状态或查看工程诊断后重试。';}
+ function explain(e){const key=String(e?.message||e||'');if(Object.hasOwn(errors,key))return errors[key];if(/^HTTP_\d+$/.test(key))return '文件暂时无法下载，请检查登录和网络后重试；不能据此认定文件已被删除。';return '操作未完成，请重试；如持续失败，可在高级功能中查看诊断信息。';}
  let statusTimeout=null;
  function status(text,error=false){
   const el=$('status'),value=String(text||'').trim();clearTimeout(statusTimeout);
@@ -17,6 +17,16 @@
   else if(value)statusTimeout=setTimeout(()=>{if(el.textContent===value)status('');},4500);
  }
  function node(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;}
+ function readableTitle(raw,fallback='未命名对话'){
+  const clean=String(raw??'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim();
+  return clean?[...clean].slice(0,100).join(''):fallback;
+ }
+ function readableLabels(rows,titleOf,kind){
+  const names=rows.map(row=>readableTitle(titleOf(row))),counts=new Map(),seen=new Map();
+  for(const title of names)counts.set(title,(counts.get(title)||0)+1);
+  return names.map(title=>{if(counts.get(title)===1)return title;
+   const index=(seen.get(title)||0)+1;seen.set(title,index);return title+' · '+kind+' '+index;});
+ }
  function preserveIdentityFocus(container){
   const focused=document.activeElement;
   if(!focused||!container.contains(focused)||!focused.dataset?.focusId||!focused.dataset?.focusRole)return()=>{};
@@ -51,7 +61,8 @@
   selector.replaceChildren();
   $('source-empty-help').hidden=rows.length>0;
   if(!rows.length){selector.append(new Option('未找到已打开的 ChatGPT 对话',''));$('capture').disabled=true;return rows;}
-  for(const r of rows){const option=new Option(r.title||r.url,String(r.id));option.dataset.sourceUrl=r.url;selector.append(option);}
+  const names=readableLabels(rows,r=>r.title,'标签页');
+  for(const [i,r] of rows.entries()){const option=new Option(names[i],String(r.id));option.dataset.sourceUrl=r.url;selector.append(option);}
   if(rows.some(r=>String(r.id)===preferred))selector.value=String(preferred);
   $('capture').disabled=!rows.some(r=>String(r.id)===selector.value);
   return rows;
@@ -142,7 +153,7 @@
   archiveCursor=page.nextCursor;const restoreFocus=preserveIdentityFocus(list);list.querySelector('.archive-more')?.remove();
   if(!append)list.replaceChildren();for(const c of page.items){const title=c.title;
    const row=node('div',null,'archive-select-row'),check=document.createElement('input');check.type='checkbox';check.checked=contextSelectedIds.has(c.id);check.disabled=!c.hasSnapshot;check.setAttribute('aria-label','将 '+title+' 加入上下文包');check.dataset.captureId=c.id;check.dataset.focusId='capture:'+c.id;check.dataset.focusRole='checkbox';check.addEventListener('change',()=>{check.checked?contextSelectedIds.add(c.id):contextSelectedIds.delete(c.id);updateContextButton();});
-   const b=button('',()=>choose(c.id),'archive-button');b.dataset.focusId='capture:'+c.id;b.dataset.focusRole='open';b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||c.state)+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
+   const b=button('',()=>choose(c.id),'archive-button');b.dataset.focusId='capture:'+c.id;b.dataset.focusRole='open';b.setAttribute('aria-pressed',String(selectedId===c.id));b.append(node('strong',title),node('small',(labels[c.state]||'状态待确认')+' · '+String(c.updatedAt||c.createdAt).slice(0,16).replace('T',' ')));row.append(check,b);list.append(row);}
   if(archiveCursor)list.append(button('加载更多档案',()=>refreshArchives(true),'archive-more'));
   if(!list.children.length){
    if(q)list.append(node('p','没有匹配的本地档案，请调整关键词。','empty'));
@@ -224,7 +235,7 @@
  function verificationPanel(capture,assets,passages){
   const proof=TLEvidence.report({capture,assets,passages}),panel=node('section');panel.id='verification-report';
   panel.setAttribute('aria-label','\u4fdd\u5b58\u4e0e\u5907\u4efd\u8bc1\u636e');
-  const local=labels[capture.state]||capture.state;
+  const local=labels[capture.state]||'状态待确认';
   const texts={not_checked:'\u672a\u6267\u884c',passed:'\u8be5\u7248\u672c\u6821\u9a8c\u901a\u8fc7',failed:'\u6821\u9a8c\u5931\u8d25',stale:'\u5386\u53f2\u7ed3\u679c\uff1b\u5f53\u524d\u5185\u5bb9\u5df2\u53d8\u5316'};
   const backup=proof.backup.state==='not_checked'?'\u5c1a\u672a\u751f\u6210\u5e76\u6821\u9a8c ZIP':texts[proof.backup.state];
   const restored=proof.restore.state==='not_checked'?(proof.imported?'\u5df2\u5bfc\u5165\uff1b\u5c1a\u65e0\u56de\u8bfb\u9a8c\u8bc1\u8bc1\u636e':'\u672a\u6267\u884c\u5bfc\u5165\u6062\u590d'):texts[proof.restore.state];
@@ -236,7 +247,7 @@
  }
  async function renderDetail(){
   const epoch=++detailEpoch,captureId=selectedId,c=captureId&&await S.get('captures',captureId);if(epoch!==detailEpoch||captureId!==selectedId)return;const host=$('detail'),restoreFocus=host.dataset.captureId===captureId?preserveIdentityFocus(host):()=>{},el=node('div');if(!c){el.append(node('p','请选择一个本地档案。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
-  const title=c.snapshot?.title||c.title||'读取中';el.append(node('h2',title),node('p',(labels[c.state]||c.state)+(c.live?' · 实时缓存开启':''),'state '+(c.state==='ready'?'good':'warn')));
+  const title=c.snapshot?.title||c.title||'读取中';el.append(node('h2',title),node('p',(labels[c.state]||'状态待确认')+(c.live?' · 实时缓存开启':''),'state '+(c.state==='ready'?'good':'warn')));
   if(c.lastError)el.append(node('p',explain(c.lastError),'note'));
   if(!c.snapshot){el.append(node('p','尚未取得对话快照，请查看采集状态。','empty'));host.replaceChildren(el);clearPassageHighlights();return;}
   const snapshot=c.snapshot,rows=await S.assets(c.id),choices=branchChoices(snapshot),savedBranch=branchSelections.get(c.id),choice=choices.find(x=>x.endNode===savedBranch)||choices.find(x=>x.endNode===snapshot.currentNode)||choices[0],activeNodes=choice?.path||snapshot.active,source=node('a','打开源对话');source.href=C.chatUrl(snapshot.source.url).url;source.target='_blank';source.rel='noopener noreferrer';el.append(source);
@@ -256,7 +267,7 @@
   for(const a of rows){
    const row=node('div',null,'file-row'),check=document.createElement('input');check.type='checkbox';check.disabled=a.state!=='saved';check.checked=selectedKeys.has(a.key);check.setAttribute('aria-label','选择 '+a.name);check.dataset.assetKey=a.key;
    check.addEventListener('change',()=>{check.checked?selectedKeys.add(a.key):selectedKeys.delete(a.key);guard(updateSelection);invalidate();});
-   const origin=a.origin==='assistant_generated'||(!a.origin&&a.kind==='generated')?'助手生成':a.origin==='user_uploaded'?'用户上传':'来源未确认';const info=node('div');info.append(node('strong',a.name),node('span',labels[a.state]||a.state,'state '+(a.state==='saved'?'good':'warn')),node('small',origin+(a.state==='saved'?' · '+bytes(a.size):'')));
+   const origin=a.origin==='assistant_generated'||(!a.origin&&a.kind==='generated')?'助手生成':a.origin==='user_uploaded'?'用户上传':'来源未确认';const info=node('div');info.append(node('strong',a.name),node('span',labels[a.state]||'状态待确认','state '+(a.state==='saved'?'good':'warn')),node('small',origin+(a.state==='saved'?' · '+bytes(a.size):'')));
    if(a.reason)info.append(node('p',explain(a.reason),'hint'));
    if(a.state==='saved'){const buttons=node('div',null,'actions');buttons.append(button('下载原件',async()=>download(await S.verifiedBlob(a.sha256),a.name)));info.append(buttons);const d=node('details');d.append(node('summary','文件信息'),node('pre','SHA-256: '+a.sha256+'\nMIME: '+a.mime+'\n消息: '+a.messageId));info.append(d);}
    row.append(check,info);fileList.append(row);
@@ -298,12 +309,12 @@
    info.append(controls);row.append(check,info);passageSection.append(row);
   }
   el.append(passageSection);
-  const d=node('details');d.open=true;d.append(node('summary','阅读所选分支历史（'+activeNodes.length+' 个节点）'));
+  const d=node('details');d.open=true;d.append(node('summary','历史消息（'+activeNodes.length+'）'));
   const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m])),messages=activeNodes.map(n=>byNode.get(n)).filter(Boolean),messageElements=new Map(),rangesByColor=new Map();
   for(const color of ['yellow','green','blue','pink'])rangesByColor.set(color,[]);
-  for(const m of messages.slice(0,messageLimit)){
+  for(const [index,m] of messages.slice(0,messageLimit).entries()){
    const block=node('div',null,'message');block.dataset.messageId=m.id;block.dataset.nodeId=m.nodeId;
-   block.append(node('strong',m.role+' · '+m.id));
+   block.append(node('strong',({user:'我',assistant:'ChatGPT',system:'系统消息',tool:'工具结果'}[m.role]||'历史消息')+' · 第 '+(index+1)+' 条'));
    const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';pre.dataset.focusId='message:'+m.nodeId;pre.dataset.focusRole='text';pre.tabIndex=0;pre.setAttribute('aria-label','历史消息正文，可用键盘选择文字并保存重点片段');block.append(pre);
    let pending=null;const save=button('保存选中片段',async()=>{
     C.check(pending,'PASSAGE_SELECTION_REQUIRED');
@@ -378,7 +389,7 @@
    control.textContent=checked?'\u5df2\u4eba\u5de5\u6838\u5bf9':'\u6807\u8bb0\u4e3a\u5df2\u4eba\u5de5\u6838\u5bf9';
   }
 
-  const message=(labels[h.state]||h.state)+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
+  const message=(labels[h.state]||'状态待确认')+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
   const ready=h.state==='prepared'&&planFingerprint===fingerprint()&&fresh;
   $('prepare').hidden=ready;
   $('prepare').textContent='重新准备历史与文件';
