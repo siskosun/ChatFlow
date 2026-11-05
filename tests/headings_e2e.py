@@ -95,10 +95,12 @@ async def main():
                 await observed_outline.locator('summary').wait_for(state='visible')
                 assert 'Section' in await observed_outline.locator('summary').inner_text()
                 await observed_outline.locator('summary').click()
-                # The four heading labels come from the actual mounted answer.
+                # details.toggle fires asynchronously after the summary click;
+                # wait for the rendered outline instead of racing the callback.
+                await poll(observed,"()=>{const root=document.querySelector('#chatflow-page-tools')?.shadowRoot;return root&&root.querySelectorAll('.cf-heading,.cf-outline').length===4;}")
                 names=await observed_outline.locator('.cf-heading,.cf-outline').all_text_contents()
                 assert names==['Section','Duplicate','Duplicate','Deep'],names
-                assert '仅已加载' in await observed_tools.inner_text()
+                assert await observed.evaluate("()=>document.querySelector('#chatflow-page-tools')?.shadowRoot?.textContent.includes('仅已加载')")
                 report['cases'].append({'name':'api_outage_shows_rendered_dom_headings_without_full_history_claim','result':'pass'})
                 await observed.close()
                 # Previously the 8 MiB page-tool cap dropped full-branch retrieval
