@@ -85,7 +85,7 @@ async def main():
                 large_tab=await w.evaluate("async u=>(await chrome.runtime.sendMessage({type:'tl:sources'})).data.find(x=>x.url===u)",large.url)
                 assert (await w.evaluate("async t=>chrome.runtime.sendMessage({type:'tl:openTools',tabId:t.id,expectedUrl:t.url})",large_tab))['ok']
                 await poll(large,"()=>{const root=document.querySelector('#chatflow-page-tools')?.shadowRoot;return !!root&&root.querySelector('p.hint')?.textContent.includes('264 条')&&root.querySelector('.cf-retry')?.hidden===true;}",seconds=40)
-                assert '仅已加载' not in await large.locator('#chatflow-page-tools').inner_text()
+                assert not await large.evaluate("()=>document.querySelector('#chatflow-page-tools').shadowRoot.textContent.includes('仅已加载')")
                 report['cases'].append({'name':'large_full_branch_read_above_previous_eight_megabyte_cap','result':'pass'})
                 await large.close()
                 await page.set_viewport_size({'width':390,'height':800})
