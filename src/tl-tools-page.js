@@ -339,7 +339,7 @@
     };
     const refresh = n('button', '刷新当前对话', { type: 'button' });
     refresh.onclick = () => { session.jump += 1; session.loadError = null; load(session).catch(error => reportJumpError(session, error)); };
-    extra.append(summary, format, exportButton, n('p', '只导出勾选回合，包含来源身份与覆盖范围。', { class: 'hint' }), formulas, copyFormula, fallback);
+    extra.append(summary, format, exportButton, n('p', '只导出勾选回合，包含来源身份与覆盖范围。', { class: 'hint' }), formulas, copyFormula, fallback, refresh);
     session.retry=n('button','重试读取',{type:'button',class:'cf-retry',hidden:''});
     session.retry.onclick=()=>{session.loadError=null;load(session).catch(error=>reportJumpError(session,error));};
     panel.append(header, session.query, session.coverageNode, controls, session.list, session.status, session.retry, extra);
