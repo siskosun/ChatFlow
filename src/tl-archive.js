@@ -58,7 +58,8 @@
   C.check(e>=0,'ZIP_END_NOT_FOUND');C.check(v.getUint16(e+4,true)===0&&v.getUint16(e+6,true)===0,'MULTI_VOLUME_ZIP_UNSUPPORTED');
   let count=v.getUint16(e+10,true),cdSize=v.getUint32(e+12,true),cdOffset=v.getUint32(e+16,true);
   if(count===U16||cdSize===0xffffffff||cdOffset===0xffffffff){
-   const loc=new DataView(await blob.slice(tailStart+e-20,tailStart+e).arrayBuffer());C.check(loc.byteLength===20&&loc.getUint32(0,true)===0x07064b50,'INVALID_ZIP64_LOCATOR');C.check(loc.getUint32(16,true)===1,'MULTI_VOLUME_ZIP_UNSUPPORTED');
+   const locatorAt=tailStart+e-20;C.check(locatorAt>=0,'INVALID_ZIP64_LOCATOR');
+   const loc=new DataView(await blob.slice(locatorAt,tailStart+e).arrayBuffer());C.check(loc.byteLength===20&&loc.getUint32(0,true)===0x07064b50,'INVALID_ZIP64_LOCATOR');C.check(loc.getUint32(16,true)===1,'MULTI_VOLUME_ZIP_UNSUPPORTED');
    const pos=exactNumber(loc.getBigUint64(8,true)),z=new DataView(await blob.slice(pos,pos+56).arrayBuffer());C.check(z.byteLength===56&&z.getUint32(0,true)===0x06064b50,'INVALID_ZIP64_END');count=exactNumber(z.getBigUint64(32,true));cdSize=exactNumber(z.getBigUint64(40,true));cdOffset=exactNumber(z.getBigUint64(48,true));
   }
   C.check(count<=maxEntries&&cdSize<=maxCentral&&cdOffset+cdSize<=blob.size,'ZIP_RESOURCE_LIMIT');
@@ -252,7 +253,7 @@
    if(m.state==='saved'){
     C.check(/^[a-f0-9]{64}$/.test(m.sha256||'')&&(m.path==='assets/'+m.sha256+'.bin'||m.parts)&&m.size>0,'INVALID_SAVED_FILE');
     let b=blobs.get(m.sha256);
-    if(!b){const parts=[];for(const part of m.parts||[{path:m.path,size:m.size}]){const e=entries.get(part.path);C.check(e&&e.size===part.size,'ARCHIVE_FILE_MISSING');parts.push(await e.blob());}b=new Blob(parts,{type:meta.mime});C.check(b.size===m.size,'ASSET_PART_SIZE_MISMATCH');C.check(await C.hashBlob(b)===m.sha256,'ARCHIVE_FILE_HASH_MISMATCH');blobs.set(m.sha256,b);}
+    if(!b){const parts=[];for(const part of m.parts||[{path:m.path,size:m.size}]){const e=entries.get(part.path.normalize('NFC'));C.check(e&&e.size===part.size,'ARCHIVE_FILE_MISSING');parts.push(await e.blob());}b=new Blob(parts,{type:meta.mime});C.check(b.size===m.size,'ASSET_PART_SIZE_MISMATCH');C.check(await C.hashBlob(b)===m.sha256,'ARCHIVE_FILE_HASH_MISMATCH');blobs.set(m.sha256,b);}
     C.check(b.size===m.size,'CONFLICTING_MANIFEST_PATH');files.push({...meta,state:'saved',size:b.size,sha256:m.sha256,reason:null,inLatestSnapshot:m.inLatestSnapshot!==false});
    }else if(m.state==='excluded')files.push({...meta,state:'excluded',size:0,sha256:null,reason:'OUT_OF_SAVE_SCOPE'});
    else files.push({...meta,state:'unavailable',size:0,sha256:null,reason:typeof m.reason==='string'&&/^[A-Z0-9_]+$/.test(m.reason)?m.reason:'IMPORTED_FILE_UNAVAILABLE'});
@@ -306,22 +307,31 @@
  async function restoreVerified(blob){
   const E=globalThis.TLEvidence,p=await inspectArchive(blob),archiveSha256=await C.hashBlob(blob);
   const id=await S.importCapture(p.snapshot,p.files,p.blobs,p.state,p.saveScope,p.passages);
-  let subject=null;
+  let subject=null,stage='read';
   try{
    const view=await S.readArchive(id);subject=E.subject(view);
-   C.check(JSON.stringify(C.persistedSnapshot(view.capture.snapshot))===JSON.stringify(C.persistedSnapshot(p.snapshot)),'RESTORE_READBACK_FAILED');
-   C.check(JSON.stringify(E.assetProjection(view.assets))===JSON.stringify(E.assetProjection(p.files)),'RESTORE_READBACK_FAILED');
-   C.check(JSON.stringify(E.passageProjection(view.passages))===JSON.stringify(E.passageProjection(p.passages)),'RESTORE_READBACK_FAILED');
-   for(const [sha,original]of p.blobs){const actual=await S.verifiedBlob(sha);C.check(actual.size===original.size,'RESTORE_READBACK_FAILED');}
+   stage='snapshot';
+   C.check(JSON.stringify(C.persistedSnapshot(view.capture.snapshot))===JSON.stringify(C.persistedSnapshot(p.snapshot)),'RESTORE_SNAPSHOT_READBACK_FAILED');
+   stage='assets';
+   C.check(JSON.stringify(E.assetProjection(view.assets))===JSON.stringify(E.assetProjection(p.files)),'RESTORE_ASSET_READBACK_FAILED');
+   stage='passages';
+   C.check(JSON.stringify(E.passageProjection(view.passages))===JSON.stringify(E.passageProjection(p.passages)),'RESTORE_PASSAGE_READBACK_FAILED');
+   stage='blobs';
+   for(const [sha,original]of p.blobs){const actual=await S.verifiedBlob(sha);C.check(actual.size===original.size,'RESTORE_BLOB_READBACK_FAILED');}
+   stage='receipt';
    const receipt={schema:'chatflow.verification/1',kind:'restore',status:'passed',subject,archiveSha256,
     archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true};
    C.check(await S.recordVerification(id,receipt),'VERIFICATION_SOURCE_CHANGED');
    return {id,verified:true,receipt};
-  }catch{
-   // Import has already committed. Do not tell the user nothing was written.
+  }catch(e){
+   // Import already committed. Report *what* could not be proven, without leaking error text.
+   const codeByStage={read:'RESTORE_DATABASE_READBACK_FAILED',snapshot:'RESTORE_SNAPSHOT_READBACK_FAILED',
+    assets:'RESTORE_ASSET_READBACK_FAILED',passages:'RESTORE_PASSAGE_READBACK_FAILED',
+    blobs:'RESTORE_BLOB_READBACK_FAILED',receipt:'RESTORE_RECEIPT_WRITE_FAILED'};
+   const code=codeByStage[stage]||'RESTORE_READBACK_FAILED';
    if(subject)try{await S.recordVerification(id,{schema:'chatflow.verification/1',kind:'restore',status:'failed',subject,
-    archiveSha256,archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true,code:'RESTORE_READBACK_FAILED'});}catch{/* returned result still exposes failure */}
-   return {id,verified:false,code:'RESTORE_READBACK_FAILED'};
+    archiveSha256,archiveBytes:blob.size,checkedAt:Date.now(),version:globalThis.chrome.runtime.getManifest().version,imported:true,code});}catch{/* retain original failure stage */}
+   return {id,verified:false,code};
   }
  }
  function fileIdentity(value){return String(value||'').replace(/^file[-_]/,'');}

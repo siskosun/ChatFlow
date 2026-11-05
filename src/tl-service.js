@@ -1,7 +1,13 @@
 /* ChatFlow MV3 service worker. No model API, automatic Send, or source mutation. */
 importScripts('tl-core.js','tl-evidence.js','tl-diagnostics.js','tl-provider.js','tl-passages.js','tl-store.js','experiment-core.js','experiment-db.js','experiment-service.js','tl-tasks.js','tl-task-store.js','tl-task-service.js');
 const C=globalThis.TLCore,P=globalThis.ChatFlowProviders,S=globalThis.TLStore,api=chrome,runs=new Map();
-function errorCode(e){if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';return/^[A-Z][A-Z0-9_]{2,100}$/.test(String(e?.message||''))?e.message:'OPERATION_FAILED';}
+function errorCode(e){
+ if(e?.name==='QuotaExceededError')return'LOCAL_STORAGE_FULL';
+ if(e?.name==='AbortError')return'CANCELLED_OR_TIMEOUT';
+ const key=String(e?.message||'');
+ const experimentCodes={'criteria required':'FF_CRITERIA_REQUIRED','invalid preference':'FF_INVALID_PREFERENCE','invalid confidence':'FF_INVALID_CONFIDENCE','verdict already recorded':'FF_VERDICT_ALREADY_RECORDED','no comparison mapping assigned yet':'FF_COMPARISON_MAPPING_REQUIRED'};
+ return experimentCodes[key]||(/^[A-Z][A-Z0-9_]{2,100}$/.test(key)?key:'OPERATION_FAILED');
+}
 const trusted=sender=>sender?.id===api.runtime.id;
 function workspace(sender){C.check(trusted(sender)&&String(sender.url||'').startsWith(api.runtime.getURL('workspace/')),'WORKSPACE_ONLY');}
 async function workspaceWindow(msg,sender){
@@ -16,7 +22,13 @@ async function freezeSource(msg){
  C.check(Number.isInteger(msg.tabId)&&typeof msg.expectedUrl==='string','SOURCE_LOCK_REQUIRED');
  const expected=P.identify(msg.expectedUrl).identity,tab=await api.tabs.get(msg.tabId),source=P.identify(tab.url).identity;
  C.check(source.origin===expected.origin&&source.conversationId===expected.conversationId,'SOURCE_CONVERSATION_CHANGED');
- let frames;try{frames=await api.scripting.executeScript({target:{tabId:msg.tabId,...(msg.expectedDocumentId?{documentIds:[msg.expectedDocumentId]}:{frameIds:[0]})},func:()=>location.href});}catch{throw new Error('SOURCE_DOCUMENT_CHANGED');}
+ let frames;try{frames=await api.scripting.executeScript({target:{tabId:msg.tabId,...(msg.expectedDocumentId?{documentIds:[msg.expectedDocumentId]}:{frameIds:[0]})},func:()=>location.href});}catch(e){
+  const detail=String(e?.message||'');
+  if(/No tab with id|tab was closed|tab not found/i.test(detail))throw new Error('TAB_CLOSED');
+  if(/documentId|No frame with id|frame was removed/i.test(detail))throw new Error('DOCUMENT_ID_INVALID');
+  if(/Cannot access|Missing host permission|Cannot inject/i.test(detail))throw new Error('INJECT_FAILED');
+  throw new Error('SOURCE_DOCUMENT_CHANGED');
+ }
  const frame=frames?.find(r=>r.frameId===0);C.check(frame?.documentId,'DOCUMENT_ID_UNAVAILABLE');
  if(msg.expectedDocumentId)C.check(frame.documentId===msg.expectedDocumentId,'SOURCE_DOCUMENT_CHANGED');
  const observed=P.identify(frame.result).identity,current=P.identify((await api.tabs.get(msg.tabId)).url).identity;
@@ -24,12 +36,25 @@ async function freezeSource(msg){
  return{tabId:msg.tabId,source:expected,expectedUrl:expected.url,expectedConversationId:expected.conversationId,expectedDocumentId:frame.documentId};
 }
 async function keepRuns(){await api.storage.session.set({tlRuns:[...runs.values()].map(({controller,pending,...r})=>r)});}
-let bootError=null;
-const boot=(async()=>{
+let bootError=null,boot=null;
+async function initializeWorker(){
  const old=(await api.storage.session.get('tlRuns')).tlRuns||[];
  for(const r of old){const c=await S.get('captures',r.captureId);if(c)await S.set('captures',{...c,state:c.state==='capturing'?'interrupted':c.state,live:false,lastError:'WORKER_RESTARTED_RETRY_EXPLICITLY'});}
  await S.recover([]);await ChatFlowExperimentService.recover(api,S);await api.storage.session.set({tlRuns:[]});
-})().catch(e=>{bootError=errorCode(e);});
+}
+function startBoot(){
+ bootError=null;
+ const job=initializeWorker().catch(e=>{bootError=errorCode(e);});
+ boot=job;return job;
+}
+startBoot();
+// A retry is an explicit trusted-workspace action, never a silent automatic replay.
+async function retryBoot(){
+ const observed=boot;await observed;
+ if(boot===observed&&bootError)startBoot();
+ await boot;C.check(!bootError,bootError||'STARTUP_FAILED');
+ return{ready:true};
+}
 async function sourceRun(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id),'SOURCE_TAB_REQUIRED');const run=runs.get(msg.nonce);C.check(run&&!run.cancelled&&run.tabId===sender.tab.id,'CAPTURE_SESSION_NOT_FOUND');
  // The content script may have been injected at a blank new-chat URL and then
@@ -60,7 +85,7 @@ async function startLockedCapture(msg){
  else await S.set('captures',{id:captureId,title:C.scrubText(tab.title||'读取对话中'),source,snapshot:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),state:'capturing',live:!!msg.live,saveScope:scope});
  const nonce=C.id(),run={nonce,tabId:tab.id,source,captureId,live:!!msg.live,scope,phase:'reading',documentId:frozen.expectedDocumentId,cancelled:false};runs.set(nonce,run);await keepRuns();
  try{const response=await sendToSource(tab.id,{type:'tl:capture',nonce,live:run.live,scope:run.scope,expectedSource:source},run.documentId);C.check(response?.ok,response?.code||'CHATGPT_PAGE_NOT_READY');}
- catch(e){runs.delete(nonce);await keepRuns();const c=await S.get('captures',captureId);await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});throw e;}
+ catch(e){runs.delete(nonce);try{await keepRuns();const c=await S.get('captures',captureId);if(c)await S.set('captures',{...c,state:'error',live:false,lastError:errorCode(e)});}catch{/* preserve the primary failure */}throw e;}
  return{captureId};
 }
 async function stopCapture(captureId){
@@ -86,7 +111,13 @@ async function prepareHandoff(msg){
  C.check(branchNodeIds.length>0&&branchNodeIds.every(id=>typeof id==='string'&&Object.hasOwn(snapshot.nodes,id))&&new Set(branchNodeIds).size===branchNodeIds.length&&snapshot.nodes[branchNodeIds[0]].parent===null,'INVALID_HANDOFF_BRANCH_PATH');
  for(let i=1;i<branchNodeIds.length;i++)C.check(snapshot.nodes[branchNodeIds[i]].parent===branchNodeIds[i-1],'INVALID_HANDOFF_BRANCH_PATH');
  snapshot.active=[...branchNodeIds];
- const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,Array.isArray(msg.keys)?msg.keys:[],msg.instructions||'',msg.batchLimit||10),files=[],names=new Set(['handoff_index.md']);
+ const selected=Array.isArray(msg.keys)?msg.keys:[],instructions=msg.instructions||'',batchLimit=msg.batchLimit||10;
+ const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,selected,instructions,batchLimit),files=[],names=new Set(['handoff_index.md']);
+ // Validated identical preparation is idempotent across repeated UI actions.
+ const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex();
+ const prepareFingerprint=new C.SHA256().update(JSON.stringify([c.id,snapshotHash,branchNodeIds,[...new Set(selected)],instructions,batchLimit])).hex();
+ const previous=(await S.all('handoffs')).find(row=>row.state==='prepared'&&row.captureId===c.id&&row.snapshotHash===snapshotHash&&row.prepareFingerprint===prepareFingerprint);
+ if(previous)return previous;
  for(const f of plan.files){
   const base=C.safeName(f.name);let uploadName=base,sequence=2;while(names.has(uploadName.toLowerCase()))uploadName=sequence+++'_'+base;names.add(uploadName.toLowerCase());
   if(f.kind==='asset'){const b=await S.verifiedBlob(f.sha256);files.push({...f,uploadName,size:b.size});}
@@ -96,14 +127,20 @@ async function prepareHandoff(msg){
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
- const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash:new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex(),createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
+ const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash,prepareFingerprint,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
+// A single write queue protects whole-record handoff state transitions from
+// concurrent open, claim, progress and user acknowledgement lost updates.
+let handoffWriteQueue=Promise.resolve();
+function serializeHandoffWrite(task){
+ const result=handoffWriteQueue.then(task);
+ handoffWriteQueue=result.then(()=>{},()=>{});
+ return result;
+}
 // A new tab must not load ChatGPT before it is durably bound to this handoff.
-// Serialize opens as well as claims: repeated UI clicks cannot create duplicate targets.
-let openQueue=Promise.resolve();
 function openHandoff(id,sender,context){
- const operation=openQueue.then(async()=>{
+ return serializeHandoffWrite(async()=>{
   const h=await S.get('handoffs',id);C.check(h?.state==='prepared','HANDOFF_ALREADY_OPENED');
   if(h.snapshotHash){const source=await S.get('captures',h.captureId);C.check(source?.snapshot,'HANDOFF_SOURCE_DELETED');C.check(new C.SHA256().update(JSON.stringify(C.persistedSnapshot(source.snapshot))).hex()===h.snapshotHash,'HANDOFF_SOURCE_CHANGED_REGENERATE');}
   const windowId=await workspaceWindow(context,sender);
@@ -120,24 +157,22 @@ function openHandoff(id,sender,context){
    await S.set('handoffs',{...updated,state:'injection_blocked',lastError:'TARGET_NAVIGATION_UNCONFIRMED'}).catch(()=>{});
    throw new Error('TARGET_NAVIGATION_UNCONFIRMED');
   }
- });openQueue=operation.catch(()=>{});return operation;
+ });
 }
 async function targetHandoff(msg,sender){
  C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');const h=await S.get('handoffs',msg.id);C.check(h&&h.targetTabId===sender.tab.id&&h.targetDocumentId===sender.documentId,'HANDOFF_TARGET_MISMATCH');P.identify(sender.url||sender.tab.url,{target:true}).identity;P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;return h;
 }
-let claimQueue=Promise.resolve();
 async function claim(sender){
- const operation=claimQueue.then(async()=>{
+ return serializeHandoffWrite(async()=>{
   C.check(trusted(sender)&&Number.isInteger(sender.tab?.id)&&sender.documentId,'TARGET_TAB_REQUIRED');
   const h=(await S.all('handoffs')).find(x=>x.targetTabId===sender.tab.id&&x.state==='target_opened');if(!h)return null;
   P.identify(sender.url||sender.tab.url,{target:true}).identity;
   P.identify((await api.tabs.get(sender.tab.id)).url,{target:true}).identity;const attemptId=C.id();await S.set('handoffs',{...h,state:'claimed',targetDocumentId:sender.documentId,attemptId});
   return{id:h.id,attemptId,prompt:h.prompt,files:h.batches[0].map(i=>({...h.files[i],index:i})),remainingBatches:h.batches.length-1};
- });claimQueue=operation.catch(()=>{});return operation;
+ });
 }
-// All receipts and user attestations share one queue. A late progress report
-// cannot overwrite a terminal receipt or erase a concurrent manual check.
-let receiptQueue=Promise.resolve();
+// All handoff writes share the same queue. A late progress report cannot
+// overwrite a terminal receipt or erase a concurrent manual check.
 async function applyHandoffEvidence(msg,sender){
  const E=globalThis.TLEvidence;
  if(msg.type==='tl:confirmUpload'||msg.type==='tl:confirmFile'){
@@ -171,8 +206,10 @@ async function applyHandoffEvidence(msg,sender){
  await S.set('handoffs',updated);return updated;
 }
 async function handle(msg,sender){
- await boot;C.check(!bootError,bootError||'STARTUP_FAILED');C.check(trusted(sender),'FOREIGN_EXTENSION');
- if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type)){const job=receiptQueue.then(()=>applyHandoffEvidence(msg,sender));receiptQueue=job.catch(()=>{});return job;}
+ C.check(trusted(sender),'FOREIGN_EXTENSION');
+ if(msg.type==='tl:retryBoot'){workspace(sender);return retryBoot();}
+ await boot;C.check(!bootError,bootError||'STARTUP_FAILED');
+ if(['tl:handoffProgress','tl:handoffStatus','tl:confirmUpload','tl:confirmFile'].includes(msg.type))return serializeHandoffWrite(()=>applyHandoffEvidence(msg,sender));
  const taskResult=await globalThis.TLTaskService?.handle(msg,sender,api);if(taskResult!==undefined)return taskResult;
  const experimentResult=await ChatFlowExperimentService.handle(msg,sender,api,{startCapture});if(experimentResult!==undefined)return experimentResult;
  if(msg.type==='tl:claimHandoff')return claim(sender);
@@ -187,9 +224,12 @@ async function handle(msg,sender){
   if(msg.type==='tl:start')return startCapture(msg);
   if(msg.type==='tl:stop'){await stopCapture(msg.captureId);return{stopped:true};}
   if(msg.type==='tl:sessions')return[...runs.values()].map(r=>({captureId:r.captureId,tabId:r.tabId,live:r.live,phase:r.phase}));
-  if(msg.type==='tl:prepareHandoff')return prepareHandoff(msg);
+  if(msg.type==='tl:prepareHandoff')return serializeHandoffWrite(()=>prepareHandoff(msg));
   if(msg.type==='tl:openHandoff')return openHandoff(msg.id,sender,msg);
-  if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});await api.windows.update(h.targetWindowId,{focused:true});return{focused:true};}
+  if(msg.type==='tl:focusTarget'){const h=await S.get('handoffs',msg.id);C.check(h?.targetTabId,'NO_TARGET');await api.tabs.update(h.targetTabId,{active:true});let windowFocused=false;
+   if(Number.isInteger(h.targetWindowId))try{await api.windows.update(h.targetWindowId,{focused:true});windowFocused=true;}catch{/* The target tab was already activated; window focus is best-effort. */}
+   return{focused:true,windowFocused};
+  }
 
  }
  const run=await sourceRun(msg,sender);

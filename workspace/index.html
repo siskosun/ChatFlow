@@ -4,13 +4,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ChatFlow</title><link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="feature-tools">
 <header class="top">
   <a class="brand" href="#" aria-label="ChatFlow首页" data-view="home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="10" height="14" rx="2"/><path d="M8 8h3M8 11h3M15 9l5 3-5 3M20 12h-8"/></svg></span><span>ChatFlow</span></a>
   <div class="header-actions"><button type="button" class="quiet" data-view="archive">我的档案</button><button type="button" class="quiet" data-view="settings">高级功能</button></div>
 </header>
 <main>
   <p id="status" role="status" aria-live="polite"></p>
+  <button id="retry-workspace" type="button" class="quiet" hidden>重试工作区初始化</button>
 
   <section id="capture-view" class="view" hidden>
     <button type="button" class="back quiet" data-view="home">‹ 首页</button><div class="intro"><h1 id="capture-heading">保存这段对话</h1></div>
@@ -36,7 +37,7 @@
        
       <label class="check"><input type="checkbox" id="live">实时缓存这段对话中新生成的文件</label>
       <p id="live-hint" class="hint"></p>
-      <button id="open-experiments" type="button" class="quiet">打开并行对照实验</button>
+      <button id="open-experiments" type="button" class="quiet">并行对照实验（进入后需手动启用）</button>
       <button id="persist" type="button" class="quiet">请求保留本地存储</button>
       <p id="quota" class="hint"></p>
     </details>
@@ -90,7 +91,7 @@
     </div>
   </section>
 
-  <footer aria-live="polite"><span id="download-status" role="status"></span></footer>
+  <footer><span id="download-status" role="status"></span></footer>
 </main>
 <script src="../src/tl-core.js"></script><script src="../src/tl-evidence.js"></script><script src="../src/tl-diagnostics.js"></script><script src="../src/tl-passages.js"></script><script src="../src/tl-store.js"></script><script src="../src/tl-archive.js"></script><script src="../src/tl-context.js"></script><script src="../src/tl-tasks.js"></script><script src="../src/tl-task-store.js"></script><script src="app.js"></script><script src="flow.js"></script>
 </body></html>

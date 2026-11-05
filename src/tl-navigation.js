@@ -42,7 +42,7 @@
     const started = now(), stats = {writes:0,scans:0,elapsedMs:0};
     const touched = new Map();
     let previous = null, stableFrames = 0, stalled = 0, lastSignature = null;
-    function guard() {if (signal?.aborted) return false; assertCurrent(); return true;}
+    function guard() {if (signal?.aborted) return false;try{assertCurrent();return true;}catch{return false;}}
     const result = (state, extra={}) => ({state,...extra,stats:{...stats,elapsedMs:Math.max(0,now()-started)}});
     function measure(el, box) {return {top:box.scrollTop,height:box.scrollHeight,anchor:el.getBoundingClientRect().top};}
     function own(box) {
@@ -107,6 +107,9 @@
         await wait(signal);
       }
       return result(signal?.aborted?'cancelled':now()-started>=BUDGET.elapsedMs?'timeout':'not_found');
+    } catch {
+      // DOM/scroll failures do not escape the explicit navigation result contract.
+      return result(signal?.aborted?'cancelled':'not_found',{reason:'NAVIGATION_UNCONFIRMED'});
     } finally {
       for (const [box,[value,priority]] of touched) {
         // Do not undo a third-party change made after our own write.

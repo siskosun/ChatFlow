@@ -218,7 +218,7 @@ async def main():
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
             passed('ux_home_one_primary_action_and_clear_save_task',{'widths':[320,360,1280],'primary_actions':1})
             await workspace.locator('[data-view="settings"]').click()
-            for feature in ['context','experiments','live','diagnostics','passages']:
+            for feature in ['context','live','diagnostics','passages']:
                 await workspace.locator('#pref-'+feature).check()
             await workspace.locator('#settings-view [data-view="home"]').click()
             await workspace.locator('#home-view [data-view="capture"]').click()
@@ -507,7 +507,7 @@ async def main():
             await wait_async(workspace,'async()=>!document.querySelector("#handoff-result").hidden&&document.querySelector("#open-target")&&!document.querySelector("#open-target").disabled',timeout=30000)
             assert await workspace.locator('.view:not([hidden]) .primary:visible').count()==1
             assert await workspace.locator('#handoff-view').get_by_role('button',name='打开新对话',exact=True).is_visible()
-            assert not await workspace.locator('#staging-details').evaluate('(e)=>e.open')
+            assert await workspace.locator('#staging-details').evaluate('(e)=>e.open')
             for width in [320,360,480,768,1280]:
                 await workspace.set_viewport_size({'width':width,'height':900})
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width

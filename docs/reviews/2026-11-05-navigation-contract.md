@@ -1,0 +1,7 @@
+# S5 navigation contract and bounded heading-cache repair
+
+Review finding: message navigation formerly rejected its Promise when a source lease failed, despite the declared explicit result-state contract. The conservative repair translates a rejected lease into `cancelled`, unexpected DOM failures into `not_found` with a fixed `NAVIGATION_UNCONFIRMED` reason, and always restores temporary scroll-anchor style in `finally`. It never elevates observed DOM to verified message identity.
+
+Heading resolution previously re-hashed the entire message on every navigation scan (up to 128 scans). A per-root WeakMap caches descriptors with a MutationObserver invalidation. `takeRecords()` synchronously checks queued mutations before reusing a cached descriptor, so a changed message cannot reuse its previous hash even before the observer callback executes. Hidden headings are checked against current visibility; the original full SHA-256 contract still runs on cache misses. Environments lacking MutationObserver safely fall back to the original full validation.
+
+Known limitation: external stylesheet changes without DOM mutations may make a previously hidden heading visible without automatically rebuilding the outline; this can delay navigation but must not report a false-success source identity. No host DOM modifications, new permissions or background services are introduced. Exact-head installed-MV3 and original security regression gates remain required.

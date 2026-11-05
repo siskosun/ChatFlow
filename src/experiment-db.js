@@ -83,9 +83,10 @@ const ChatFlowExperimentDB = (() => {
       result(record);
     });
   }
-  function update(id, expectedRevision, reducer) {
+  function update(id, expectedRevision, reducer, revisionDelta=1) {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0 ||
-      typeof reducer !== "function")
+      typeof reducer !== "function" || !Number.isSafeInteger(revisionDelta) ||
+      revisionDelta < 1 || revisionDelta > 4)
       return Promise.reject(new Error("invalid expected revision"));
     return transaction("readwrite", (store, result, fail) => {
       const req = store.get(id);
@@ -102,7 +103,7 @@ const ChatFlowExperimentDB = (() => {
             throw new Error("reducer must not mutate previous");
           if (next === previous) {result(previous); return;} // Idempotent replay.
           if (baseline.revision !== expectedRevision) throw new Error("stale revision");
-          if (!next || next.id !== baseline.id || next.revision !== baseline.revision + 1)
+          if (!next || next.id !== baseline.id || next.revision !== baseline.revision + revisionDelta)
             throw new Error("invalid revision");
           if (JSON.stringify(next.frozen) !== JSON.stringify(baseline.frozen))
             throw new Error("frozen input is immutable");

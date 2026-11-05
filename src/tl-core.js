@@ -29,12 +29,29 @@
  }
  function readOnlyRequest(method='GET'){check(['GET','HEAD'].includes(String(method).toUpperCase()),'WRITE_REQUEST_REJECTED');}
  function safeName(value,fallback='file'){
-  const clean=String(value||fallback).normalize('NFC').replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g,'_').replace(/^\.+/,'_').trim();
-  return(clean||fallback).slice(0,180);
+  let clean=String(value||fallback).normalize('NFC').replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g,'_').replace(/^\.+/,'_').trim().slice(0,180);
+  const reserved=/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(clean);
+  clean=clean.replace(/[. ]+$/,'_')||'file';
+  if(reserved)clean='_'+clean;
+  return clean;
  }
+ const sensitiveQueryName=/^(?:sig|signature|token|access_token|key|authorization|x-amz-.+|x-goog-.+)$/i;
  function scrubText(value){
-  return String(value||'').replace(/https:\/\/[^\s<>"()]+/g,raw=>{
-   try{const u=new URL(raw);for(const k of [...u.searchParams.keys()])if(/^(sig|signature|token|access_token|key|authorization|x-amz-.+|x-goog-.+)$/i.test(k))u.searchParams.delete(k);return u.href;}catch{return raw;}
+  // Non-secret URL spelling must not change during archive normalization.
+  return String(value||'').replace(/https?:\/\/[^\s<>"()]+/gi,raw=>{
+   const q=raw.indexOf('?');if(q<0)return raw;
+   const hash=raw.indexOf('#',q),end=hash<0?raw.length:hash;
+   const pieces=raw.slice(q+1,end).split('&');
+   let redacted=false,ambiguous=false;
+   const kept=pieces.filter(part=>{
+    const key=part.split('=',1)[0];
+    let decoded;try{decoded=decodeURIComponent(key.replace(/\+/g,' '));}catch{ambiguous=true;return false;}
+    if(sensitiveQueryName.test(decoded)){redacted=true;return false;}
+    return true;
+   });
+   if(ambiguous)return raw.slice(0,q)+raw.slice(end);
+   if(!redacted)return raw;
+   return raw.slice(0,q)+(kept.length?'?'+kept.join('&'):'')+raw.slice(end);
   });
  }
  function pointer(raw){

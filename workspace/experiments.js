@@ -42,10 +42,15 @@
       resolve(response.data);
     });
   });
+  const errorMessages={FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。',FF_INVALID_PREFERENCE:'裁决选项无效，请重新选择。',FF_INVALID_CONFIDENCE:'置信度无效，请重新选择。',FF_VERDICT_ALREADY_RECORDED:'该实验已经裁决，不能重复提交。',FF_COMPARISON_MAPPING_REQUIRED:'需要先完成对照映射和裁判校准。',EXTENSION_UNAVAILABLE:'扩展后台未响应，请重新打开实验页面。',OPERATION_FAILED:'实验操作未完成，请核对实验状态后重试。'};
+  function readableError(message){const value=String(message||'');if(Object.hasOwn(errorMessages,value))return errorMessages[value];if(/[\u3400-\u9fff]/.test(value)&&value.length<=240)return value;return /^[A-Z][A-Z0-9_]{2,100}$/.test(value)?'实验操作未完成（'+value+'），请检查状态后重试。':'实验操作未完成，请检查输入与实验状态后重试。';}
   function notice(message, error=false) {
     // The in-card live region is the only status. A duplicate body-level toast
     // would obscure a browser viewport and repeat the same text.
-    const el=$("ff-notice");el.textContent=message;el.dataset.error=String(error);
+    const el=$("ff-notice"),value=String(error?readableError(message):message||'');
+    clearTimeout(el._chatflowTimer);el.replaceChildren(document.createTextNode(value));el.dataset.error=String(error);
+    if(value&&error){const close=document.createElement('button');close.type='button';close.textContent='关闭提示';close.className='status-dismiss';close.setAttribute('aria-label','关闭当前错误提示');close.addEventListener('click',()=>{el.textContent='';el.dataset.error='false';});el.append(close);}
+    else if(value)el._chatflowTimer=setTimeout(()=>{if(el.textContent===value)el.textContent='';},4500);
   }
   function bytes() {
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
@@ -279,11 +284,20 @@
     renderCompare(value);
     if(draft){for(const [key,selector] of [["preference","ff-preference"],["criteria","ff-criteria"],["notes","ff-notes"],["confidence","ff-confidence"]])if(draft[key]!==undefined)$(selector).value=draft[key];for(const answer of draft.calibration||[]){const input=[...document.querySelectorAll('#ff-calibration-items input')].find(n=>n.name===answer.name&&n.value===answer.value);if(input)input.checked=true;}}
     else {$("ff-criteria").value="";$("ff-notes").value="";$("ff-confidence").value="medium";}
+    // Programmatic value assignment does not dispatch input. Reset stale limits
+    // when changing experiments rather than leaving the verdict disabled.
+    for(const [field,limit] of [['ff-criteria',400],['ff-notes',4000]]){
+     const input=$(field),excess=input.value.length-limit,hint=$(field+'-limit');
+     const invalid=excess>0;input.setCustomValidity(invalid?'内容超过安全上限':'');input.setAttribute('aria-invalid',String(invalid));
+     if(hint){hint.hidden=!invalid;hint.textContent=invalid?'超出 '+excess+' 个字符；全文已保留。':'';}
+    }
+    $('ff-verdict').disabled=$('ff-criteria').value.length>400||$('ff-notes').value.length>4000;
     document.querySelectorAll('#ff-list button[data-experiment-id]').forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.experimentId===id)));
   }
   async function list() {
     const ticket=++listTicket,values = await send({type:"FF_LIST"});if(ticket!==listTicket)return;
     const holder = $("ff-list");
+    const focusId=document.activeElement?.dataset?.experimentId||null;
     holder.replaceChildren();
     if (values.length === 0) {
       const empty = document.createElement("p");
@@ -322,6 +336,9 @@
       button.addEventListener("click", () => read(item.id).catch(e=>notice(e.message,true)));
       holder.appendChild(button);
     }
+    // Restore keyboard focus only when the same stable experiment ID survived
+    // the rerender; never restore by title, ordinal or an unrelated row.
+    if(focusId){const target=[...holder.querySelectorAll('button[data-experiment-id]')].find(el=>el.dataset.experimentId===focusId);target?.focus({preventScroll:true});}
   }
   async function refresh() {
     const status = await send({type:"FF_STATUS"});
@@ -447,9 +464,13 @@
     } catch (e) { notice(e.message, true); await read(currentExperiment).catch(()=>{}); }
     finally { button.disabled = false; }
   });
+  $('ff-criteria').addEventListener('input',()=>{$('ff-criteria').setAttribute('aria-invalid','false');});
   $("ff-verdict").addEventListener("click", async event => {
     if (!currentExperiment) return;
-    if($('ff-criteria').value.length>400||$('ff-notes').value.length>4000){notice('内容超过上限，全文已保留。请缩短后提交。',true);return;}
+    const criteria=$('ff-criteria');
+    if(!criteria.value.trim()){criteria.setAttribute('aria-invalid','true');criteria.focus();notice('请填写判断依据。',true);return;}
+    criteria.setAttribute('aria-invalid','false');
+    if(criteria.value.length>400||$('ff-notes').value.length>4000){notice('内容超过上限，全文已保留。请缩短后提交。',true);return;}
     const button = event.target;
     const payload = {type:"FF_VERDICT", experimentId:currentExperiment,
       preference:$("ff-preference").value, criteria:$("ff-criteria").value,
@@ -470,12 +491,22 @@
       const snapshot = await send({type:"FF_EXPORT", experimentId:currentExperiment});
       const blob = new Blob([JSON.stringify(snapshot, null, 1)],
         {type:"application/json"});
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = snapshot.experiment.id + "-chatflow-experiment.json";
-      document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      notice("已导出自包含 JSON。可在实验列表的导入入口经严格验证后导入（哈希与映射重算，不覆盖既有实验）。");
+      const url = URL.createObjectURL(blob);let downloadId=null;
+      try {
+        downloadId=await chrome.downloads.download({url,filename:snapshot.experiment.id+"-chatflow-experiment.json",saveAs:true});
+        let cleaned=false;
+        const cleanup=()=>{if(cleaned)return;cleaned=true;chrome.downloads.onChanged.removeListener(onChanged);URL.revokeObjectURL(url);};
+        const onChanged=change=>{
+          if(change.id!==downloadId)return;
+          if(change.state?.current==='complete'){cleanup();notice("实验 JSON 下载完成。导入时会重新核验哈希与映射，不覆盖既有实验。");}
+          else if(change.state?.current==='interrupted'||change.error){cleanup();notice("实验 JSON 下载中断；原始实验仍在本地。",true);}
+        };
+        chrome.downloads.onChanged.addListener(onChanged);
+        const records=await chrome.downloads.search({id:downloadId}).catch(()=>[]);
+        if(records[0]?.state==='complete')onChanged({id:downloadId,state:{current:'complete'}});
+        else if(records[0]?.state==='interrupted')onChanged({id:downloadId,state:{current:'interrupted'}});
+        else notice("实验 JSON 已发起下载，请在浏览器下载列表核对。");
+      }catch(e){if(!downloadId)URL.revokeObjectURL(url);throw e;}
     } catch (e) { notice(e.message, true); }
     finally { button.disabled = false; }
   });

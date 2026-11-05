@@ -4,12 +4,20 @@
  const $=id=>document.getElementById(id),T=TLTasks,S=TLTaskStore;
  const labels={missing:'未找到任务标记，请人工选择来源。',unknown:'本地没有这个任务。可恢复任务备份，或人工指定来源。',invalid:'任务标记格式不正确。',conflict:'出现多个任务标记，不自动判断归属。'};
  const errors={TASK_SOURCE_CHANGED:'来源页面已改变，请重新选择对话。',TASK_NOT_FOUND:'任务已不在本地，请刷新列表。',TASK_IMPORT_CONFLICT:'备份与本地任务冲突，没有导入或覆盖任何记录。',TASK_MATCH_CONFLICT:'任务归属已变化，请重新确认。',TASK_BUNDLE_LIMIT:'备份超过当前支持的任务数量或容量。',TASK_LEGACY_BACKUP_LIMIT:'旧格式备份超过 4 MiB，未恢复任何内容。请用新版重新导出。',TASK_BACKUP_RECORD_LIMIT:'备份中有一条记录超过安全上限，未恢复任何内容。',TASK_BACKUP_INTEGRITY_INVALID:'备份校验失败，未恢复任何内容。',TASK_BACKUP_INCOMPLETE:'备份不完整，未恢复任何内容。',TASK_STORAGE_LIMIT:'任务数量已达上限，请先备份再整理旧任务。',TASK_RESULT_STORAGE_LIMIT:'结果数量已达上限，请先备份再整理旧任务。',TASK_TEXT_LIMIT:'任务需包含 1—20,000 个字符；输入内容已保留。',TASK_RESULT_LIMIT:'结果需包含 1—262,144 个字符；输入内容已保留。'};
- Object.assign(errors,{TASK_RESULT_CONFLICT:'检测到内容或归属冲突，未覆盖已有结果。请先备份并核对。',TASK_RESULT_INVALID:'已保存结果校验失败，无法继续回传。',TASK_RESULT_INTEGRITY_INVALID:'已保存结果校验失败，无法继续回传。',TASK_RESULT_METADATA_INVALID:'已保存结果校验失败，无法继续回传。',TASK_MARKER_MISMATCH:'已保存结果校验失败，无法继续回传。',TASK_RECORD_INVALID:'已保存任务校验失败，无法继续回传。',TASK_INTEGRITY_INVALID:'已保存任务校验失败，无法继续回传。',TASK_SOURCE_ID_MISMATCH:'任务来源校验失败，请重新选择对话。',TASK_SOURCE_URL_INVALID:'任务来源地址无效，请重新选择对话。',TASK_SOURCE_REQUIRED:'缺少任务来源，请重新选择对话。'});
+ Object.assign(errors,{WORKSPACE_WINDOW_REQUIRED:'无法确认工作区所在窗口，请从当前窗口重新打开 ChatFlow。',EXTENSION_UNAVAILABLE:'扩展后台暂时无响应，请刷新工作区或重启扩展。',IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS:'本地存储升级被其他 ChatFlow 窗口阻挡，请关闭其他工作区后重试。',TASK_RESULT_CONFLICT:'检测到内容或归属冲突，未覆盖已有结果。请先备份并核对。',TASK_RESULT_INVALID:'已保存结果校验失败，无法继续回传。',TASK_RESULT_INTEGRITY_INVALID:'已保存结果校验失败，无法继续回传。',TASK_RESULT_METADATA_INVALID:'已保存结果校验失败，无法继续回传。',TASK_MARKER_MISMATCH:'已保存结果校验失败，无法继续回传。',TASK_RECORD_INVALID:'已保存任务校验失败，无法继续回传。',TASK_INTEGRITY_INVALID:'已保存任务校验失败，无法继续回传。',TASK_SOURCE_ID_MISMATCH:'任务来源校验失败，请重新选择对话。',TASK_SOURCE_URL_INVALID:'任务来源地址无效，请重新选择对话。',TASK_SOURCE_REQUIRED:'缺少任务来源，请重新选择对话。'});
  function n(tag,text,attrs={}){const e=document.createElement(tag);if(text!=null)e.textContent=text;for(const[k,v]of Object.entries(attrs)){if(k==='class')e.className=v;else e.setAttribute(k,v);}return e;}
  function button(text,id,fn,cls='quiet'){const e=n('button',text,{type:'button',class:cls,...(id?{id}:{})});if(fn)e.addEventListener('click',()=>safe(fn));return e;}
  function field(label,input){const l=n('label',label,{for:input.id});return[l,input];}
- function say(text,error=false){const e=!$('tasks-view')?.hidden?$('task-status'):!$('settings-view')?.hidden?$('settings-status'):$('status');if(!e)return;e.textContent=text;e.classList.toggle('error',error);}
- async function safe(fn){try{return await fn();}catch(e){say(errors[e.message]||'操作未完成：'+String(e.message||e),true);}}
+ const noticeTimers=new WeakMap();
+ function say(text,error=false){
+  const e=!$('tasks-view')?.hidden?$('task-status'):!$('settings-view')?.hidden?$('settings-status'):$('status');if(!e)return;
+  clearTimeout(noticeTimers.get(e));const message=String(text||'');
+  e.textContent=message;e.classList.toggle('error',!!error&&!!message);
+  if(message&&error){const close=n('button','关闭提示',{type:'button',class:'status-dismiss','aria-label':'关闭当前错误提示'});close.addEventListener('click',()=>{e.textContent='';e.classList.remove('error');});e.append(close);}
+  else if(message)noticeTimers.set(e,setTimeout(()=>{if(e.textContent===message)e.textContent='';},4500));
+ }
+ function taskError(e){const key=String(e?.message||e||'');if(Object.hasOwn(errors,key))return errors[key];if(/[\u3400-\u9fff]/.test(key)&&key.length<=200)return key;return /^[A-Z][A-Z0-9_]{2,100}$/.test(key)?'任务操作未完成（'+key+'），请重试或检查本地状态。':'任务操作未完成，请检查状态后重试。';}
+ async function safe(fn){try{return await fn();}catch(e){say(taskError(e),true);}}
  async function call(type,data={}){const r=await chrome.runtime.sendMessage({type,...data});if(!r?.ok)throw Error(r?.code||'EXTENSION_UNAVAILABLE');return r.data;}
  async function currentWorkspaceWindow(){
   const tabs=await chrome.tabs.query({active:true,currentWindow:true});
@@ -17,7 +25,7 @@
   if(!tab)throw Error('WORKSPACE_WINDOW_REQUIRED');
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
- const defaults={context:false,experiments:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
+ const defaults={context:false,live:false,diagnostics:false,passages:false,tools:true};let prefs={...defaults},created=null,prepared=null,matchEpoch=0,createEpoch=0,creating=false,taskPageEpoch=0,taskCursor=null,choicesFresh=false,savedResultOpenEpoch=0;
  const main=document.querySelector('main');
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
@@ -72,7 +80,7 @@
  function invalidateCreation(){createEpoch++;created=null;promptBox.hidden=true;create.hidden=false;updateCreateState();}
  text.addEventListener('input',invalidateCreation);source.addEventListener('change',invalidateCreation);
  async function copy(value,fallback){try{await navigator.clipboard.writeText(value);say('已复制。');return true;}catch{const details=fallback.closest('details');if(details)details.open=true;fallback.focus();fallback.select();say('未能复制。文本已选中，请手动复制。',true);return false;}}
- async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source')||$('source').value,oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));for(const r of rows){const option=new Option((r.title||'ChatGPT')+' · '+TLCore.chatUrl(r.url).conversationId.slice(-8),String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl)invalidateCreation();else updateCreateState();}
+ async function refreshSources(){const rows=await call('tl:sources'),old=source.value||new URL(location.href).searchParams.get('source'),oldUrl=source.selectedOptions[0]?.dataset.sourceUrl;source.replaceChildren(new Option('选择来源对话',''));for(const r of rows){const option=new Option((r.title||'ChatGPT')+' · '+TLCore.chatUrl(r.url).conversationId.slice(-8),String(r.id));option.dataset.sourceUrl=r.url;source.add(option);}if(rows.some(r=>String(r.id)===old))source.value=old;else{const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});if(rows.some(r=>r.id===activeTab?.id))source.value=String(activeTab.id);else if(rows.length===1)source.value=String(rows[0].id);}if(oldUrl&&oldUrl!==source.selectedOptions[0]?.dataset.sourceUrl)invalidateCreation();else updateCreateState();}
  async function refreshChoices(epoch=matchEpoch){
   if(choicesFresh)return epoch===matchEpoch;
   const old=manualSource.value,rows=await S.taskChoices();if(epoch!==matchEpoch)return false;
@@ -95,11 +103,12 @@
  async function refreshTasks(append=false){
   if(!append)choicesFresh=false;
   const epoch=++taskPageEpoch,page=await S.listPage({limit:25,cursor:append?taskCursor:null});if(epoch!==taskPageEpoch)return;
-  const list=$('task-list');taskCursor=page.nextCursor;list.querySelector('.task-more')?.remove();if(!append)list.replaceChildren();
+  const list=$('task-list'),priorFocus=document.activeElement,focusedTask=priorFocus?.closest?.('[data-task-id]')?.getAttribute('data-task-id'),focusedAction=priorFocus?.getAttribute?.('data-task-action');
+  taskCursor=page.nextCursor;list.querySelector('.task-more')?.remove();if(!append)list.replaceChildren();
   for(const t of page.items){
    const count=t.resultCount,row=n('div',null,{class:'task-row','data-task-id':t.id});row.append(n('strong',t.preview.slice(0,65)),n('small',(t.source.title||'ChatGPT')+' · '+t.source.conversationId.slice(-8)+' · '+t.code+' · '+(count?count+' 份结果':'待回传')));
    const actions=n('div',null,{class:'actions'});
-   actions.append(button('复制任务',null,async()=>{const full=await S.get(t.id);if(!full)throw Error('TASK_NOT_FOUND');prompt.value=T.envelope(full);promptBox.hidden=false;create.hidden=true;mode('compose');const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}),button('回传结果',null,async()=>{mode('return');await refreshChoices();manualSource.value=t.id;confirmBox.checked=false;resultText.focus();await updateMatch();}),button('删除',null,async()=>{if(!confirm('删除本地任务及结果？原对话不受影响。'))return;await S.remove(t.id);prepared=null;await refreshTasks();await updateMatch();}));row.append(actions);
+   actions.append(button('复制任务',null,async()=>{const full=await S.get(t.id);if(!full)throw Error('TASK_NOT_FOUND');prompt.value=T.envelope(full);promptBox.hidden=false;create.hidden=true;mode('compose');const copied=await copy(prompt.value,prompt);promptState.textContent=copied?'任务已复制':'任务已保存，请手动复制';}),button('回传结果',null,async()=>{mode('return');await refreshChoices();manualSource.value=t.id;confirmBox.checked=false;resultText.focus();await updateMatch();}),button('删除',null,async()=>{if(!confirm('删除本地任务及结果？原对话不受影响。'))return;await S.remove(t.id);prepared=null;await refreshTasks();await updateMatch();}));for(const [index,name]of ['copy','return','delete'].entries())actions.children[index]?.setAttribute('data-task-action',name);row.append(actions);
    if(count){
     const d=n('details'),body=n('div',null,{class:'task-result-list'});d.append(n('summary','查看 '+count+' 份结果'),body);let cursor=null,loading=false,loaded=false;
     async function loadResults(more=false){if(loading)return;loading=true;try{const result=await S.resultPage(t.id,{limit:25,cursor:more?cursor:null});if(!row.isConnected)return;cursor=result.nextCursor;body.querySelector('.result-more')?.remove();if(!more)body.replaceChildren();for(const r of result.items)body.append(button(new Date(r.createdAt).toLocaleString()+' · '+(r.assignment==='manual_assigned'?'人工关联':'标记匹配'),null,()=>openSavedResult(r.id,t.id)));if(cursor)body.append(button('加载更多结果',null,()=>loadResults(true),'quiet result-more'));loaded=true;}finally{loading=false;}}
@@ -109,6 +118,11 @@
   }
   if(taskCursor)list.append(button('加载更多任务','task-load-more',()=>refreshTasks(true),'quiet task-more'));
   if(!list.children.length)list.append(n('p','还没有任务。',{class:'muted'}));
+  if(focusedTask&&focusedAction){
+   const row=[...list.querySelectorAll('[data-task-id]')].find(el=>el.getAttribute('data-task-id')===focusedTask);
+   const target=row?.querySelector('[data-task-action="'+focusedAction+'"]');
+   if(target&&!target.disabled)target.focus({preventScroll:true});
+  }
  }
  function showSource(task,label){const t=T.validateTask(task);preview.append(n('strong',label),n('p',(t.source.title||'ChatGPT')+' · '+t.source.conversationId.slice(-8)),n('small',t.text.slice(0,180)),n('a','查看来源对话',{href:t.source.url,title:t.source.url,target:'_blank',rel:'noopener noreferrer'}));}
  async function updateMatch(){const epoch=++matchEpoch;prepared=null;save.hidden=false;returnAction.hidden=true;openOnly.hidden=true;save.disabled=true;const value=resultText.value;if(!inputWithinLimit(resultText,resultCount,T.LIMITS.result)){preview.textContent='';manual.hidden=true;return;}const m=await S.match(value);if(epoch!==matchEpoch||value!==resultText.value)return;preview.replaceChildren();manual.hidden=m.state==='matched';
@@ -123,7 +137,6 @@
  const settingsBox=n('div',null,{class:'task-card'});
  const featureRows=[
   ['context','组合多份档案','从选中的本地档案生成来源清楚的上下文包。'],
-  ['experiments','并行对照实验','同一任务对照 2–4 个新聊天；逐个由你手动发送。'],
   ['live','实时缓存当前对话','只有对指定对话主动开启后才追踪新生成文件。'],
   ['diagnostics','存储与文件诊断','显示本地占用情况并申请持久化存储。'],
   ['passages','重点片段与分支','保存关键原文，查看可访问分支及定位状态。'],
@@ -138,7 +151,26 @@
  experimentInfo.append(n('summary','并行实验怎样工作？'),n('p','对每个新聊天使用同一份材料；你需自行点击发送，扩展不会自动重试。',{class:'hint'}),n('a','查看并行实验说明',{href:'https://github.com/siskosun/ChatFlow/blob/main/docs/EXPERIMENTS.md',target:'_blank',rel:'noopener noreferrer'}));
 
  const backup=n('details',null,{class:'advanced'});backup.append(n('summary','任务备份与恢复'));
- const backupButton=button('下载任务备份','task-backup',async()=>{backupButton.disabled=true;try{say('正在校验并生成任务备份…');const blob=await S.exportBackup(),url=URL.createObjectURL(blob),a=n('a',null,{href:url,download:'chatflow-tasks.jsonl'});a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);say('已发起备份下载，请在浏览器中核对。');}finally{backupButton.disabled=false;}});backup.append(backupButton);
+ const backupButton=button('下载任务备份','task-backup',async()=>{
+  backupButton.disabled=true;let url=null,downloadId=null;
+  try{
+   say('正在校验并生成任务备份…');
+   const blob=await S.exportBackup();url=URL.createObjectURL(blob);
+   downloadId=await chrome.downloads.download({url,filename:'chatflow-tasks.jsonl',saveAs:true});
+   let cleaned=false;
+   const cleanup=()=>{if(cleaned)return;cleaned=true;chrome.downloads.onChanged.removeListener(onChanged);URL.revokeObjectURL(url);};
+   const onChanged=change=>{if(change.id!==downloadId)return;
+    if(change.state?.current==='complete'){cleanup();say('任务备份下载完成，请妥善保存。');}
+    else if(change.state?.current==='interrupted'||change.error){cleanup();say('任务备份下载中断；本地记录仍保留。',true);}
+   };
+   chrome.downloads.onChanged.addListener(onChanged);
+   const records=await chrome.downloads.search({id:downloadId}).catch(()=>[]);
+   if(records[0]?.state==='complete')onChanged({id:downloadId,state:{current:'complete'}});
+   else if(records[0]?.state==='interrupted')onChanged({id:downloadId,state:{current:'interrupted'}});
+   else say('已发起任务备份下载，请在浏览器下载列表核对。');
+  }catch(e){if(!downloadId&&url)URL.revokeObjectURL(url);throw e;}
+  finally{backupButton.disabled=false;}
+ });backup.append(backupButton);
  const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复失败：'+e.message),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,experimentInfo,backup,settingsStatus);main.append(settings);
  function applyPreferences(){for(const[k,v]of Object.entries(prefs)){document.body.classList.toggle('feature-'+k,!!v);$('pref-'+k).checked=!!v;}if(!prefs.live)$('live').checked=false;}
  document.addEventListener('chatflow:view',e=>{invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
