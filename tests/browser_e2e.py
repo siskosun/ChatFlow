@@ -774,10 +774,12 @@ async def main():
                 for page in pages_k:await page.close()
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
-            # This advanced section can already be expanded by earlier work.
-            # Ensure the checkbox is visible rather than blindly toggling it twice.
-            if not await experiment_page.locator('#ff-enable').is_visible():
-                await experiment_page.locator('.experiment-options summary').click()
+            # Details visibility can lag behind checkbox visibility checks.
+            # Open the actual disclosure before interacting with its control.
+            options = experiment_page.locator('.experiment-options')
+            if not await options.evaluate('(el) => el.open'):
+                await options.locator('summary').click()
+            await experiment_page.locator('#ff-enable').wait_for(state='visible')
             await experiment_page.locator('#ff-enable').uncheck()
             assert not await experiment_page.locator('#ff-enable').is_checked()
             assert not mode['write_requests'],mode['write_requests']
