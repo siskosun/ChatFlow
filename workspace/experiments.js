@@ -81,7 +81,7 @@
     const detail = document.createElement("p");
     detail.className = "subtle";
     const parts = [];
-    if (ev.inputLevel) parts.push("输入核对：" + ({exact:"一致",verified:"已核对",partial:"部分一致",unknown:"未确认"}[ev.inputLevel]||"状态待确认"));
+    if (ev.inputLevel) parts.push("输入核对：" + ({exact:"完全一致",canonical_equivalent:"格式规范化后一致",unverified:"尚未核验",differs:"与原始材料不同"}[ev.inputLevel]||"状态待确认"));
     if (ev.prefill) parts.push("预填 " + (ev.prefill === "reacked" ? "已重新预填" : "已逐字核对"));
     if (typeof ev.assistantBytes === "number") parts.push("回复 " + ev.assistantBytes + " 字节");
     // Internal completion signals remain in the exported evidence, not the task UI.
