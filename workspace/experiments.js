@@ -490,7 +490,8 @@
         {type:"application/json"});
       const url = URL.createObjectURL(blob);let downloadId=null;
       try {
-        downloadId=await chrome.downloads.download({url,filename:snapshot.experiment.id+"-chatflow-experiment.json",saveAs:true});
+        const stamp=new Date().toISOString().slice(0,16).replace('T','-').replace(':','-');
+        downloadId=await chrome.downloads.download({url,filename:"ChatFlow-实验备份-"+stamp+".json",saveAs:true});
         let cleaned=false;
         const cleanup=()=>{if(cleaned)return;cleaned=true;chrome.downloads.onChanged.removeListener(onChanged);URL.revokeObjectURL(url);};
         const onChanged=change=>{
