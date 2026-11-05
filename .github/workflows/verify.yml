@@ -64,6 +64,9 @@ jobs:
       - name: Task Loop and navigation synthetic acceptance
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/task_loop_e2e.py
+      - name: Real browser click-through audit of ChatFlow UI
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/ui_click_audit_e2e.py
       - name: Real IndexedDB recoverable large archives and busy capture regression
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/archive_reliability_e2e.py
