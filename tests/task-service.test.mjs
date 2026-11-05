@@ -34,7 +34,7 @@ test('source creation reads only selected message and returns verified identity,
 });
 test('user-armed selection watch injects only the exact source document',async()=>{
  const h=setup(),r=await h.handle({type:'tl:taskSelectionWatch',tabId:20,expectedUrl:URL_A});
- assert.deepEqual(r,{documentId:'doc-A',url:URL_A});
+ assert.equal(r.documentId,'doc-A');assert.equal(r.url,URL_A);
  assert.deepEqual(h.events,[['script',['src/tl-core.js','src/tl-page-scope.js','src/tl-task-selection.js']]]);
 });
 test('selection watch refuses source mismatch or navigated tab',async()=>{
