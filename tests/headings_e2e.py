@@ -13,6 +13,7 @@ OUT=ROOT/'test-results'
 CID='headings_264_normal_modern_fixture'
 CID_PLAIN='headings_plain_264_fixture'
 CID_LARGE='headings_large_264_fixture'
+CID_DOM='headings_264_modern_api_unavailable'
 URL='https://chatgpt.com/c/'+CID
 async def main():
     OUT.mkdir(exist_ok=True)
@@ -25,6 +26,7 @@ async def main():
                 if path=='/api/auth/session':return await r.fulfill(json={'accessToken':'synthetic-only'})
                 if path.startswith('/backend-api/conversation/'):
                     cid=path.split('/')[-1]
+                    if cid==CID_DOM:return await r.fulfill(status=503,body='Synthetic API outage')
                     raw=model(cid)
                     if cid==CID_PLAIN:
                         for i in range(1,264,2):
@@ -79,6 +81,26 @@ async def main():
                 assert await plain_tools.locator('.cf-headings').count()==0
                 await plain.close()
                 report['cases'].append({'name':'no_generic_chapter_buttons_without_real_headings','result':'pass'})
+                # Page-only fallback still contains real rendered H2/H3/H6,
+                # despite innerText lacking Markdown '#' syntax. These are
+                # observed DOM headings, not evidence of complete history.
+                observed=await ctx.new_page()
+                await observed.goto('https://chatgpt.com/c/'+CID_DOM)
+                observed_tab=await w.evaluate("async u=>(await chrome.runtime.sendMessage({type:'tl:sources'})).data.find(x=>x.url===u)",observed.url)
+                assert (await w.evaluate("async t=>chrome.runtime.sendMessage({type:'tl:openTools',tabId:t.id,expectedUrl:t.url})",observed_tab))['ok']
+                await poll(observed,"()=>{const r=document.querySelector('#chatflow-page-tools')?.shadowRoot;return r&&r.textContent.includes('仅已加载消息')&&r.querySelector('.cf-retry')?.hidden===false;}")
+                observed_tools=observed.locator('#chatflow-page-tools')
+                await observed_tools.locator('input[type=search]').fill('Question number 260')
+                observed_outline=observed_tools.locator('.cf-headings').first
+                await observed_outline.locator('summary').wait_for(state='visible')
+                assert 'Section' in await observed_outline.locator('summary').inner_text()
+                await observed_outline.locator('summary').click()
+                # The four heading labels come from the actual mounted answer.
+                names=await observed_outline.locator('.cf-heading,.cf-outline').all_text_contents()
+                assert names==['Section','Duplicate','Duplicate','Deep'],names
+                assert '仅已加载' in await observed_tools.inner_text()
+                report['cases'].append({'name':'api_outage_shows_rendered_dom_headings_without_full_history_claim','result':'pass'})
+                await observed.close()
                 # Previously the 8 MiB page-tool cap dropped full-branch retrieval
                 # for large conversations. Check an API response above 9 MiB.
                 large=await ctx.new_page();await large.goto('https://chatgpt.com/c/'+CID_LARGE)
