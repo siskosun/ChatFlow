@@ -161,7 +161,7 @@ async def main():
             assert await workspace.locator('#source-empty-help').count()==1
             assert await workspace.locator('#source-empty-help a').get_attribute('href')=='https://chatgpt.com/'
             passed('capture_button_disabled_when_no_chatgpt_conversations_are_open')
-            assert await workspace.locator('#home-view .flow-choice').count()==2
+            assert await workspace.locator('#home-view .flow-choice').count()==3
             assert await workspace.locator('#home-view').is_visible()
             assert not await workspace.locator('.context-toolbar').is_visible()
             await workspace.locator('#home-view [data-view="capture"]').click()
@@ -737,6 +737,7 @@ async def main():
                 for page in pages_k:await page.close()
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
+            await experiment_page.locator('.experiment-options summary').click()
             await experiment_page.locator('.experiment-options summary').click()
             await experiment_page.locator('#ff-enable').uncheck()
             assert not mode['write_requests'],mode['write_requests']
