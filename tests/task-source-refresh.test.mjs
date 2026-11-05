@@ -90,6 +90,6 @@ test('an unassigned nonempty draft does not report a lost source on refresh',asy
  await f.refreshSources();
  assert.equal(f.state().text,'keep my draft');
  assert.equal(f.state().source,'');
- assert.equal(f.calls.some(x=>x[0]==='feedback'),'false');
+ assert.equal(f.calls.some(x=>x[0]==='feedback'),false);
  assert.equal(f.calls.some(x=>x[0]==='query'),false);
 });
