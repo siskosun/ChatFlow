@@ -150,10 +150,11 @@ async def main():
                 await workspace.evaluate("()=>ChatFlowWorkspace.show('tasks')")
                 await wait(workspace, "()=>document.querySelector('#task-source option').length>=2")
                 dimensions = await workspace.evaluate("""()=>{
-                    const rect=id=>document.getElementById(id).getBoundingClientRect();
+                    const rect=id=>{const r=document.getElementById(id).getBoundingClientRect();
+                        return {top:r.top,left:r.left,width:r.width,height:r.height};};
                     return {refresh:rect('task-refresh-source'),receive:rect('task-use-selection'),
-                      chooser:rect('task-source'),sourceRow:rect('task-source-row')};
-                }""".replace("rect('task-source-row')","document.querySelector('.task-source-row').getBoundingClientRect()"))
+                      chooser:rect('task-source')};
+                }""")
                 assert dimensions['refresh']['width'] <= 54, dimensions
                 assert dimensions['receive']['width'] > dimensions['refresh']['width']*3, dimensions
                 assert dimensions['refresh']['top'] == dimensions['chooser']['top'], dimensions
