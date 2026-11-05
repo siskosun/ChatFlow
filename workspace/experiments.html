@@ -88,7 +88,7 @@
           <label for="ff-w0">所有分支都会收到这份材料</label>
           <textarea id="ff-w0" spellcheck="false" placeholder="粘贴补充背景；也可以留空"></textarea>
         </details>
-        <p id="ff-bytes" class="subtle" aria-live="polite">最终发送文本：0 / 24,000 UTF-8 字节</p>
+        <p id="ff-bytes" class="subtle" role="status" aria-live="polite" hidden></p>
         <label class="line" for="ff-branch-count">对比几个回答？
           <select id="ff-branch-count"><option value="2">2 个</option><option value="3">3 个</option><option value="4">4 个</option></select>
         </label>
@@ -97,9 +97,6 @@
     </section>
     <section class="surface" aria-label="实验列表"><h2><span class="step-indicator" aria-hidden="true">02</span>之前的任务</h2>
       <button class="secondary" id="ff-refresh" type="button">刷新列表</button>
-      <label class="line">恢复实验 JSON
-        <input type="file" id="ff-import-file" accept="application/json,.json"/>
-      </label>
       <div id="ff-list"></div>
     </section>
     <section class="surface" id="ff-detail" hidden aria-label="冻结结果">
@@ -147,6 +144,9 @@
   </div>
   <details class="experiment-options"><summary>实验设置与备份</summary>
     <label for="ff-enable" class="line"><input type="checkbox" id="ff-enable"/>允许在本浏览器使用并行实验</label>
+    <label class="line">恢复实验备份
+      <input type="file" id="ff-import-file" accept="application/json,.json"/>
+    </label>
   </details>
   <p class="subtle" id="ff-version-note" hidden></p>
 
