@@ -774,9 +774,12 @@ async def main():
                 for page in pages_k:await page.close()
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
-            await experiment_page.locator('.experiment-options summary').click()
-            await experiment_page.locator('.experiment-options summary').click()
+            # This advanced section can already be expanded by earlier work.
+            # Ensure the checkbox is visible rather than blindly toggling it twice.
+            if not await experiment_page.locator('#ff-enable').is_visible():
+                await experiment_page.locator('.experiment-options summary').click()
             await experiment_page.locator('#ff-enable').uncheck()
+            assert not await experiment_page.locator('#ff-enable').is_checked()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
         except Exception as e:
