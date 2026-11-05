@@ -213,6 +213,7 @@
   }
  }
  let archivePageEpoch=0,archiveCursor=null;
+ const expandedHistoryIds=new Set();
  async function refreshArchives(append=false){
   const epoch=++archivePageEpoch,list=$('archives'),q=$('search').value.trim().toLowerCase(),page=await S.listCaptures({query:q,cursor:append?archiveCursor:null,limit:50});if(epoch!==archivePageEpoch)return;
   archiveCursor=page.nextCursor;const restoreFocus=preserveIdentityFocus(list);list.querySelector('.archive-more')?.remove();
@@ -357,7 +358,7 @@
    controls.append(colorSelect);
    if(resolved.status!=='anchored'&&sourceChoice&&!activeNodes.includes(passage.nodeId))controls.append(button('切换到来源分支',async()=>{branchSelections.set(c.id,sourceChoice.endNode);messageLimit=100;reanchorPassageId=null;invalidate();await renderDetail();status('已切换到重点片段来源分支，请重新定位。');}));
    if(resolved.status!=='anchored'&&snapshot.messages.some(m=>m.id===passage.messageId&&m.nodeId===passage.nodeId)&&activeNodes.includes(passage.nodeId))controls.append(button('重新选择片段',async()=>{
-    reanchorPassageId=passage.passageId;messageLimit=Math.max(messageLimit,activeNodes.indexOf(passage.nodeId)+1);
+    reanchorPassageId=passage.passageId;expandedHistoryIds.add(c.id);messageLimit=Math.max(messageLimit,activeNodes.indexOf(passage.nodeId)+1);
     await renderDetail();status('请在原始消息中重新选中文字，再点击“更新重点片段”。');
    }));
    if(resolved.status==='anchored')controls.append(button('跳转原文',async()=>{
@@ -367,19 +368,25 @@
      if(!targetChoice){status('该片段来源节点不在当前可访问分支中。',true);return;}
      branchSelections.set(c.id,targetChoice.endNode);targetPath=targetChoice.path;
     }
-    const index=targetPath.indexOf(passage.nodeId);messageLimit=Math.max(messageLimit,index+1);
+    const index=targetPath.indexOf(passage.nodeId);expandedHistoryIds.add(c.id);messageLimit=Math.max(messageLimit,index+1);
     invalidate();await renderDetail();const target=[...$('detail').querySelectorAll('.message')].find(e=>e.dataset.messageId===passage.messageId&&e.dataset.nodeId===passage.nodeId);target?.scrollIntoView({behavior:'smooth',block:'center'});
    }));
    controls.append(button('删除片段',async()=>{await S.deletePassage(passage.passageId);contextSelectedPassageIds.delete(passage.passageId);await renderDetail();}));
    info.append(controls);row.append(check,info);passageSection.append(row);
   }
   el.append(passageSection);
-  // Keep large message bodies out of the default archive overview. The user
-  // can expand the full history when selecting text or inspecting a message.
-  const d=node('details');d.open=false;d.dataset.archiveHistory='true';d.append(node('summary','查看历史消息（'+activeNodes.length+' 条）'));
+  // Do not build hundreds of message elements unless the user explicitly
+  // expands history. Rebuild only for the selected archive on demand.
+  const historyOpen=expandedHistoryIds.has(c.id),d=node('details');
+  d.open=historyOpen;d.dataset.archiveHistory='true';
+  d.append(node('summary',(historyOpen?'收起':'查看')+'历史消息（'+activeNodes.length+' 条）'));
+  d.addEventListener('toggle',()=>{if(!d.isConnected||d.open===expandedHistoryIds.has(c.id))return;
+   if(d.open)expandedHistoryIds.add(c.id);else expandedHistoryIds.delete(c.id);
+   guard(renderDetail);
+  });
   const byNode=new Map(snapshot.messages.map(m=>[m.nodeId,m])),messages=activeNodes.map(n=>byNode.get(n)).filter(Boolean),messageElements=new Map(),rangesByColor=new Map();
   for(const color of ['yellow','green','blue','pink'])rangesByColor.set(color,[]);
-  for(const [index,m] of messages.slice(0,messageLimit).entries()){
+  if(historyOpen)for(const [index,m] of messages.slice(0,messageLimit).entries()){
    const block=node('div',null,'message');block.dataset.messageId=m.id;block.dataset.nodeId=m.nodeId;
    block.append(node('strong',({user:'我',assistant:'ChatGPT',system:'系统消息',tool:'工具结果'}[m.role]||'历史消息')+' · 第 '+(index+1)+' 条'));
    const pre=node('pre',m.text||'（仅附件）');pre.dataset.messageText='true';pre.dataset.focusId='message:'+m.nodeId;pre.dataset.focusRole='text';pre.tabIndex=0;pre.setAttribute('aria-label','历史消息正文，可用键盘选择文字并保存重点片段');block.append(pre);
@@ -415,8 +422,8 @@
   if(registry&&typeof globalThis.Highlight==='function'){
    for(const color of ['yellow','green','blue','pink']){const name='chatflow-saved-'+color;registry.delete(name);const ranges=rangesByColor.get(color)||[];if(ranges.length)registry.set(name,new Highlight(...ranges));}
   }
-  if(messages.length>messageLimit)d.append(button('再显示 100 条',async()=>{messageLimit+=100;await renderDetail();}));el.append(d);
-  el.append(button('删除此本地档案',async()=>{if(!confirm('仅删除扩展中的这份本地档案，不会删除 ChatGPT 对话。尚未导出 ZIP 的文件可能失去本地副本。确认删除？'))return;await call('tl:stop',{captureId:c.id});for(const passage of await S.passages(c.id))contextSelectedPassageIds.delete(passage.passageId);await S.removeCapture(c.id);contextSelectedIds.delete(c.id);branchSelections.delete(c.id);selectedId=null;selectedKeys.clear();reanchorPassageId=null;detailEpoch++;host.replaceChildren(node('p','本地档案已删除。'));clearPassageHighlights();await refreshArchives();await quota();},'danger'));
+  if(historyOpen&&messages.length>messageLimit)d.append(button('再显示 100 条',async()=>{messageLimit+=100;await renderDetail();}));el.append(d);
+  el.append(button('删除此本地档案',async()=>{if(!confirm('仅删除扩展中的这份本地档案，不会删除 ChatGPT 对话。尚未导出 ZIP 的文件可能失去本地副本。确认删除？'))return;await call('tl:stop',{captureId:c.id});for(const passage of await S.passages(c.id))contextSelectedPassageIds.delete(passage.passageId);await S.removeCapture(c.id);contextSelectedIds.delete(c.id);branchSelections.delete(c.id);expandedHistoryIds.delete(c.id);selectedId=null;selectedKeys.clear();reanchorPassageId=null;detailEpoch++;host.replaceChildren(node('p','本地档案已删除。'));clearPassageHighlights();await refreshArchives();await quota();},'danger'));
   if(epoch===detailEpoch&&captureId===selectedId){host.replaceChildren(el);host.dataset.captureId=captureId;restoreFocus();}
  }
  async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent=(selectedKeys.size?'已选 '+selectedKeys.size+' 个原始文件；':'历史文件将自动准备。')+(missing?' '+missing+' 个文件未取得。':'')+(excluded?' '+excluded+' 个按范围排除。':'');$('prepare').disabled=!c?.snapshot||['capturing','error'].includes(c.state)||$('instructions').value.length>4000;}
