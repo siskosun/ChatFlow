@@ -325,7 +325,14 @@ async def main():
     selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
     options=await w.evaluate("()=>[...document.querySelector('#source').options].map(o=>({id:o.value,url:o.dataset.sourceUrl}))")
     assert selected=={'id':str(ta),'url':URL_A},{'selected':selected,'ta':ta,'tb':tb,'options':options}
-    await w.locator('#open-tools').click()
+    # Search/navigation now has a single entry in Advanced, not Capture.
+    assert await w.locator('#open-tools').count()==0
+    await w.locator('header [data-view="settings"]').click()
+    if not await w.locator('#pref-tools').is_checked():
+        await w.locator('#pref-tools').check()
+    await w.locator('#feature-open-tools').click()
+    await w.locator('#settings-tools-source').select_option(str(ta))
+    await w.locator('#settings-tools-open').click()
     await w.wait_for_timeout(350)
     print('SIDEPANEL_TOOLS_DIAGNOSTIC',json.dumps({'selection':selected,'status':await w.locator('#status').inner_text(),'toolsPresent':await a.locator('#chatflow-page-tools').count()}),flush=True)
     tools=a.locator('#chatflow-page-tools');await tools.wait_for(state='attached');await poll(a,"()=>document.querySelector('#chatflow-page-tools').shadowRoot.textContent.includes('80')")
