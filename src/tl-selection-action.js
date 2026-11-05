@@ -7,6 +7,26 @@
  let host = null, button = null, timer = null, current = null, busy = false;
  function hide() { if (host) host.hidden = true; current = null; }
  function inChat() { try { C.chatUrl(location.href); return true; } catch { return false; } }
+ // ChatGPT owns its native quote popover. Place an INDEPENDENT action beside
+ // the visible Ask ChatGPT control when it is exposed in the page DOM, without
+ // editing React-owned markup or treating the quote control as source evidence.
+ function adjacentNativeButton(selectionRect) {
+  const controls=document.querySelectorAll('button,[role="button"]');
+  let best=null,score=Infinity;
+  // Native quote portals are usually appended near the document end; on long
+  // threads the first 450 controls may all belong to old messages.
+  for(let i=controls.length-1;i>=Math.max(0,controls.length-450);i--){
+   const el=controls[i],label=(el.getAttribute('aria-label')||el.textContent||'').trim().replace(/\s+/g,' ');
+   if(!/^(向\s*ChatGPT\s*提问|Ask\s*ChatGPT)$/i.test(label))continue;
+   if(el.closest('#chatflow-selected-action'))continue;
+   const r=el.getBoundingClientRect();
+   if(r.width<20||r.height<20||r.left<0||r.top<0||r.right>innerWidth||r.bottom>innerHeight)continue;
+   const distance=Math.hypot(Math.max(0,r.left-selectionRect.right,selectionRect.left-r.right),Math.max(0,r.top-selectionRect.bottom,selectionRect.top-r.bottom));
+   if(distance<180&&distance<score){best=r;score=distance;}
+  }
+  return best;
+ }
+
  function prepare() {
   if (!inChat()) { hide(); return; }
   const result = S.selectedMessage(20000);
@@ -44,16 +64,21 @@
    });
    shadow.append(style,button);document.documentElement.append(host);
   }
-  const width = 130, height = 38;
-  const x = Math.max(10,Math.min(innerWidth-width-10,rect.right+9 <= innerWidth-width-10 ? rect.right+9 : rect.left));
-  const y = Math.max(8,Math.min(innerHeight-height-8,rect.top-height-8 >= 8 ? rect.top-height-8 : rect.bottom+7));
+  if(rect.bottom<0||rect.top>innerHeight){hide();return;}
+  const width=144,height=42,pad=10,native=adjacentNativeButton(rect);
+  const idealX=native?(native.right+8+width<innerWidth-pad?native.right+8:native.left-width-8):
+    (rect.right+10+width<innerWidth-pad?rect.right+10:rect.left-width-10);
+  const idealY=native?native.top:(rect.top-height-9>=pad?rect.top-height-9:rect.bottom+9);
+  const x=Math.max(pad,Math.min(innerWidth-width-pad,idealX));
+  const y=Math.max(pad,Math.min(innerHeight-height-pad,idealY));
   host.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:2147483646;pointer-events:auto`;
   host.hidden = false;
  }
  function schedule() { if (busy) return;clearTimeout(timer);timer=setTimeout(prepare,120); }
  document.addEventListener('selectionchange',schedule);
  document.addEventListener('mouseup',schedule,true);
+ document.addEventListener('pointerup',()=>{schedule();setTimeout(schedule,300);},true);
  document.addEventListener('keyup',event=>{if(event.key==='Escape')hide();else schedule();},true);
- window.addEventListener('scroll',hide,true);
+ window.addEventListener('scroll',schedule,true);
  window.addEventListener('pagehide',hide);
 })();

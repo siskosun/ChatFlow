@@ -43,7 +43,72 @@
   return{windowId:tab.windowId,activeTabId:tab.id};
  }
  function bytes(n){return n>=1024**3?(n/1024**3).toFixed(2)+' GB':n>=1024**2?(n/1024**2).toFixed(1)+' MB':n>=1024?(n/1024).toFixed(1)+' KB':n+' B';}
- function switchView(v){if(!document.getElementById(v+'-view'))return;view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='capture')guard(syncSources);if(v==='archive')guard(refreshArchives);if(v==='handoff'){guard(updateSelection);if(handoffId)guard(renderHandoffState);}document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
+
+ // One experiment tab across all workspace entrances. The button reflects the
+ // actual browser tab state, not whether the last click returned successfully.
+ const experimentUrl=chrome.runtime.getURL('workspace/experiments.html');
+ let experimentTogglePending=false,experimentSyncTimer=null;
+ async function experimentTabs(){
+  const tabs=await chrome.tabs.query({});
+  // Tab IDs survive navigation: never mistake a redirected user tab for an experiment.
+  return tabs.filter(t=>Number.isInteger(t.id)&&(
+   t.url?.split(/[?#]/,1)[0]===experimentUrl ||
+   t.pendingUrl?.split(/[?#]/,1)[0]===experimentUrl));
+ }
+ function experimentButtons(){
+  return ['home-experiment','settings-open-experiments','open-experiments'].map($).filter(Boolean);
+ }
+ async function refreshExperimentButtons(){
+  const tabs=await experimentTabs(),open=tabs.length>0;
+  for(const button of experimentButtons()){
+   const text=open?'关闭并行实验':'打开并行实验';
+   const strong=button.id==='home-experiment'?button.querySelector('strong'):null;
+   if(strong)strong.textContent=text;else button.textContent=text;
+   button.setAttribute('aria-pressed',String(open));
+   button.setAttribute('aria-label',text);
+   button.disabled=experimentTogglePending;
+  }
+  return tabs;
+ }
+ async function toggleExperiment(){
+  if(experimentTogglePending)return;
+  experimentTogglePending=true;
+  for(const b of experimentButtons())b.disabled=true;
+  try{
+   const existing=await experimentTabs();
+   if(existing.length){
+    await chrome.tabs.remove(existing.map(tab=>tab.id));
+   }else{
+    await chrome.tabs.create({url:experimentUrl});
+   }
+  }finally{
+   experimentTogglePending=false;
+   await refreshExperimentButtons();
+  }
+ }
+ function scheduleExperimentSync(){
+  clearTimeout(experimentSyncTimer);
+  experimentSyncTimer=setTimeout(()=>refreshExperimentButtons().catch(()=>{}),100);
+ }
+ chrome.tabs.onCreated.addListener(scheduleExperimentSync);
+ chrome.tabs.onRemoved.addListener(scheduleExperimentSync);
+ chrome.tabs.onUpdated.addListener((_id,change)=>{
+  if(change.url||change.status==='complete')scheduleExperimentSync();
+ });
+ globalThis.ChatFlowExperimentTabs=Object.freeze({
+  toggle:toggleExperiment,refresh:refreshExperimentButtons
+ });
+ setTimeout(scheduleExperimentSync,0);
+ // A successful action belongs to the view that produced it; stale banners
+ // must not follow users across workflows. Failures remain until dismissed.
+ function clearTransientFeedback(){
+  const banner=$('status');
+  if(banner&&!banner.classList.contains('error'))status('');
+  for(const id of ['task-status','settings-status']){
+   const el=$(id);if(el&&!el.classList.contains('error'))el.textContent='';
+  }
+ }
+ function switchView(v){if(!document.getElementById(v+'-view'))return;if(v!==view)clearTransientFeedback();view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='capture')guard(syncSources);if(v==='archive')guard(refreshArchives);if(v==='handoff'){guard(updateSelection);if(handoffId)guard(renderHandoffState);}document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
  function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
  function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('open-target').hidden=true;$('prepare').hidden=false;$('prepare').textContent='重新准备历史与文件';status('内容已更改，请重新准备。');}}
  async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
@@ -422,7 +487,7 @@
  $('focus-target').onclick=()=>guard(()=>call('tl:focusTarget',{id:handoffId}));$('download-handoff').onclick=()=>guard(downloadHandoff);
  $('confirmed').addEventListener('change',()=>{$('confirm-upload').disabled=!$('confirmed').checked||$('confirm-upload').dataset.allowed!=='true';});
  $('confirm-upload').onclick=singleFlight('confirm-upload',async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
- $('open-experiments').onclick=()=>guard(async()=>{await chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')});});$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
+ $('open-experiments').onclick=()=>guard(toggleExperiment);$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
  setInterval(()=>{if(refreshing||document.hidden)return;refreshing=true;Promise.resolve().then(async()=>{if(view==='capture')await renderRunning();if(view==='handoff'&&handoffId)await renderHandoffState();}).catch(e=>TLDiagnostics.record('workspace-refresh',e)).finally(()=>refreshing=false);},3000);
  // A browser may surface the ChatGPT tab after the workspace first loads.
  // Do not require a manual refresh, and never wipe a user's current selection.

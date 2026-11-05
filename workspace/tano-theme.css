@@ -288,3 +288,119 @@ body:has(.experiment-path) button.secondary:hover:not(:disabled) {
   background:#C9B6FF!important;
   color:#11100E!important;
 }
+
+/* Keep optional advanced explanations available to assistive technology
+   without repeating five small '用途' links in the main interface. */
+.pref-a11y-description {
+  position:absolute!important;width:1px!important;height:1px!important;
+  padding:0!important;margin:-1px!important;border:0!important;
+  overflow:hidden!important;white-space:nowrap!important;
+  clip-path:inset(50%)!important;
+}
+/* Real-use audit: one visual axis between archive/settings pages. */
+html { scrollbar-gutter: stable; }
+body { overflow-x: clip; }
+.top,main { width:100%; }
+
+/* Softer low-saturation surfaces retain the outlined editorial hierarchy. */
+.home-intro .home-eyebrow {
+  color:#3D3831;background:#EDE6D8;border-color:#766E62;
+}
+.flow-choice:first-child,.flow-choice:first-child:hover:not(:disabled) {
+  background:#F4DCCC;
+}
+.flow-choice:nth-child(2),.flow-choice:nth-child(2):hover:not(:disabled) {
+  background:#DDE9DD;
+}
+.flow-choice:nth-child(3),.flow-choice:nth-child(3):hover:not(:disabled) {
+  background:#E9E5EF;
+}
+.flow-choice,.flow-choice:hover:not(:disabled) {
+  border-width:1.5px;box-shadow:4px 4px 0 #11100E;
+}
+.flow-choice:hover:not(:disabled) {box-shadow:3px 3px 0 #11100E;}
+.flow-choice:active:not(:disabled) {box-shadow:1px 1px 0 #11100E;}
+.first-run {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:8px;margin:17px 0 0;padding:5px 0;
+  border:0;background:transparent;box-shadow:none;
+}
+.first-run-details {grid-column:auto;grid-row:auto;}
+.first-run .chatgpt-link {grid-column:auto;grid-row:auto;}
+#home-experiment[aria-pressed="true"] .flow-arrow {background:#735F8B;}
+
+/* Refresh is a compact utility belonging to the source chooser, never a CTA. */
+.task-source-row {
+  display:grid;grid-template-columns:minmax(0,1fr) 46px;align-items:stretch;
+  gap:9px;margin:7px 0 10px;
+}
+.task-source-row select {margin:0;min-width:0;}
+#task-refresh-source {
+  min-width:46px;width:46px;min-height:44px;max-width:46px;
+  padding:5px;border:1.5px solid var(--edge);border-radius:10px;
+  font-size:23px;line-height:1;font-weight:500;
+  background:var(--paper);
+}
+#task-refresh-source:hover:not(:disabled) {background:var(--hover);}
+#task-use-selection {
+  width:100%;min-height:48px;padding:10px 13px;
+  background:#DDE9DD;color:#18291E;border-color:var(--edge);
+  font-size:14px;font-weight:760;
+}
+#task-use-selection:hover:not(:disabled) {
+  background:#CEE0CF;color:#18291E;
+}
+.source-actions {display:block;margin:0 0 17px;}
+.source-actions #task-use-selection {display:flex;}
+#task-next-return {
+  width:auto;min-height:39px;max-width:100%;
+  margin:6px 0;padding:7px 15px;font-size:14px;box-shadow:none;
+}
+/* Result collection expands beneath task creation, without hiding the task. */
+#task-compose:has(+ #task-return:not([hidden])) {
+  border-bottom:0;border-radius:13px 13px 0 0;
+}
+#task-return.task-return-inline:not([hidden]) {
+  margin:0;padding-top:18px;
+  border-top:1px dashed var(--line);border-radius:0 0 13px 13px;
+  background:var(--paper);box-shadow:4px 4px 0 var(--shadow);
+}
+.task-return-heading {margin:0 0 13px;font-size:18px;font-weight:800;letter-spacing:-.02em;}
+.mode-switch {background:transparent;border:0;padding:0;justify-content:flex-start;}
+.mode-switch button {flex:0 1 auto;padding:7px 14px;min-height:37px;}
+.mode-switch [aria-pressed="true"],.mode-switch [aria-pressed="true"]:hover {
+  background:#E6E4DC;color:#11100E;border-color:#11100E;
+}
+.feature-inline-tools {
+  border:1.5px solid var(--line);background:var(--paper);
+  border-radius:12px;margin:13px 0;padding:15px;
+  display:grid;gap:10px;
+}
+.feature-inline-tools[hidden] {display:none;}
+.feature-inline-tools strong {font-size:15px;}
+.feature-inline-tools p {margin:0;color:var(--muted);line-height:1.6;}
+.feature-inline-tools label {font-size:14px;font-weight:670;}
+.feature-inline-tools button {justify-self:start;}
+#settings-view #quota {overflow-wrap:anywhere;}
+@media(max-width:520px) {
+  .task-source-row {grid-template-columns:minmax(0,1fr) 44px;}
+  #task-refresh-source {width:44px;min-width:44px;max-width:44px;}
+  .flow-choice,.flow-choice:hover:not(:disabled) {box-shadow:3px 3px 0 #11100E;}
+  .first-run {padding:3px 0;gap:5px;}
+  #task-return.task-return-inline:not([hidden]) {box-shadow:3px 3px 0 var(--shadow);}
+}
+@media(prefers-color-scheme:dark) {
+  .home-intro .home-eyebrow {
+    background:#39362F;color:#F4E8D6;border-color:#D3C4AF;
+  }
+  #task-use-selection {
+    background:#344539;color:#FFF3DF;border-color:#F7E9D2;
+  }
+  #task-use-selection:hover:not(:disabled) {
+    background:#426049;color:#FFF3DF;
+  }
+  .mode-switch [aria-pressed="true"],.mode-switch [aria-pressed="true"]:hover {
+    background:#433E33;color:#FFF3DF;border-color:#F7E9D2;
+  }
+  #task-refresh-source {color:#FFF3DF;background:var(--paper);}
+}
