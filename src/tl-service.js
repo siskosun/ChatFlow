@@ -327,7 +327,7 @@ api.runtime.onMessage.addListener((msg,sender,respond)=>{if(!msg||typeof msg.typ
 api.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{
  TLDiagnostics.record('sidepanel-setup',new Error('SIDEPANEL_SETUP_FAILED'));
 });
-api.runtime.onInstalled.addListener(()=>{ensureSelectionActions().catch(()=>{});});
+api.runtime.onInstalled?.addListener(()=>{ensureSelectionActions().catch(()=>{});});
 api.tabs.onUpdated.addListener((tabId,change,tab)=>{
  ChatFlowExperimentService.onTabUpdated(api,tabId,change).catch(e=>TLDiagnostics.record('experiment-tab-update',e));
  if(change.status==='complete')announce(tabId).catch(e=>TLDiagnostics.record('handoff-announce',e));
