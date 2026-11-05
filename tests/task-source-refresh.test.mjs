@@ -84,3 +84,12 @@ test('an initial URL source hint cannot rebind a draft after that tab changes co
  await f.refreshSources();await f.refreshSources();
  assert.equal(f.state().source,'');assert.equal(f.state().text,'keep my draft');
 });
+
+test('an unassigned nonempty draft does not report a lost source on refresh',async()=>{
+ const f=fixture();f.choose('');f.calls.length=0;
+ await f.refreshSources();
+ assert.equal(f.state().text,'keep my draft');
+ assert.equal(f.state().source,'');
+ assert.equal(f.calls.some(x=>x[0]==='feedback'),'false');
+ assert.equal(f.calls.some(x=>x[0]==='query'),false);
+});
