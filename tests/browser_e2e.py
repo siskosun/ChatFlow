@@ -621,7 +621,7 @@ async def main():
             passed('context_builder_includes_only_explicitly_requested_verified_asset_bytes',{'asset_files':len(asset_paths)})
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
-            await experiment_page.locator('#ff-enable').wait_for(state='visible')
+            await experiment_page.locator('#ff-create').wait_for(state='visible')
             assert await experiment_page.locator('#ff-notice').get_attribute('role')=='status'
             await wait_async(experiment_page,'()=>document.querySelector("#ff-notice").textContent===""')
             assert await experiment_page.locator('#ff-action-status').count()==0
@@ -631,13 +631,14 @@ async def main():
             await experiment_page.keyboard.press('Tab')
             assert await experiment_page.evaluate("document.activeElement.classList.contains('back')")
             await experiment_page.keyboard.press('Tab')
-            assert await experiment_page.evaluate("document.activeElement.id==='ff-enable'")
+            assert await experiment_page.evaluate("document.activeElement.id==='ff-p'")
             for width in [320,360,480,768,1280]:
                 await experiment_page.set_viewport_size({'width':width,'height':900})
                 assert await experiment_page.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await experiment_page.screenshot(path=str(OUT/f'ux-experiments-{width}.png'),full_page=True)
-            await experiment_page.locator('#ff-enable').check()
             await experiment_page.locator('#ff-create').wait_for(state='visible')
+            assert await experiment_page.locator('#ff-local').is_visible()
+            await experiment_page.locator('#ff-optional-material summary').click()
             await experiment_page.locator('#ff-w0').fill('frozen shared material')
             await experiment_page.locator('#ff-p').fill('compare two independent answers')
             await experiment_page.locator('#ff-branch-count').select_option('2')
@@ -689,6 +690,7 @@ async def main():
             passed('experiment_refresh_updates_current_capture_status_without_reselecting')
             passed('parallel_experiment_k2_manual_send_capture_completion_and_blind_comparison')
             for branch_count in [3,4]:
+                await experiment_page.locator('#ff-optional-material summary').click() if not await experiment_page.locator('#ff-optional-material').evaluate('(e)=>e.open') else None
                 await experiment_page.locator('#ff-w0').fill('shared material for K='+str(branch_count))
                 await experiment_page.locator('#ff-p').fill('compare independent branches K='+str(branch_count))
                 await experiment_page.locator('#ff-branch-count').select_option(str(branch_count))
@@ -735,6 +737,7 @@ async def main():
                 for page in pages_k:await page.close()
                 await experiment_page.locator('#ff-refresh').click()
                 await experiment_page.locator('#ff-branch-boxes').wait_for(state='visible')
+            await experiment_page.locator('.experiment-options summary').click()
             await experiment_page.locator('#ff-enable').uncheck()
             assert not mode['write_requests'],mode['write_requests']
             passed('all_synthetic_source_requests_are_read_only',{'request_count':mode['request_count']})
