@@ -206,7 +206,7 @@
     const result=[];
     for(const el of headings){
       if(!S.contains(sc,el) || el.closest('pre,code,[hidden],[inert],[aria-hidden="true"]'))continue;
-      const title=String(el.textContent||'').replace(/\\s+/g,' ').trim();
+      const title=String(el.textContent||'').replace(/\s+/g,' ').trim();
       if(!title || title.length>250)continue;
       result.push({level:Number(el.tagName.slice(1)),text:title});
       if(result.length>=80)break;
