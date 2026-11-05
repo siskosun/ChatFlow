@@ -657,6 +657,11 @@ async def main():
             experiment_page=await ctx.new_page()
             await experiment_page.goto('chrome-extension://'+extension+'/workspace/experiments.html')
             await experiment_page.locator('#ff-create').wait_for(state='visible')
+            assert await experiment_page.locator('#ff-bytes').is_hidden(), 'Byte counts are not needed before a limit warning'
+            assert await experiment_page.locator('#ff-import-file').is_hidden(), 'JSON import belongs in advanced backups'
+            await experiment_page.locator('.experiment-options summary').click()
+            assert await experiment_page.locator('#ff-import-file').is_visible()
+            await experiment_page.locator('.experiment-options summary').click()
             assert await experiment_page.locator('#ff-notice').get_attribute('role')=='status'
             await wait_async(experiment_page,'()=>document.querySelector("#ff-notice").textContent===""')
             assert await experiment_page.locator('#ff-action-status').count()==0
