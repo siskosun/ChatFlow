@@ -298,6 +298,7 @@ async def main():
             passed('bad_zip_shows_human_readable_error_and_same_file_can_be_reselected')
             # A failed official-file comparison must reset its chooser. Otherwise
             # selecting the same ZIP again may not generate another change event.
+            await workspace.locator('header [data-view="archive"]').click()
             await workspace.locator('.archive-button').first.click()
             official_picker=workspace.locator('#detail label.file-button').filter(has_text='对照官方 ZIP').locator('input[type=file]')
             await official_picker.wait_for(state='attached')
