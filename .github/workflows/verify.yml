@@ -55,6 +55,9 @@ jobs:
       - name: Synthetic Chromium MV3 acceptance, no real account
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/browser_scoped_e2e.py
+      - name: Legacy handoff full-upload and parallel experiment regression
+        if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
+        run: xvfb-run -a python tests/browser_e2e.py
       - name: Actual IndexedDB shared-file and handoff safety checks
         if: ${{ !cancelled() && steps.browser_tools.outcome == 'success' }}
         run: xvfb-run -a python tests/storage_edges.py
