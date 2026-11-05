@@ -85,7 +85,8 @@
    port.onMessage.addListener(event=>{
     if(selectionPort!==port||epoch!==selectionEpoch||Number(source.value)!==tabId||
        source.selectedOptions[0]?.dataset.sourceUrl!==expectedUrl||$('task-compose').hidden)return;
-    if(event?.type==='stopped'){stopSelectionWatch();say('来源对话已切换，请重新选择后接收选文。',true);return;}
+    if(event?.type==='stopped'){stopSelectionWatch();say(event.reason==='scope-unavailable'?'当前页面无法识别唯一的消息区域，请刷新原对话，或将文字直接粘贴到任务框。':'来源对话已切换，请重新选择后接收选文。',true);return;}
+    if(event?.type==='hint'){say('请仅选择原对话中一条消息的正文，不要跨多条消息。',true);return;}
     if(event?.type!=='selection'||event.url!==expectedUrl)return;
     if(event.tooLong||typeof event.text!=='string'||event.text.length>T.LIMITS.task){
      say('选文超过 20,000 字，请缩短后重新选择；原有草稿未修改。',true);return;
