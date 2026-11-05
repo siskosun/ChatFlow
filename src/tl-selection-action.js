@@ -13,7 +13,9 @@
  function adjacentNativeButton(selectionRect) {
   const controls=document.querySelectorAll('button,[role="button"]');
   let best=null,score=Infinity;
-  for(let i=0;i<Math.min(controls.length,450);i++){
+  // Native quote portals are usually appended near the document end; on long
+  // threads the first 450 controls may all belong to old messages.
+  for(let i=controls.length-1;i>=Math.max(0,controls.length-450);i--){
    const el=controls[i],label=(el.getAttribute('aria-label')||el.textContent||'').trim().replace(/\s+/g,' ');
    if(!/^(向\s*ChatGPT\s*提问|Ask\s*ChatGPT)$/i.test(label))continue;
    if(el.closest('#chatflow-selected-action'))continue;
