@@ -55,8 +55,11 @@
   function bytes() {
     const value = ChatFlowExperimentCore.formatText($("ff-w0").value, $("ff-p").value);
     const size = ChatFlowExperimentCore.byteLength(value);
-    $("ff-bytes").textContent = "最终发送文本：" + size.toLocaleString() +
-      " / 24,000 UTF-8 字节" + (size>ChatFlowExperimentCore.MAX_BYTES?" · 超限；全文已保留，请缩短后继续。":"");
+    const hint=$("ff-bytes"),overLimit=size>ChatFlowExperimentCore.MAX_BYTES;
+    hint.hidden=!overLimit && size<ChatFlowExperimentCore.MAX_BYTES*0.8;
+    hint.textContent=overLimit
+      ? "内容超限，全文已保留。请缩短后再保存。"
+      : "内容较长，接近任务长度上限。";
     for(const id of inputs)$(id).setAttribute('aria-invalid',String(size>ChatFlowExperimentCore.MAX_BYTES));
     $("ff-save").disabled = createBusy || size > ChatFlowExperimentCore.MAX_BYTES || !$("ff-p").value.trim();
   }
