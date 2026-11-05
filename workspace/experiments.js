@@ -306,10 +306,10 @@
       return;
     }
     const titleKey = title => title.normalize("NFKC").toLocaleLowerCase();
+    const displayName = item => [...String(item.taskTitle||"未命名实验").replace(/[\u0000-\u001f\u007f-\u009f]/g," ").replace(/\s+/g," ").trim()].slice(0,80).join("")||"未命名实验";
     const titleCounts = new Map(),titleSeen=new Map();
     for (const item of values) {
-      if (typeof item.taskTitle !== "string" || !item.taskTitle) continue;
-      const key = titleKey(item.taskTitle);
+      const key = titleKey(displayName(item));
       titleCounts.set(key,(titleCounts.get(key)||0)+1);
     }
     for (const item of values) {
@@ -321,8 +321,8 @@
       const statuses = item.statuses || {A:item.statusA, B:item.statusB};
       const mark = status => status === "done" ? "✓" : status === "failed" ? "✗" : status === "unknown" ? "?" : "…";
       const candidate = typeof item.taskTitle === "string" && item.taskTitle ? item.taskTitle : null;
-      const cleanTitle = (candidate||"未命名实验").replace(/[\u0000-\u001f\u007f-\u009f]/g," ").replace(/\s+/g," ").trim().slice(0,80)||"未命名实验";
-      const duplicate = titleCounts.get(titleKey(candidate||"")) > 1;
+      const cleanTitle = displayName(item);
+      const duplicate = titleCounts.get(titleKey(cleanTitle)) > 1;
       const titleNumber=(titleSeen.get(titleKey(cleanTitle))||0)+1;titleSeen.set(titleKey(cleanTitle),titleNumber);
       const displayTitle = duplicate ? cleanTitle + " · 同名实验 " + titleNumber : cleanTitle;
       const date = Number.isSafeInteger(item.createdAt) && item.createdAt > 0
