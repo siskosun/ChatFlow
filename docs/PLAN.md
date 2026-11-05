@@ -1,6 +1,6 @@
 # ChatFlow 开发计划与工程验收（0.2 历史证据 / 0.3 工程候选）
 
-**当前状态：0.3 工程候选与侧边栏修订（PR #3/#4）均已于 2026-11-04 合并 main。`167d4593eef4c75a4cd08f362730405171d73312` 对应 GitHub Actions #41788480392 三项任务成功。第 14 节新增可靠性修订范围尚未实施或验收；真实登录、独立用户及辅助技术验收仍待执行。**
+**当前状态（2026-11-05）：0.3 可靠性批次 A—D、独立章节导航 E 与代码审核 S1—S7 / M1—M23 已通过 [PR #21](https://github.com/siskosun/ChatFlow/pull/21) 整合并合并到 `main`。合并提交 `1b730c697b33a0f55b27b72ef1a37a48a0f06d80` 的 [Actions #41946410615](https://github.com/siskosun/ChatFlow/actions/runs/41946410615) 已独立验证 `verify`、`windows-baseline`、`reproducible-build` 三项成功。第 14 节是历史实施计划，不再表示“尚未实施”。真实登录 ChatGPT、真实旧附件、至少 5 名独立首次用户和真人辅助技术验收仍未执行，因此不是正式发布批准。**
 
 目标仓库：`siskosun/ChatFlow`。现行版本：`0.3`。[PR #3](https://github.com/siskosun/ChatFlow/pull/3) 已合并 main，Draft/Open 为历史状态；目前仍无正式 Release。PR #1/#2 是历史候选，不改变后置验收要求。
 
