@@ -44,7 +44,6 @@
  const home=n('section',null,{id:'home-view',class:'view'}),intro=n('div',null,{class:'home-intro'});
  intro.append(n('h1','把工作带到下一段对话'));
  intro.append(n('span','选择一个操作开始',{class:'eyebrow home-eyebrow'}));
- intro.append(n('p','保存已有聊天，或将任务交给其他助手后准确带回结果。你的原对话和草稿都不会被改动。',{class:'home-lead'}));
  const choices=n('div',null,{class:'flow-choices'});
  const journeys=[['capture','保存对话','保存聊天和文件，之后接到新聊天。'],['tasks','任务回传','从原对话选文，把任务交给其他助手。'],['experiment','并行实验','同一任务交给 2—4 个聊天，直接比较回答。']];
  for(const [index,[view,title,description]] of journeys.entries()){
@@ -53,20 +52,20 @@
   const content=n('span',null,{class:'flow-copy'});content.append(n('strong',title),n('span',description,{class:'muted'}));
   const arrow=n('span','›',{class:'flow-arrow','aria-hidden':'true'});
   b.append(number,content,arrow);choices.append(b);
-  if(view==='experiment')b.addEventListener('click',()=>safe(()=>chrome.tabs.create({url:chrome.runtime.getURL('workspace/experiments.html')})));
+  if(view==='experiment')b.addEventListener('click',()=>safe(()=>ChatFlowExperimentTabs.toggle()));
  }
  const setup=n('section',null,{class:'first-run',id:'first-run-prereqs','aria-label':'开始前确认'});
- setup.append(n('p','使用前：请先在普通浏览器标签页登录 ChatGPT，并打开已有对话。',{class:'first-run-tip'}));
+
  const requirements=n('details',null,{class:'first-run-details'});requirements.append(n('summary','查看使用条件'));
  const prerequisites=n('ol');for(const item of ['使用 Chrome 116+ 或支持侧边栏的 Edge，且不是无痕窗口。','已在浏览器标签页登录 ChatGPT。','打开一段已有的 ChatGPT 对话；空白新聊天无法保存。'])prerequisites.append(n('li',item));requirements.append(prerequisites);setup.append(requirements);
  const openChat=n('a','打开 ChatGPT',{class:'chatgpt-link',href:'https://chatgpt.com/',target:'_blank',rel:'noopener noreferrer'});setup.append(openChat);
- home.append(intro,choices,setup);main.insertBefore(home,$('capture-view'));
+ home.append(intro,choices,setup);main.insertBefore(home,$('capture-view'));setTimeout(()=>safe(()=>ChatFlowExperimentTabs.refresh()),0);
  const taskView=n('section',null,{id:'tasks-view',class:'view',hidden:''}),head=n('div',null,{class:'view-heading'});
  head.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','任务回传'));
  const taskStatus=n('p',null,{id:'task-status',role:'status','aria-live':'polite'});
  const modes=n('div',null,{class:'mode-switch',role:'group','aria-label':'任务操作'});
  function invalidateSavedResultOpen(){savedResultOpenEpoch++;matchEpoch++;}
- function mode(value){if(value!=='compose')stopSelectionWatch();invalidateSavedResultOpen();$('task-compose').hidden=value!=='compose';$('task-return').hidden=value!=='return';$('task-mode-compose').setAttribute('aria-pressed',String(value==='compose'));$('task-mode-return').setAttribute('aria-pressed',String(value==='return'));}
+ function mode(value){if(value!=='compose')stopSelectionWatch();invalidateSavedResultOpen();$('task-compose').hidden=false;$('task-return').hidden=value!=='return';$('task-mode-compose').setAttribute('aria-pressed',String(value==='compose'));$('task-mode-return').setAttribute('aria-pressed',String(value==='return'));}
  modes.append(button('交出任务','task-mode-compose',()=>mode('compose')),button('回传结果','task-mode-return',()=>mode('return')));
  const compose=n('div',null,{id:'task-compose',class:'task-card'}),source=n('select',null,{id:'task-source'}),text=n('textarea',null,{id:'task-text',rows:5,'aria-describedby':'task-text-count',placeholder:'例如：检查这段 SQL 的连接条件。'}),sourceActions=n('div',null,{class:'actions source-actions'}),taskCount=n('p',null,{id:'task-text-count',class:'input-count',role:'status'});
  const selectionStage=n('section',null,{id:'task-selection-stage',class:'selection-stage',hidden:'','aria-live':'polite'});
