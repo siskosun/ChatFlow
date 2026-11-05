@@ -119,6 +119,27 @@ async def main():
     # Old source selector must never bind a navigated tab to the newly opened chat.
     await a.goto(URL_B);stale=await w.evaluate("async x=>chrome.runtime.sendMessage({type:'tl:taskSource',tabId:x.id,expectedUrl:x.url})",{'id':ta,'url':URL_A});assert not stale['ok'] and stale['code']=='TASK_SOURCE_CHANGED';await a.goto(URL_A)
     passed('stale_source_tab_identity_rejected_before_task_creation')
+    # Simulate a tab predating extension installation: its page selection is
+    # intact, but the extension content-script globals are absent.
+    await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const range=document.createRange();range.selectNodeContents(el);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    cleared=await w.evaluate("""async tabId=>{
+      const rows=await chrome.scripting.executeScript({target:{tabId},func:()=>{
+        delete globalThis.TLCore;delete globalThis.TLPageScope;
+        return {coreMissing:!globalThis.TLCore,scopeMissing:!globalThis.TLPageScope};
+      }});
+      return rows.find(row=>row.frameId===0)?.result;
+    }""",ta)
+    assert cleared=={'coreMissing':True,'scopeMissing':True},cleared
+    selected_source=await w.evaluate("async arg=>chrome.runtime.sendMessage({type:'tl:taskSource',tabId:arg.id,expectedUrl:arg.url})",{'id':ta,'url':URL_A})
+    assert selected_source['ok'],selected_source
+    assert selected_source['data']['selection']=='duplicate identical paragraph',selected_source
+    assert selected_source['data']['messageId']=='m64',selected_source
+    assert selected_source['data']['selectionEvidence']=='confirmed',selected_source
+    passed('task_source_recovers_selected_text_when_content_script_globals_were_absent')
     # Optional navigation loads only after the user asks. It finds messages not in the current DOM.
     assert await a.locator('#chatflow-page-tools').count()==0
     await w.locator('[data-view="home"]').first.click();await w.locator('#home-view [data-view="capture"]').click()
