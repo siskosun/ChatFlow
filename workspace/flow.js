@@ -241,6 +241,17 @@
  const restore=n('input',null,{type:'file',id:'task-restore',accept:'.jsonl,.json,application/x-ndjson,application/json'});backup.append(...field('恢复任务备份',restore));const settingsStatus=n('p',null,{id:'settings-status',role:'status','aria-live':'polite'});restore.addEventListener('change',async()=>{try{const f=restore.files[0];if(!f)return;restore.disabled=true;backupButton.disabled=true;say('正在校验备份…');const r=await S.restoreBackup(f);say('已恢复 '+r.tasks+' 个任务、'+r.results+' 份结果。');await refreshTasks();}catch(e){say(e.name==='QuotaExceededError'?'空间不足，恢复未完成；原任务仍保留。':errors[e.message]||(/^TASK_BACKUP_/.test(e.message)?'备份校验未通过，未恢复任何内容。':'恢复未完成，请检查备份文件；如持续失败，可在高级功能中查看诊断信息。'),true);}finally{restore.value='';restore.disabled=false;backupButton.disabled=false;}});settings.append(settingsBox,experimentInfo,backup,settingsStatus);main.append(settings);
  function applyPreferences(){for(const[k,v]of Object.entries(prefs)){document.body.classList.toggle('feature-'+k,!!v);$('pref-'+k).checked=!!v;}if(!prefs.live)$('live').checked=false;}
  document.addEventListener('chatflow:view',e=>{if(e.detail!=='tasks')stopSelectionWatch();invalidateSavedResultOpen();if(e.detail==='tasks')safe(async()=>{await refreshSources();await refreshTasks();await updateMatch();});});
+ // A newly opened or navigated ChatGPT tab may not refocus the side panel.
+ // Keep the chooser current without discarding its source ID or task draft.
+ let taskSourceSyncTimer=null;
+ function scheduleTaskSourceSync(){
+  if($('tasks-view').hidden)return;
+  clearTimeout(taskSourceSyncTimer);
+  taskSourceSyncTimer=setTimeout(()=>{taskSourceSyncTimer=null;safe(refreshSources);},180);
+ }
+ chrome.tabs.onCreated.addListener(scheduleTaskSourceSync);
+ chrome.tabs.onUpdated.addListener((_id,change)=>{if(change.url||change.status==='complete')scheduleTaskSourceSync();});
+ chrome.tabs.onRemoved.addListener(scheduleTaskSourceSync);
  window.addEventListener('focus',()=>{if(!$('tasks-view').hidden)safe(async()=>{await refreshSources();await refreshTasks();});});
  $('open-tools').onclick=()=>safe(async()=>{const id=Number($('source').value);await call('tl:openTools',{tabId:id,expectedUrl:$('source').selectedOptions[0]?.dataset.sourceUrl});});
  chrome.storage.local.get('cfPreferences').then(r=>{for(const k of Object.keys(defaults))if(typeof r.cfPreferences?.[k]==='boolean')prefs[k]=r.cfPreferences[k];applyPreferences();}).catch(()=>applyPreferences());
