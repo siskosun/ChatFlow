@@ -7,7 +7,8 @@ test('reselecting a save scope has its own source-safe failure code',()=>{
  const app=read('workspace/app.js');
  assert.match(app,/SAVE_SCOPE_CHANGED/);assert.match(app,/LIVE_SAVE_MODE_CHANGED/);
  assert.match(app,/open-target'\)\.hidden=true/);
- assert.match(app,/staging-details'\)\.open=true/);
+ // Large file details are intentionally collapsed until a user asks to inspect them.
+ assert.match(app,/staging-details'\)\.open=false/);
 });
 test('task source cannot silently inherit another workspace selector',()=>{
  const flow=read('workspace/flow.js');
