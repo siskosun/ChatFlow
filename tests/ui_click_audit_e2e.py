@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'test-results'
 OUT.mkdir(exist_ok=True)
 SOURCE = 'https://chatgpt.com/c/ui_audit_source_20261105'
-CHAT_HTML = """<!doctype html><html lang="zh"><head><title>合成来源对话</title></head>
+CHAT_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>合成来源对话</title></head>
 <body style="margin:0"><main style="padding:120px 18px 1500px">
 <article data-message-id="m1" data-message-author-role="assistant">
   <p id="audit-quote" style="font:20px/1.6 sans-serif">只选中这一条回复的文字</p>
