@@ -289,6 +289,14 @@ body:has(.experiment-path) button.secondary:hover:not(:disabled) {
   color:#11100E!important;
 }
 
+/* Keep optional advanced explanations available to assistive technology
+   without repeating five small '用途' links in the main interface. */
+.pref-a11y-description {
+  position:absolute!important;width:1px!important;height:1px!important;
+  padding:0!important;margin:-1px!important;border:0!important;
+  overflow:hidden!important;white-space:nowrap!important;
+  clip-path:inset(50%)!important;
+}
 /* Real-use audit: one visual axis between archive/settings pages. */
 html { scrollbar-gutter: stable; }
 body { overflow-x: clip; }
