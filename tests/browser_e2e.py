@@ -95,9 +95,13 @@ def conversation(live=False,unknown_after=False,conversation_id=CID):
     return {'conversation_id':conversation_id,'title':'合成研究 · 120 条历史','current_node':'live' if live else 'n119','mapping':mapping}
 
 TARGET_HTML='''<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<!-- The editor, attachment inputs and chips must share one explicit composer.
+     A body-wide fallback would violate the production source-ownership guard. -->
+<div data-testid="composer">
 <textarea id="prompt-textarea" rows="8" style="width:500px;max-width:90vw">__DRAFT__</textarea>
 <input id="camera" type="file" accept="image/*" capture="environment"><input id="generic" type="file" multiple>
 <button id="user-send" aria-label="Send prompt" onclick="window.sends++">Send (user only)</button><div id="uploads"></div>
+</div>
 <script>
 window.sends=0;window.received=[];window.uploadEvents=0;window.mode=__MODE__;
 document.getElementById('generic').addEventListener('change',async e=>{
@@ -800,7 +804,7 @@ async def main():
             raise
         finally:
             REPORT['status']='pass' if not REPORT['errors'] else 'fail'
-            (OUT/'browser-report.json').write_text(json.dumps(REPORT,ensure_ascii=False,indent=2),encoding='utf-8')
+            (OUT/'browser-legacy-report.json').write_text(json.dumps(REPORT,ensure_ascii=False,indent=2),encoding='utf-8')
             print(json.dumps({'result':REPORT['status'],'cases':len(REPORT['cases']),'errors':REPORT['errors']},ensure_ascii=False),flush=True)
             await ctx.close()
 if __name__=='__main__':asyncio.run(main())
