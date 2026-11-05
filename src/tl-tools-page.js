@@ -214,8 +214,9 @@
     return result;
   }
   function headingMenu(session, message) {
-    const markdownOutline=textOutline(message.text);
-    const outline=markdownOutline.length?markdownOutline:visibleOutline(message);
+    // DOM-only innerText may include '# headings' inside code blocks. Prefer
+    // actual rendered heading elements rather than reparsing that flattened text.
+    const outline=message.domNode?visibleOutline(message):textOutline(message.text);
     if(!outline.length)return null;
     const details=n('details',null,{class:'cf-headings'});
     const summary=n('summary','提纲（'+outline.length+'） · '+outline[0].text.slice(0,30));
