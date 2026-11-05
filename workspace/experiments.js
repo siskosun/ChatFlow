@@ -321,8 +321,8 @@
       const statuses = item.statuses || {A:item.statusA, B:item.statusB};
       const mark = status => status === "done" ? "✓" : status === "failed" ? "✗" : status === "unknown" ? "?" : "…";
       const candidate = typeof item.taskTitle === "string" && item.taskTitle ? item.taskTitle : null;
-      const duplicate = candidate && titleCounts.get(titleKey(candidate)) > 1;
       const cleanTitle = (candidate||"未命名实验").replace(/[\u0000-\u001f\u007f-\u009f]/g," ").replace(/\s+/g," ").trim().slice(0,80)||"未命名实验";
+      const duplicate = titleCounts.get(titleKey(candidate||"")) > 1;
       const titleNumber=(titleSeen.get(titleKey(cleanTitle))||0)+1;titleSeen.set(titleKey(cleanTitle),titleNumber);
       const displayTitle = duplicate ? cleanTitle + " · 同名实验 " + titleNumber : cleanTitle;
       const date = Number.isSafeInteger(item.createdAt) && item.createdAt > 0
@@ -390,8 +390,7 @@
       if (pendingCreate?.operationId === intent.operationId) pendingCreate = null;
       notice("已冻结并保存到独立本地数据库；没有打开或发送网页消息。");
     } catch (error) {
-      notice(saved ? "实验已保存，显示刷新失败。保留相同输入再次点击保存可恢复本次结果：" + error.message
-        : error.message,true);
+      notice(saved ? "实验已保存，但刷新页面显示失败。保留原输入再次操作可恢复本次结果。" : error.message,true);
     } finally {createBusy = false; bytes();}
   });
   let calibrationPassed = false;
@@ -420,7 +419,7 @@
       const imported = await send({type:"FF_IMPORT",snapshot});
       notice("实验已导入，包含 " + imported.branchCount + " 个分支。");
       await list();
-    } catch (e) { notice("导入被拒绝：" + e.message, true); }
+    } catch (e) { notice("导入未完成：" + readableError(e.message), true); }
     finally { event.target.value = ""; }
   });
   $("ff-copy-id").addEventListener("click",async()=>{
