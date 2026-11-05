@@ -243,3 +243,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+### AI Chat TOC keyboard interaction reference
+
+[harshmann10/AI-Chat-TOC](https://github.com/harshmann10/AI-Chat-TOC), MIT,
+pinned at `d76407ceb80b5ff8f104a7ec38752e7a2e5cf0d3`, `src/ui.js`
+SearchManager: Escape clears a nonempty search before leaving the search state.
+ChatFlow independently adapts this small interaction to its source-bound floating
+panel. The upstream empty-search behavior is blur; ChatFlow closes its panel.
+No upstream search manager, DOM collector, scroll engine or runtime is copied.

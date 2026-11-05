@@ -78,7 +78,7 @@
     const byId = new Map();
     session.messages.forEach((item,index)=>{byId.set(item.id,index);if(item.nodeId)byId.set(item.nodeId,index);});
     const cancel=event=>{
-      if (event.type==='keydown' && !['Escape','PageUp','PageDown','Home','End','ArrowUp','ArrowDown',' '].includes(event.key)) return;
+      if (event.type==='keydown' && (event.isComposing || event.keyCode===229 || !['Escape','PageUp','PageDown','Home','End','ArrowUp','ArrowDown',' '].includes(event.key))) return;
       controller.abort();
     };
     const events=['wheel','touchstart','pointerdown','keydown'];
@@ -366,7 +366,16 @@
     session.retry.onclick=()=>{session.loadError=null;load(session).catch(error=>reportJumpError(session,error));};
     panel.append(header, session.query, session.coverageNode, controls, session.list, session.status, session.retry, extra);
     shadow.append(n('style', STYLE),n('style', UX_STYLE), panel); document.documentElement.append(host); session.query.focus();
-    panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
+    panel.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      if (session.query.value) {
+        session.query.value = '';
+        session.jump += 1; session.navigationController?.abort();
+        render(session);
+        session.query.focus();
+      } else close();
+    });
     session.routeWatch = setInterval(() => { if (!current(session)) close(); }, 200);
     load(session).catch(error => reportJumpError(session, error)); return session;
   }

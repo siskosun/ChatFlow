@@ -33,8 +33,12 @@
 | [AI-RELAY](https://github.com/Yaascine/AI-RELAY/tree/11722376b57a875a9d365a3d89edfb167e439a6b) | `PreviewScreen`、`analyzer.ts`、LICENSE | MIT | 可编辑交接预览有参考价值；英文正则、以后续词重叠推定问题解决的摘要器不适合作为中文任务进度事实 |
 | [Relay Chat Handoff](https://github.com/vishwajeetchandole/relay-chat-handoff/tree/73c3d5f564d45523ac97954729b327849d0280d8) | `src/lib/handoff.js`、项目许可声明 | README 声称 MIT，未找到相应项目 LICENSE / package license | 仅作交互比较，未复制代码；首条用户文字、最近助手文字和末 400 条裁切不足以证明可靠恢复上下文 |
 | [Sidenote](https://github.com/prakashl1998/Sidenote/tree/981db3f89083ffd4ef63ad8d267b1c52c1526f33) | 选文与锚定入口、`package.json`、根目录文件树 | `UNLICENSED`，未找到 LICENSE | 源码可读不等于已获可复用开源许可；没有复制其代码 |
+| [AI Chat TOC](https://github.com/harshmann10/AI-Chat-TOC/tree/d76407ceb80b5ff8f104a7ec38752e7a2e5cf0d3) | `src/ui.js` SearchManager、`src/store.js` 滚动范围、LICENSE | MIT | 吸收 Escape 先清空搜索的层级；保留现有精确来源与可取消导航 |
+| [ChatGPT Timeline](https://github.com/21888/chatgpt-timeline/tree/7f92a909f7bec34dcf324a75ce690f0ba5c68883) | `extension/content.js` 的 observer、rAF 合并、当前节点与目录跟随、LICENSE | MIT | 当前位置提示可参考；不复制逐节点几何扫描与目录自动跟随，不替换现导航核心 |
 
 上一轮已移植的 ChatTrail / Toolkit 构成本轮比较基线，不计作新增成果。
+
+另筛选 ChatGraph（`Robbings/chatgpt-graph-navigator@a616cefd3fb6764ad25f0d50417fbebe14156660`）：实际检查到 package 声明 MIT，但未找到项目许可证文件；只核对包信息与文件树，未完成其功能源码审阅，因此不纳入已验证实现比较，也未复制代码。
 
 ## 一、选文菜单与浮钮
 
@@ -94,6 +98,16 @@
 
 准备指纹增加格式标记，旧的已准备包不会被误复用为包含新映射的包。实际字节、哈希校验和上传状态仍沿用原机制。
 
+## 五、导航与搜索的局部交互
+
+本轮核对了 ChatFlow 已有的消息身份校验、可取消定位、滚动恢复与章节缓存。AI Chat TOC 和 ChatGPT Timeline 的已读路径，没有提供足以替换这些机制的优势；直接滚到某个相似 DOM 节点不能替代来源确认。
+
+AI Chat TOC 的 SearchManager 在搜索框有文字时按 Escape 清空，空查询时失焦。ChatFlow 吸收“先清空搜索”的层级；结合自身浮窗，把空查询时的下一次 Escape 适配为关闭并恢复原焦点。输入法组字期间不触发这一操作，清空查询也会取消旧定位。这里没有把第二次关闭错误归为上游原有行为。
+
+Timeline 通过 rAF 合并滚动事件，但 `computeActiveByScroll` 仍顺序读取消息几何位置，目录高亮又会自动 `scrollIntoView`。这能提供当前位置感，但直接移植可能增加长对话开销或打断用户浏览目录；本轮不引入。
+
+源码审阅还发现两个独立于上游的优化候选：搜索结果列表只显示前 200 条，而前后按钮遍历全部命中；同一查询的命中范围与消息所属回合存在重复计算。这些未在本轮增加分页或输入合并，不把未经代表性场景验证的性能收益写为成果。当前显示上限与“请缩小搜索范围”的提示仍有效。
+
 ## 保留现实现的理由
 
 1. 摘录定位：当前按对话、消息、节点、文本哈希、偏移及同消息上下文恢复；Threadmark 的整页最高分候选及 penciled 的模糊距离回退不更适合研究材料保真。
@@ -107,6 +121,7 @@
 代码和自动验证全部在 GitHub 云端处理。本轮增加实际行为回归，覆盖：
 
 - 原生菜单延迟出现、错误持续、按钮实际尺寸、Escape 与旧回调；
+- 导航搜索 Escape 先清空再关闭、焦点与输入法组字处理；
 - 旧请求迟到、两个窗口并存、旧 nonce 领取或确认、页面重载与来源 generation；
 - 用户在异步领取期间编辑草稿、拒绝替换时来源保持、来源刷新后的显式新选文、来源标签关闭或导航与手工选择并发；
 - 引用原文保留、代码中示例、未知标记、冲突绑定、敏感 URL、归档恢复和上下文去重；
