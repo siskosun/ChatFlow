@@ -263,7 +263,7 @@
       }
       const persisted = C.persistedSnapshot(model);
       // Preserve the snapshot whole or reject it; never silently truncate.
-      C.check(JSON.stringify(persisted).length <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
+      C.check(new TextEncoder().encode(JSON.stringify(persisted)).byteLength <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
       sameSource(run);
       const saved = new Set((await message('tl:snapshot', { snapshot: persisted }, run.nonce)).savedKeys);
       for (const asset of model.assets) {
