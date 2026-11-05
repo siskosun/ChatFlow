@@ -217,9 +217,15 @@ async def main():
                 assert await workspace.evaluate('document.documentElement.scrollWidth<=window.innerWidth+2'),width
                 await workspace.screenshot(path=str(OUT/f'ux-home-{width}.png'),full_page=True)
             passed('ux_home_one_primary_action_and_clear_save_task',{'widths':[320,360,1280],'primary_actions':1})
-            await workspace.locator('[data-view="settings"]').click()
             for feature in ['context','live','diagnostics','passages']:
+                await workspace.locator('[data-view="settings"]').click()
                 await workspace.locator('#pref-'+feature).check()
+                # Enabling a feature now takes the user to its actual work area.
+                target='archive' if feature in ['context','passages'] else 'capture'
+                await workspace.locator('#'+target+'-view').wait_for(state='visible')
+                assert await workspace.locator('#pref-'+feature).is_checked()
+                assert (await workspace.evaluate('key=>chrome.storage.local.get("cfPreferences").then(v=>v.cfPreferences?.[key])',feature)) is True
+            await workspace.locator('[data-view="settings"]').click()
             await workspace.locator('#settings-view [data-view="home"]').click()
             await workspace.locator('#home-view [data-view="capture"]').click()
             # A conversation opened after the workspace must appear without manual refresh.
