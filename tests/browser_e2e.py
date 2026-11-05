@@ -475,6 +475,17 @@ async def main():
             assert await workspace.locator('.passage-row').count()==1
             assert await workspace.evaluate("CSS.highlights.has('chatflow-saved-yellow')")
             passed('saved_passage_select_persist_restore_highlight_and_source_identity',{'passageId':passage['passageId'],'messageId':passage['messageId']})
+            # When another window has removed a passage, changing its stale
+            # color control must report the failed save, not silently succeed.
+            await workspace.evaluate('id=>TLStore.deletePassage(id)',passage['passageId'])
+            stale_color=workspace.locator('.passage-row select[aria-label="重点片段颜色"]').first
+            await stale_color.select_option('blue')
+            await wait_async(workspace,'()=>document.querySelector("#status").textContent.includes("这条重点片段已不存在")')
+            assert await stale_color.input_value()=='yellow'
+            await workspace.evaluate('p=>TLStore.putPassage(p)',passage)
+            await workspace.locator('.archive-button').first.click()
+            assert await workspace.locator('.passage-row').count()==1
+            passed('stale_passage_color_change_reports_error_and_restores_unsaved_value')
             branch_select=workspace.locator('#archive-branch')
             assert await branch_select.locator('option').count()>=2
             alternate_value=await branch_select.evaluate("(e)=>Array.from(e.options).find(o=>o.textContent.startsWith('分支 '))?.value")
