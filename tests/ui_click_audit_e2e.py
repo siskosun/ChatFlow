@@ -147,8 +147,19 @@ async def main():
 
                 # 4. Source refresh is a small adjacent utility; receiving
                 # selected text remains a wide, independent action.
-                await workspace.evaluate("()=>ChatFlowWorkspace.show('tasks')")
-                await wait(workspace, "()=>document.querySelector('#task-source option').length>=2")
+                await workspace.locator('header [data-view="home"]').click()
+                await workspace.locator('#home-view [data-view="tasks"]').click()
+                try:
+                    await wait(workspace, "()=>document.querySelectorAll('#task-source option').length>=2")
+                except AssertionError as error:
+                    state=await workspace.evaluate("""async()=>({
+                        visible:!document.querySelector('#tasks-view').hidden,
+                        options:[...document.querySelectorAll('#task-source option')].map(e=>e.textContent),
+                        sourceReply:await chrome.runtime.sendMessage({type:'tl:sources'}),
+                        taskStatus:document.querySelector('#task-status')?.textContent,
+                        globalStatus:document.querySelector('#status')?.textContent
+                    })""")
+                    raise AssertionError('Source chooser did not hydrate after the visible tasks button: '+repr(state)) from error
                 dimensions = await workspace.evaluate("""()=>{
                     const rect=id=>{const r=document.getElementById(id).getBoundingClientRect();
                         return {top:r.top,left:r.left,width:r.width,height:r.height};};
