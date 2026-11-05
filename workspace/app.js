@@ -288,7 +288,7 @@
    const controls=node('div',null,'actions'),colorSelect=document.createElement('select');
    colorSelect.setAttribute('aria-label','重点片段颜色');colorSelect.dataset.focusId='passage:'+passage.passageId;colorSelect.dataset.focusRole='color';
    for(const color of ['yellow','green','blue','pink']){const option=new Option(({yellow:'黄色',green:'绿色',blue:'蓝色',pink:'粉色'})[color],color);colorSelect.add(option);}
-   colorSelect.value=passage.color||'yellow';colorSelect.addEventListener('change',async()=>{await S.updatePassageColor(passage.passageId,colorSelect.value);await renderDetail();});
+   colorSelect.value=passage.color||'yellow';colorSelect.addEventListener('change',()=>guard(async()=>{const previous=passage.color||'yellow',next=colorSelect.value;try{await S.updatePassageColor(passage.passageId,next);}catch(error){colorSelect.value=previous;throw error;}await renderDetail();}));
    controls.append(colorSelect);
    if(resolved.status!=='anchored'&&sourceChoice&&!activeNodes.includes(passage.nodeId))controls.append(button('切换到来源分支',async()=>{branchSelections.set(c.id,sourceChoice.endNode);messageLimit=100;reanchorPassageId=null;invalidate();await renderDetail();status('已切换到重点片段来源分支，请重新定位。');}));
    if(resolved.status!=='anchored'&&snapshot.messages.some(m=>m.id===passage.messageId&&m.nodeId===passage.nodeId)&&activeNodes.includes(passage.nodeId))controls.append(button('重新选择片段',async()=>{
