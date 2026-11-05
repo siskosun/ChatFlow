@@ -309,7 +309,8 @@ async function handle(msg,sender){
 }
 async function handleRunMessage(msg,run){
  if(msg.type==='tl:snapshot'){
-  C.check(msg.snapshot?.source?.conversationId===run.source.conversationId&&msg.snapshot?.source?.origin===run.source.origin,'SNAPSHOT_SOURCE_MISMATCH');C.check(new TextEncoder().encode(JSON.stringify(msg.snapshot)).byteLength <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
+  C.check(msg.snapshot?.source?.conversationId===run.source.conversationId&&msg.snapshot?.source?.origin===run.source.origin,'SNAPSHOT_SOURCE_MISMATCH');
+  C.check(new TextEncoder().encode(JSON.stringify(msg.snapshot)).byteLength <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
   await S.snapshot(run.captureId,msg.snapshot);const c=await S.get('captures',run.captureId);await S.set('captures',{...c,live:run.live});const rows=await S.assets(run.captureId);return{savedKeys:rows.filter(a=>a.state==='saved').map(a=>a.key)};
  }
  if(msg.type==='tl:assetBegin'){await S.beginAsset(run.captureId,msg.key);return{ok:true};}
