@@ -153,7 +153,14 @@ async def main():
                 assert await workspace.locator('#settings-diagnostics-panel').evaluate(
                     '(el)=>el.previousElementSibling?.id==="feature-open-diagnostics"')
                 assert await workspace.locator('.preference-help').count()==0
-                assert await workspace.locator('.pref-a11y-description:visible').count()==0
+                hidden_help=await workspace.locator('.pref-a11y-description').evaluate_all("""nodes=>nodes.map(el=>({
+                    width:el.getBoundingClientRect().width,
+                    height:el.getBoundingClientRect().height,
+                    clip:getComputedStyle(el).clipPath
+                }))""")
+                assert len(hidden_help)==5 and all(
+                    r['width']<=1 and r['height']<=1 and r['clip']=='inset(50%)'
+                    for r in hidden_help),hidden_help
                 assert await workspace.locator('#settings-view').is_visible()
                 assert await workspace.locator('#settings-view details.advanced').first.evaluate('(d)=>d.open')
                 assert '本地已用' in await workspace.locator('#quota').inner_text()
