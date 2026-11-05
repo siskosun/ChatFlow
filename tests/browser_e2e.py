@@ -483,7 +483,7 @@ async def main():
             await wait_async(workspace,'()=>document.querySelector("#status").textContent.includes("这条重点片段已不存在")')
             assert await stale_color.input_value()=='yellow'
             await workspace.evaluate('p=>TLStore.putPassage(p)',passage)
-            await workspace.locator('.archive-button').first.click()
+            await workspace.locator('.archive-button[aria-pressed="true"]').click()
             assert await workspace.locator('.passage-row').count()==1
             passed('stale_passage_color_change_reports_error_and_restores_unsaved_value')
             branch_select=workspace.locator('#archive-branch')
