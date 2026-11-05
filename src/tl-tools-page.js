@@ -165,12 +165,12 @@
     if (!current(session) || session.request !== request) return;
     session.messages = messages; session.coverage = coverage; session.coverageLabel = label;
     session.coverageNode.textContent = label + ' · ' + messages.length + ' 条';
-    session.status.textContent = session.loadError ? 'API 读取未完成（' + session.loadError + '），仅显示本次页面观察。' : '';
+    session.status.textContent = session.loadError ? '对话读取未完成，仅显示这次页面中已经加载的内容，不能视为完整历史。' : '';
     session.turns = K.groupExportMessagesIntoTurns(messages); render(session);
   }
   function reportJumpError(session, error) {
     if (!current(session)) return;
-    session.status.textContent = '定位未完成：' + (/^[A-Z0-9_]+$/.test(error?.message || '') ? error.message : 'PAGE_NAVIGATION_FAILED');
+    session.status.textContent = '定位未完成，请重新打开这段对话后再试。';
   }
   function headingMenu(session, message) {
     const details=n('details',null,{class:'cf-headings'});
@@ -279,7 +279,7 @@
         n('a', null, { href: objectUrl, download: 'chatflow-selected-turns.' + format.value }).click();
         setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
         session.status.textContent = '已发起所选回合下载；不是全文档案备份。';
-      } catch (error) { session.status.textContent = error.message === 'NO_EXPORT_TURNS' ? '请先勾选至少一个回合。' : '无法导出：' + error.message; }
+      } catch (error) { session.status.textContent = error.message === 'NO_EXPORT_TURNS' ? '请先勾选至少一个回合。' : '导出未完成，请检查选择后重试。'; }
     };
     const formulas = n('select', null, { 'aria-label': '选择可复制的 LaTeX 公式' });
     const copyFormula = n('button', '复制 LaTeX', { type: 'button' });
