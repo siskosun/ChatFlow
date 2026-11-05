@@ -32,6 +32,18 @@ test('source creation reads only selected message and returns verified identity,
  assert.equal(r.selectionEvidence,'confirmed');
  assert.deepEqual(h.events,[['script',['src/tl-core.js','src/tl-page-scope.js']],['script','selection'],['validate',['doc-A'],[URL_A,7]]]);
 });
+test('user-armed selection watch injects only the exact source document',async()=>{
+ const h=setup(),r=await h.handle({type:'tl:taskSelectionWatch',tabId:20,expectedUrl:URL_A});
+ assert.deepEqual(r,{documentId:'doc-A',url:URL_A});
+ assert.deepEqual(h.events,[['script',['src/tl-core.js','src/tl-page-scope.js','src/tl-task-selection.js']]]);
+});
+test('selection watch refuses source mismatch or navigated tab',async()=>{
+ const h=setup();
+ await assert.rejects(h.handle({type:'tl:taskSelectionWatch',tabId:20,expectedUrl:URL_B}),/TASK_SOURCE_CHANGED/);
+ assert.equal(h.events.length,0);
+ const changed=setup({changeOnSecondGet:true});
+ await assert.rejects(changed.handle({type:'tl:taskSelectionWatch',tabId:20,expectedUrl:URL_A}),/TASK_SOURCE_CHANGED/);
+});
 test('source selector mismatch and script navigation race fail before associating a task',async()=>{
  const h=setup();await assert.rejects(h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_B}),/TASK_SOURCE_CHANGED/);assert.equal(h.events.length,0);
  for(const options of [{changeOnSecondGet:true},{scriptUrl:URL_B},{generationValid:false}]){const h=setup(options);await assert.rejects(h.handle({type:'tl:taskSource',tabId:20,expectedUrl:URL_A}),/TASK_SOURCE_CHANGED/);}
