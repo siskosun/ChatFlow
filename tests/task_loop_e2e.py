@@ -123,7 +123,8 @@ async def main():
     # intact, but the extension content-script globals are absent.
     await a.locator('#scroll [data-message-id="m64"]').wait_for(state='attached')
     await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
-      const range=document.createRange();range.selectNodeContents(el);
+      const text=el.firstChild;const range=document.createRange();
+      range.setStart(text,0);range.setEnd(text,text.textContent.length);
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     }""")
     cleared=await w.evaluate("""async tabId=>{
