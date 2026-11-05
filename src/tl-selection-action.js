@@ -21,10 +21,11 @@
    const style = document.createElement('style');
    style.textContent = `:host{all:initial;position:fixed;z-index:2147483646;line-height:1;pointer-events:auto}
    :host([hidden]){display:none!important}
-   button{font:600 13px/1.35 system-ui,sans-serif;color:#fff;background:#244c8d;border:1px solid #244c8d;border-radius:22px;
-    padding:7px 12px;min-width:116px;min-height:35px;box-shadow:0 5px 18px #172c4733;white-space:nowrap;cursor:pointer}
-   button:hover{background:#193b75}button:focus-visible{outline:3px solid #89bafd;outline-offset:2px}
-   button:disabled{opacity:.65;cursor:progress}`;
+   button{font:800 13px/1.35 system-ui,sans-serif;color:#11100e;background:#ff7a66;border:1.5px solid #11100e;border-radius:10px;
+    padding:8px 12px;min-width:118px;min-height:36px;box-shadow:3px 3px 0 #11100e;white-space:nowrap;cursor:pointer}
+   button:hover{background:#ffa08f;transform:translate(1px,1px);box-shadow:2px 2px 0 #11100e}
+   button:focus-visible{outline:3px solid #8369ef;outline-offset:3px}
+   button:disabled{opacity:.65;cursor:progress;box-shadow:none}`;
    button = document.createElement('button');button.type = 'button';button.textContent = '交给 ChatFlow';
    button.setAttribute('aria-label','使用选中的文字创建 ChatFlow 任务');
    // Keep the user's selection when the floating action gets pointer focus.
