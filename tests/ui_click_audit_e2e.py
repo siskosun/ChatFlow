@@ -225,7 +225,7 @@ async def main():
 
             finally:
                 (OUT / 'ui-click-audit-report.json').write_text(
-                    json.dumps({'status':'pass' if not errors and len(results)==7 else 'fail',
+                    json.dumps({'status':'pass' if not errors and len(results)==8 else 'fail',
                                 'passed':results,'errors':errors},ensure_ascii=False,indent=2),
                     encoding='utf-8')
                 await context.close()
