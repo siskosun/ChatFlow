@@ -220,12 +220,12 @@ CF-16 保留真实登录 Edge/ChatGPT、真实附件可用性、独立目标用�
 
 | ID | 交付阶段 | 状态 | 可验收条件 |
 |---|---|---|---|
-| CF-17 | UI 参考与代码复用清单冻结 | implemented；验证见 Checkpoint | 核对上游许可证/固定提交，确认 P0/P1 小功能、许可声明、UI 参考截图与排除项；没有泛化“社区公认”断言。 |
-| CF-18 | 双主流程和高级功能区交互重排 | implemented；验证见 Checkpoint | 默认首页两项主任务、逐页唯一主操作；高级选项默认折叠/关闭但原功能可达；无安全状态隐藏；320—1280px 自动化验收。 |
-| CF-19 | Task Loop 本地身份和任务派发 | implemented；验证见 Checkpoint | 不存档全文也可从当前对话生成任务标记+文本；本地唯一任务 ID；零 GitHub/云端/API 依赖；剪贴板失败可恢复；来源身份明确。 |
-| CF-20 | Task Loop 结果回收和返回来源 | implemented；验证见 Checkpoint | 粘贴结果精确匹配；无/冲突标记要求人工确认；同主题双对话及多轮重试不串线；打开来源+复制文本，无自动发送或覆盖草稿。 |
-| CF-21 | 长对话导航及小工具按许可移植 | implemented；验证见 Checkpoint | 搜索/时间轴在虚拟化列表上定位有证据，失败不误跳；选定回合导出保留来源；仅必要脚本按需加载。 |
-| CF-22 | 产品化回归和独立工程候选 | implemented；验证见 Checkpoint | Node/Chromium/IndexedDB、权限、schema 迁移、ZIP 兼容、安全负向场景、CI 双平台构建均通过；历史 0.2 用例和断言不删不放宽；按准确 HEAD 出报告。 |
+| CF-17 | UI 参考与代码复用清单冻结 | pass（工程）；依据 Checkpoint | 核对上游许可证/固定提交，确认 P0/P1 小功能、许可声明、UI 参考截图与排除项；没有泛化“社区公认”断言。 |
+| CF-18 | 双主流程和高级功能区交互重排 | pass（工程）；依据 Checkpoint | 默认首页两项主任务、逐页唯一主操作；高级选项默认折叠/关闭但原功能可达；无安全状态隐藏；320—1280px 自动化验收。 |
+| CF-19 | Task Loop 本地身份和任务派发 | pass（工程）；依据 Checkpoint | 不存档全文也可从当前对话生成任务标记+文本；本地唯一任务 ID；零 GitHub/云端/API 依赖；剪贴板失败可恢复；来源身份明确。 |
+| CF-20 | Task Loop 结果回收和返回来源 | pass（工程）；依据 Checkpoint | 粘贴结果精确匹配；无/冲突标记要求人工确认；同主题双对话及多轮重试不串线；打开来源+复制文本，无自动发送或覆盖草稿。 |
+| CF-21 | 长对话导航及小工具按许可移植 | pass（工程）；依据 Checkpoint | 搜索/时间轴在虚拟化列表上定位有证据，失败不误跳；选定回合导出保留来源；仅必要脚本按需加载。 |
+| CF-22 | 产品化回归和独立工程候选 | pass（工程）；依据 Checkpoint | Node/Chromium/IndexedDB、权限、schema 迁移、ZIP 兼容、安全负向场景、CI 双平台构建均通过；历史 0.2 用例和断言不删不放宽；按准确 HEAD 出报告。 |
 | CF-23 | 后置真实账号及独立用户验收 | deferred | 真实登录 ChatGPT/Edge、不同 Agent 手动往返、同主题多任务、真实附件、至少五名独立用户任务完成率与读屏验收；未执行不得说已通过。 |
 
 **开发纪律：** 阶段 CF-17—CF-22 可在已授权的 GitHub 工程环境自主推进；CF-23 延后至工程阶段完成。先对现有 0.2 已通过功能做最小界面重排与任务回传，不为新版功能重新发明归档/任务管理。0.2 既有验收提交及测试计数继续作为历史事实，不伪称 0.3 新功能已经实施或通过。0.3 的候选代码在独立功能分支和聚焦 PR 中完成；本次文档更新不自动合并 PR #1/#2，不自动发布。若真实测试表明日常任务靠手动带标记复制已足够，则不扩展成更复杂的 Agent 调度平台。
@@ -246,7 +246,9 @@ CF-16 保留真实登录 Edge/ChatGPT、真实附件可用性、独立目标用�
 
 ---
 
-## 14. 2026-11-04 可靠性优先修订方案（待工程实施）
+## 14. 2026-11-04 可靠性优先修订方案（历史计划，现已实施）
+
+本节保留 2026-11-04 启动时的风险、实施顺序和验收契约，便于追溯；不再表示这些批次仍待开发。A—D 与独立章节导航 E 已在 PR #21 集成，验收以 2026-11-05 的合并后 CI 与 Checkpoint 为准。
 
 ### 14.1 目标与基线
 
@@ -292,7 +294,9 @@ CF-16 保留真实登录 Edge/ChatGPT、真实附件可用性、独立目标用�
 
 ### 14.5 证据与状态管理
 
-`chatflow-0.3.tsm.json` 现有 `pass` 只代表先前较窄范围的测试，不证明上述新增门禁。按 Checkpoint 规则使用 `scripts/tsm.py` 维护新功能和验证节点；不直接修改 JSON 状态文件或伪造 `pass`。各 PR 在评论中列准确 HEAD、代码差异、失败/成功测试和 CI 链接。PR-A 未验证前，不得把 PR-B 的功能截图视为可靠性证明。
+截至 2026-11-05，Checkpoint 已有 17 个工程及自动化验收节点标记 `pass`，另有 1 个真实环境与独立真人验收节点仍为 `blocked`。这些工程 `pass` 对应 `main` 合并提交 `1b730c697b33a0f55b27b72ef1a37a48a0f06d80` 的 Actions #41946410615，不能推导出真实账号、旧附件或真人辅助技术已经通过。后续如改动受影响的运行时行为，须先降为 `implemented`，重新按准确提交验收后才恢复 `pass`。
+
+后续状态变更须经 Checkpoint 工具维护并校验历史，不直接修改状态 JSON 或伪造 `pass`；各 PR 保留准确 HEAD、代码差异、失败/成功测试和 CI 链接。原计划中“PR-A 未验证前不得以 PR-B 截图作证”的门禁已经执行，作为历史验收纪律保留。
 
 所有上游源码复用固定许可与 SHA，更新 `THIRD_PARTY_NOTICES.md`；仅纯计算算法允许适配，禁止复制 AI Chat TOC 模糊文本匹配、凭据提取及完整注入器。仓库 `AGENTS.md` 禁止直推 main、自动合并、正式 Release、商店上架和用户本机 Remote 操作。
 
@@ -308,5 +312,5 @@ business store. The upgrade/backward-format contracts are tested separately.
 
 B-D and engineering review fixes retain the two main workflows. E answer headings
 remain an independently testable optional increment. Runtime permissions, no-autosend,
-no-unknown-upload-retry and no main/release writes remain unchanged. Checkpoint owns
+no-unknown-upload-retry remain unchanged. Staged work was later integrated through PR #21, with no direct push to main or formal release. Checkpoint owns
 execution status; see REVIEW_DISPOSITION_2026-11-04.md for review scope and limitations.
