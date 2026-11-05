@@ -20,6 +20,7 @@
    const shadow = host.attachShadow({ mode: 'open' });
    const style = document.createElement('style');
    style.textContent = `:host{all:initial;position:fixed;z-index:2147483646;line-height:1;pointer-events:auto}
+   :host([hidden]){display:none!important}
    button{font:600 13px/1.35 system-ui,sans-serif;color:#fff;background:#244c8d;border:1px solid #244c8d;border-radius:22px;
     padding:7px 12px;min-width:116px;min-height:35px;box-shadow:0 5px 18px #172c4733;white-space:nowrap;cursor:pointer}
    button:hover{background:#193b75}button:focus-visible{outline:3px solid #89bafd;outline-offset:2px}
