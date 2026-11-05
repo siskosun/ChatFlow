@@ -55,9 +55,10 @@ async def main():
    try:
     a=await c.new_page();await a.goto(URL_A);b=await c.new_page();await b.goto(URL_B)
     w=await c.new_page();w.on('pageerror',lambda e:errors.append(str(e)));await w.goto('chrome-extension://'+ext+'/workspace/index.html')
-    await w.locator('#home-view').wait_for(state='visible');assert await w.locator('#home-view .flow-choice').count()==2
+    await w.locator('#home-view').wait_for(state='visible');assert await w.locator('#home-view .flow-choice').count()==3
     assert await w.locator('#home-view .flow-choice').evaluate_all('(xs)=>new Set(xs.map(x=>x.className)).size===1')
-    assert '保存并接到新对话' in await w.locator('#home-view').inner_text()
+    assert '保存对话' in await w.locator('#home-view').inner_text()
+    assert '并行实验' in await w.locator('#home-view').inner_text()
     assert '其他助手' in await w.locator('#home-view').inner_text()
     assert await w.locator('#first-run-prereqs li').count()==3
     assert await w.locator('.chatgpt-link').get_attribute('href')=='https://chatgpt.com/'
@@ -91,6 +92,19 @@ async def main():
     assert set(item['url'] for item in choices)=={URL_A,URL_B},choices
     assert all('CF-' not in item['text'] and '20261103' not in item['text'] for item in choices),choices
     passed('same_title_source_choices_use_human_labels_not_conversation_suffixes')
+    # Selecting an individual ChatGPT message surfaces an in-page, actionable
+    # ChatFlow button without changing the native Ask ChatGPT control.
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');
+      return el&&!el.hidden&&el.shadowRoot?.querySelector('button')?.textContent.includes('交给 ChatFlow');}""")
+    await a.screenshot(path=str(OUT/'chatflow-inline-selection-action.png'))
+    await a.evaluate('()=>window.getSelection().removeAllRanges()')
+    await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');return el?.hidden;}""")
+    passed('selected_message_shows_inline_chatflow_action_and_hides_when_selection_clears')
     await w.locator('#task-source').select_option(str(ta))
     extra=await c.new_page()
     await extra.goto('https://chatgpt.com/c/conversation_task_C_20261105')
@@ -125,7 +139,7 @@ async def main():
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     }""")
     await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
-    assert '已读取原对话的选文' in await w.locator('#task-status').inner_text()
+    assert '已接收选文' in await w.locator('#task-status').inner_text()
     assert await w.evaluate("()=>TLTaskStore.list().then(rows=>rows.length)") == 0
     passed('user_armed_selection_autofills_task_from_one_message_without_send')
 
@@ -144,7 +158,7 @@ async def main():
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     }""")
     await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
-    assert '未提供可独立确认的对话标记' in await w.locator('#task-status').inner_text()
+    assert '来源未独立确认' in await w.locator('#task-selection-stage').inner_text()
     await a.evaluate("""()=>{
       document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id',location.pathname.split('/').pop());
       window.getSelection().removeAllRanges();
@@ -165,7 +179,7 @@ async def main():
       range.setStart(node,0);range.setEnd(node,node.textContent.length);
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     }""")
-    await poll(w,"()=>document.querySelector('#task-status').textContent.includes('无法识别唯一的消息区域')")
+    await poll(w,"()=>document.querySelector('#task-status').textContent.includes('这段选文不属于可识别的单条消息')")
     assert await w.locator('#task-text').input_value()==''
     await a.evaluate("""()=>{
       document.querySelector('#scroll').setAttribute('data-chatgpt-selection-conversation-id',location.pathname.split('/').pop());
