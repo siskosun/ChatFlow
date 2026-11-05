@@ -15,7 +15,8 @@ test('workspace error codes are actionable without exposing raw failures',()=>{
  assert.match(explain(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS')),/关闭其他/);
  assert.match(explain(new Error('REGENERATE_HANDOFF_AFTER_CHANGES')),/重新准备/);
  assert.match(explain(new Error('NO_VISIBLE_MESSAGES')),/没有可访问/);
- assert.match(explain(new Error('UNMAPPED_SAMPLE_CODE')),/UNMAPPED_SAMPLE_CODE/);
+ assert.doesNotMatch(explain(new Error('UNMAPPED_SAMPLE_CODE')),/UNMAPPED_SAMPLE_CODE/);
+ assert.match(explain(new Error('UNMAPPED_SAMPLE_CODE')),/操作未完成/);
  assert.doesNotMatch(explain(new Error('PRIVATE_TOKEN=secret')),/secret|PRIVATE_TOKEN/);
 });
 test('experiment backend maps known validation failures to stable safe codes',()=>{
