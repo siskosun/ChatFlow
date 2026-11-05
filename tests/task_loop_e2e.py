@@ -132,7 +132,7 @@ async def main():
     }""")
     await w.wait_for_timeout(350)
     assert await w.locator('#task-text').input_value()=='','Selecting across messages must not fill the task'
-    assert '请仅选择原对话中一条消息' in await w.locator('#task-status').inner_text()
+    assert '请只选择一条消息的正文' in await w.locator('#task-selection-stage').inner_text()
     await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
       const node=el.firstChild,range=document.createRange();
       range.setStart(node,0);range.setEnd(node,node.textContent.length);
