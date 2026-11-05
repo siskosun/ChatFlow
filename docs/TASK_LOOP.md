@@ -10,8 +10,12 @@ required. External Agent support means text exchange, not direct integration.
 
 ## User path
 
-1. Open Task Return, choose the current conversation and type a task or use a
-   selection from one source message. Generate and copy the marked task.
+1. Open Task Return and choose the source conversation. Type a task, **or**
+   click "接收原对话选文" once, then select text inside a single ChatGPT message.
+   The armed side panel fills the draft automatically; no second click is needed.
+   A pre-existing selection can also be read immediately after arming. The panel
+   displays a clear awaiting/success/uncertain status. Review the draft, then
+   explicitly choose "复制任务" to create and copy the marked task.
 2. Ask the Agent to retain the exact marker on the first nonempty result line.
 3. Paste the result, inspect the source preview and save the local receipt.
 4. Copy the result and return to the original conversation. Paste, review and
@@ -63,6 +67,31 @@ Old `chatflow.task-bundle/1` JSON files remain importable with the original
 4 MiB file-read bound. The legacy in-memory `bundle()` / `restore(object)` APIs
 remain for compatibility; the UI uses the streaming file APIs. Archive ZIPs
 remain archive backups and do not implicitly contain task records.
+
+## User-armed selection relay (browser UI)
+
+An explicit click on "接收原对话选文" injects the small on-demand
+`tl-task-selection.js` relay into the **selected** ChatGPT tab. The extension
+binds a one-shot `chrome.tabs.connect` port to that tab's exact Chrome document ID.
+Only while this port is connected does it listen for selection changes.
+After one valid selection it disconnects; leaving the task page, switching source,
+typing into the draft, navigating away, or closing the sidebar also disarms it.
+
+It accepts selected text only from one message inside the uniquely visible
+conversation container on the selected tab, checks the canonical source URL
+and document scope, and refuses cross-message, hidden/outgoing or over-20,000-unit
+selections. The text is **not** sent to a server, copied to the clipboard,
+written to a task, or sent to another Agent until the user takes a separate action.
+An existing edited draft is never silently overwritten.
+
+Some ChatGPT page variants do not provide the optional
+`data-chatgpt-selection-conversation-id` DOM marker. When the visible thread
+is unique but that marker is absent, a user-selected message can populate a
+**draft with an explicit unverified-source warning**. It must not be described
+as independently verified, nor should an unverified message ID be elevated
+to confirmed. If the thread is ambiguous or the selection leaves a single
+message, nothing is imported. This does not imply authenticated-account
+acceptance; it is covered by synthetic MV3 fixtures and still needs real-page QA.
 
 ## Safety limits
 
