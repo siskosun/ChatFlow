@@ -105,6 +105,23 @@ async def main():
     await a.evaluate('()=>window.getSelection().removeAllRanges()')
     await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');return el?.hidden;}""")
     passed('selected_message_shows_inline_chatflow_action_and_hides_when_selection_clears')
+    # The popup must actually open ChatFlow and populate an editable draft;
+    # appearance-only assertions would miss a broken click-to-handoff path.
+    await a.locator('#scroll [data-message-id="m64"]').evaluate("""el=>{
+      const node=el.firstChild,range=document.createRange();
+      range.setStart(node,0);range.setEnd(node,node.textContent.length);
+      const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    }""")
+    await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');
+      return el&&!el.hidden&&el.shadowRoot?.querySelector('button')?.textContent.includes('交给 ChatFlow');}""")
+    await a.locator('#chatflow-selected-action button').click()
+    await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
+    assert await w.locator('#task-source').input_value()==str(ta)
+    assert '已带入选文' in await w.locator('#task-selection-stage').inner_text()
+    assert await w.evaluate('()=>TLTaskStore.list().then(rows=>rows.length)')==0
+    await w.locator('#task-text').fill('')
+    await a.evaluate('()=>window.getSelection().removeAllRanges()')
+    passed('inline_selection_action_opens_source_bound_draft_without_creating_task')
     await w.locator('#task-source').select_option(str(ta))
     extra=await c.new_page()
     await extra.goto('https://chatgpt.com/c/conversation_task_C_20261105')
