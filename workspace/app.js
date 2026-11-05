@@ -467,7 +467,7 @@
   const message=(labels[h.state]||'状态待确认')+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
   const ready=h.state==='prepared'&&planFingerprint===fingerprint()&&fresh;
   $('prepare').hidden=ready;
-  $('prepare').textContent='重新准备历史与文件';
+  $('prepare').textContent='重新生成接续材料';
   $('open-target').disabled=!ready;
   $('open-target').hidden=!ready;
   $('focus-target').disabled=!h.targetTabId;
