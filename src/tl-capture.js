@@ -262,7 +262,8 @@
         asset.reason = unresolved ? 'SAVE_SCOPE_SOURCE_UNRESOLVED' : 'OUT_OF_SAVE_SCOPE';
       }
       const persisted = C.persistedSnapshot(model);
-      // Allow a bounded larger conversation snapshot, without truncating or claiming missing history.\n      C.check(JSON.stringify(persisted).length <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
+      // Preserve the snapshot whole or reject it; never silently truncate.
+      C.check(JSON.stringify(persisted).length <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
       sameSource(run);
       const saved = new Set((await message('tl:snapshot', { snapshot: persisted }, run.nonce)).savedKeys);
       for (const asset of model.assets) {
