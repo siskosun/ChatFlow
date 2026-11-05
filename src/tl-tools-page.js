@@ -193,8 +193,29 @@
     }
     return output;
   }
+  // When the API is unavailable, a rendered answer may still contain real
+  // heading elements even though innerText no longer contains Markdown '#'.
+  // Observe only a source-scoped loaded message; never certify these as
+  // full-history or remote identity evidence.
+  function visibleOutline(message) {
+    if(!message.domNode?.isConnected || !message.observedLease ||
+       !S.unchanged(message.observedLease,false))return [];
+    const sc=scope();
+    if(!sc.root || sc.status==='ambiguous' || !S.contains(sc,message.domNode))return [];
+    const headings=message.domNode.querySelectorAll('h1,h2,h3,h4,h5,h6');
+    const result=[];
+    for(const el of headings){
+      if(!S.contains(sc,el) || el.closest('pre,code,[hidden],[inert],[aria-hidden="true"]'))continue;
+      const title=String(el.textContent||'').replace(/\\s+/g,' ').trim();
+      if(!title || title.length>250)continue;
+      result.push({level:Number(el.tagName.slice(1)),text:title});
+      if(result.length>=80)break;
+    }
+    return result;
+  }
   function headingMenu(session, message) {
-    const outline=textOutline(message.text);
+    const markdownOutline=textOutline(message.text);
+    const outline=markdownOutline.length?markdownOutline:visibleOutline(message);
     if(!outline.length)return null;
     const details=n('details',null,{class:'cf-headings'});
     const summary=n('summary','提纲（'+outline.length+'） · '+outline[0].text.slice(0,30));
