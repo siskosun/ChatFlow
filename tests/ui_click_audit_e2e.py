@@ -149,6 +149,11 @@ async def main():
                 assert await workspace.locator('#settings-live-panel').is_visible()
                 assert await workspace.locator('#settings-view').is_visible()
                 await workspace.locator('#feature-open-diagnostics').click()
+                assert await workspace.locator('#settings-diagnostics-panel').is_visible()
+                assert await workspace.locator('#settings-diagnostics-panel').evaluate(
+                    '(el)=>el.previousElementSibling?.id==="feature-open-diagnostics"')
+                assert await workspace.locator('.preference-help').count()==0
+                assert await workspace.locator('.pref-a11y-description:visible').count()==0
                 assert await workspace.locator('#settings-view').is_visible()
                 assert await workspace.locator('#settings-view details.advanced').first.evaluate('(d)=>d.open')
                 assert '本地已用' in await workspace.locator('#quota').inner_text()
@@ -172,6 +177,9 @@ async def main():
                 await workspace.locator('header [data-view="settings"]').click()
                 await workspace.locator('#feature-open-passages').click()
                 assert await workspace.locator('#archive-view').is_visible()
+                assert '请选择一份档案' in await workspace.locator('#status').inner_text()
+                await workspace.locator('header [data-view="home"]').click()
+                assert await workspace.locator('#status').inner_text()=='', 'Stale success banner followed user home'
                 passed('context_and_passages_explicitly_open_the_archive')
 
                 # 3. The same header and content axis must remain fixed when
@@ -228,6 +236,8 @@ async def main():
                 await workspace.locator('#task-text').fill('合成：检查这个任务是否正确回传')
                 await workspace.locator('#task-create').click()
                 await wait(workspace, "()=>!document.querySelector('#task-next-return').closest('[hidden]')")
+                assert await workspace.locator('#task-status').inner_text()=='', 'Copy success duplicated in task banner'
+                assert '任务已复制' in await workspace.locator('#task-copy-state').inner_text()
                 assert await workspace.locator('#task-compose').is_visible()
                 assert not await workspace.locator('#task-return').is_visible()
                 await workspace.locator('#task-next-return').click()
