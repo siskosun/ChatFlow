@@ -56,7 +56,7 @@
    t.pendingUrl?.split(/[?#]/,1)[0]===experimentUrl));
  }
  function experimentButtons(){
-  return ['home-experiment','settings-open-experiments','open-experiments'].map($).filter(Boolean);
+  return ['home-experiment','settings-open-experiments'].map($).filter(Boolean);
  }
  async function refreshExperimentButtons(){
   const tabs=await experimentTabs(),open=tabs.length>0;
@@ -110,7 +110,7 @@
  }
  function switchView(v){if(!document.getElementById(v+'-view'))return;if(v!==view)clearTransientFeedback();view=v;for(const e of document.querySelectorAll('.view'))e.hidden=e.id!==v+'-view';for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-current',b.dataset.view===v?'page':'false');if(v==='capture')guard(syncSources);if(v==='archive')guard(refreshArchives);if(v==='handoff'){guard(updateSelection);if(handoffId)guard(renderHandoffState);}document.dispatchEvent(new CustomEvent('chatflow:view',{detail:v}));}
  function fingerprint(){return JSON.stringify([selectedId,branchSelections.get(selectedId)||null,[...selectedKeys].sort(),$('instructions').value,$('batch-limit').value]);}
- function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('open-target').hidden=true;$('prepare').hidden=false;$('prepare').textContent='重新准备历史与文件';status('内容已更改，请重新准备。');}}
+ function invalidate(){if(handoffId&&planFingerprint!==fingerprint()){$('open-target').disabled=true;$('open-target').hidden=true;$('prepare').hidden=false;$('prepare').textContent='重新生成接续材料';status('内容已更改，请重新准备。');}}
  async function quota(){const q=await navigator.storage.estimate();$('quota').textContent='本地已用 '+bytes(q.usage||0)+(q.quota?' / 可用配额 '+bytes(q.quota):'');}
  let sourceRefreshEpoch=0;
  async function sources(){
@@ -236,7 +236,7 @@
   const zip=await A.buildZip(entries);await download(zip,'chatflow-context-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip');
   status('上下文包已生成：'+compiled.manifest.sources.length+' 份档案、'+compiled.manifest.sources.reduce((n,s)=>n+s.messageIds.length,0)+' 条消息、'+compiled.parts.length+' 个历史分段、估算 '+compiled.estimatedTokens+' tokens。'+(compiled.manifest.budgetExceeded?'已超过预算，内容已完整分段，请分批上传。':'')+'请核对清单后手动上传。');
  }
- async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='准备历史与文件';$('open-target').disabled=true;$('open-target').hidden=false;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
+ async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='生成接续材料';$('open-target').disabled=true;$('open-target').hidden=false;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
  function fileInput(text,onFile){const label=node('label',text,'file-button'),input=document.createElement('input');input.type='file';input.accept='.zip,application/zip';input.addEventListener('change',()=>guard(async()=>{const file=input.files?.[0];try{if(file)await onFile(file);}finally{input.value='';}}));label.append(input);return label;}
  async function download(blob,name){
   const url=URL.createObjectURL(blob),serial=++downloadStatusNonce,filename=C.safeName(name),label=$('download-status');
@@ -427,7 +427,7 @@
   handoffId=h.id;planFingerprint=frozenFingerprint;await renderHandoff(h);status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
  }
  async function renderHandoff(h){
-  $('handoff-result').hidden=false;$('prepare').hidden=true;$('staging-details').open=true;$('prompt').textContent=h.prompt;$('confirmed').checked=false;$('open-target').disabled=h.state!=='prepared';$('focus-target').disabled=!h.targetTabId;
+  $('handoff-result').hidden=false;$('prepare').hidden=true;$('staging-details').open=false;$('prompt').textContent=h.prompt;$('confirmed').checked=false;$('open-target').disabled=h.state!=='prepared';$('focus-target').disabled=!h.targetTabId;
   const box=$('staging');box.replaceChildren();staged=new Map();
   for(let batch=0;batch<h.batches.length;batch++){
    box.append(node('h3','第 '+(batch+1)+' 批（'+h.batches[batch].length+' 个文件）'));
@@ -487,7 +487,7 @@
  $('focus-target').onclick=()=>guard(()=>call('tl:focusTarget',{id:handoffId}));$('download-handoff').onclick=()=>guard(downloadHandoff);
  $('confirmed').addEventListener('change',()=>{$('confirm-upload').disabled=!$('confirmed').checked||$('confirm-upload').dataset.allowed!=='true';});
  $('confirm-upload').onclick=singleFlight('confirm-upload',async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
- $('open-experiments').onclick=()=>guard(toggleExperiment);$('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
+ $('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});
  setInterval(()=>{if(refreshing||document.hidden)return;refreshing=true;Promise.resolve().then(async()=>{if(view==='capture')await renderRunning();if(view==='handoff'&&handoffId)await renderHandoffState();}).catch(e=>TLDiagnostics.record('workspace-refresh',e)).finally(()=>refreshing=false);},3000);
  // A browser may surface the ChatGPT tab after the workspace first loads.
  // Do not require a manual refresh, and never wipe a user's current selection.
