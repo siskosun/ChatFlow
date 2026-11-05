@@ -261,7 +261,7 @@
     if(currentExperiment){verdictDrafts.set(currentExperiment,{preference:$("ff-preference").value,criteria:$("ff-criteria").value,notes:$("ff-notes").value,confidence:$("ff-confidence").value,
       calibration:[...document.querySelectorAll('#ff-calibration-items input:checked')].map(n=>({name:n.name,value:n.value}))});}
     const draft=verdictDrafts.get(id);currentExperiment = id;currentData=value;
-    $("ff-meta").textContent = "已固定共同材料 · " + value.branchCount + " 个分支";
+    $("ff-meta").textContent = "已固定共同材料 · " + Object.keys(value.branches||{}).length + " 个分支";
     $("ff-technical-id").textContent = value.id;
     $("ff-tech-revision").textContent = "记录版本：" + value.revision;
     $("ff-sha").textContent = "材料校验信息：" +
