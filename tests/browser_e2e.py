@@ -32,6 +32,32 @@ async def wait_async(page, expression, arg=None, timeout=30000):
             raise TimeoutError('Resolved asynchronous predicate did not become true: '+expression)
         await asyncio.sleep(0.1)
 
+async def assert_exact_experiment_prefill(branch_page, frozen, experiment_page):
+    """Fail with page and branch evidence instead of an opaque prefill timeout."""
+    try:
+        await branch_page.wait_for_function(
+            "(expected)=>{const e=document.querySelector('#prompt-textarea');"
+            "return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",
+            arg=frozen, timeout=30000)
+    except Exception as error:
+        try:
+            state=await branch_page.evaluate("""()=>({
+              url:location.href, readyState:document.readyState,
+              composer:[...document.querySelectorAll('#prompt-textarea')].map(e=>({
+                length:String(e.value||e.innerText||e.textContent||'').length,
+                prefix:String(e.value||e.innerText||e.textContent||'').slice(0,100)})),
+              notice:document.querySelector('#chatflow-experiment-notice')?.innerText?.slice(0,350)||null
+            })""")
+        except Exception as inspect_error:
+            state={'inspectionError':str(inspect_error)}
+        try:
+            branch_state=(await experiment_page.locator('#ff-branch-boxes').inner_text())[:1200]
+        except Exception as inspect_error:
+            branch_state=str(inspect_error)
+        raise AssertionError(
+            'Exact prefill absent in one synthetic branch: '+repr({
+                'expectedLength':len(frozen),'page':state,'branches':branch_state})) from error
+
 def xlsx_fixture():
     b=io.BytesIO()
     with zipfile.ZipFile(b,'w',zipfile.ZIP_DEFLATED) as z:
@@ -665,7 +691,7 @@ async def main():
                 await asyncio.sleep(0.25)
             assert len(branch_pages)==2,[(p.url for p in ctx.pages)]
             for branch_page in branch_pages:
-                await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen,timeout=30000)
+                await assert_exact_experiment_prefill(branch_page,frozen,experiment_page)
                 assert await branch_page.evaluate('window.sends||0')==0
             await experiment_page.locator('#ff-refresh').click()
             await experiment_page.locator('#ff-list button').first.click()
@@ -715,7 +741,7 @@ async def main():
                     await asyncio.sleep(0.25)
                 assert len(pages_k)==branch_count,{'expected':branch_count,'actual':len(pages_k)}
                 for branch_page in pages_k:
-                    await branch_page.wait_for_function("(expected)=>{const e=document.querySelector('#prompt-textarea');return !!e&&String(e.value||e.innerText||e.textContent||'').trim()===expected.trim()}",arg=frozen_k,timeout=30000)
+                    await assert_exact_experiment_prefill(branch_page,frozen_k,experiment_page)
                     assert await branch_page.evaluate('window.sends||0')==0
                 passed('parallel_experiment_k'+str(branch_count)+'_opens_exact_branch_count_with_identical_prefill_and_no_send',{'branches':branch_count})
                 for index,branch_page in enumerate(pages_k):
