@@ -138,7 +138,7 @@ async def main():
     selected_source=await w.evaluate("async arg=>chrome.runtime.sendMessage({type:'tl:taskSource',tabId:arg.id,expectedUrl:arg.url})",{'id':ta,'url':URL_A})
     assert selected_source['ok'],selected_source
     assert selected_source['data']['selection']=='duplicate identical paragraph',selected_source
-    assert selected_source['data']['messageId']=='m64',selected_source
+    assert selected_source['data']['source']['messageId']=='m64',selected_source
     assert selected_source['data']['selectionEvidence']=='confirmed',selected_source
     passed('task_source_recovers_selected_text_when_content_script_globals_were_absent')
     # Optional navigation loads only after the user asks. It finds messages not in the current DOM.
