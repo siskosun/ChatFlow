@@ -36,11 +36,31 @@
     .surface input[type=file]{max-width:100%}
     #ff-branch-boxes>*,#ff-columns>*{min-width:0}
     @media(max-width:620px){body{padding:12px 14px 32px}.grid{grid-template-columns:minmax(0,1fr)}.surface{padding:15px}}
+  
+    /* Human-first StageShow adaptation: story-driven hierarchy, no raw IDs at rest. */
+    .topbar{padding:9px 0 15px;margin-bottom:20px}
+    header h1{font-size:25px;letter-spacing:-.04em}
+    header .subtle{max-width:570px;margin-top:5px}
+    .surface{padding:22px;border-radius:14px;box-shadow:0 1px 4px #0f2a4010;margin:12px 0}
+    .surface h2{display:flex;align-items:center;gap:10px;font-size:17px;letter-spacing:-.02em;margin:0 0 16px}
+    .step-indicator{display:inline-grid;place-items:center;flex:none;width:27px;height:27px;border-radius:8px;background:var(--tint);color:var(--accent);font-size:11px;letter-spacing:.02em;font-weight:730}
+    #ff-list{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+    #ff-list button{text-align:left;justify-content:flex-start;min-height:44px;white-space:normal;line-height:1.5;background:var(--paper);border-color:var(--line);color:var(--ink);font-weight:560}
+    #ff-list button[aria-pressed="true"]{background:var(--tint);border-color:var(--accent)}
+    #ff-branch-boxes>div{padding:13px 15px;border:1px solid var(--line);border-radius:10px;margin-top:10px}
+    .branch-heading{font-weight:680;color:var(--ink);margin:0 0 7px;font-size:14px}
+    .technical-details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+    .technical-details summary{cursor:pointer;font-size:13px;color:var(--muted);min-height:35px;padding:8px 2px}
+    .technical-details .mono{font-size:12px;line-height:1.6}
+    .technical-details button{margin:6px 0}
+    button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+    @media(max-width:620px){.surface{padding:17px}.surface h2{font-size:16px}.step-indicator{width:25px;height:25px}}
+
   </style>
 </head>
 <body>
   <nav class="topbar" aria-label="ChatFlow 导航"><a class="brand" href="index.html">ChatFlow</a><a class="back" href="index.html">返回主工作区</a></nav>
-  <header><h1>并行对照实验（2–4 分支）</h1>
+  <header><h1>并行对照实验</h1>
     <p class="subtle">对 2—4 个独立聊天使用相同材料，结果由你比较。发送始终手动完成。</p>
   </header>
   <section class="surface" aria-label="功能开关">
@@ -49,7 +69,7 @@
   </section>
   <div id="ff-local" hidden>
     <section class="surface" aria-label="新建冻结实验">
-      <h2>新建实验</h2>
+      <h2><span class="step-indicator" aria-hidden="true">01</span>新建实验</h2>
       <form id="ff-create">
         <div class="grid">
           <div><label for="ff-w0">共同材料（可选）</label><textarea id="ff-w0" spellcheck="false" placeholder="各条未来分支共同使用的背景资料"></textarea></div>
@@ -62,7 +82,7 @@
         <button id="ff-save" type="submit">保存实验</button>
       </form>
     </section>
-    <section class="surface" aria-label="实验列表"><h2>已保存的实验</h2>
+    <section class="surface" aria-label="实验列表"><h2><span class="step-indicator" aria-hidden="true">02</span>已保存的实验</h2>
       <button class="secondary" id="ff-refresh" type="button">刷新列表</button>
       <label class="line">恢复实验 JSON
         <input type="file" id="ff-import-file" accept="application/json,.json"/>
@@ -70,19 +90,24 @@
       <div id="ff-list"></div>
     </section>
     <section class="surface" id="ff-detail" hidden aria-label="冻结结果">
-      <h2>实验材料</h2>
-      <p id="ff-meta" class="mono"></p>
-      <button class="secondary" id="ff-copy-id" type="button">复制完整实验 ID</button>
-      <p id="ff-sha" class="mono"></p>
+      <h2><span class="step-indicator" aria-hidden="true">03</span>实验材料</h2>
+      <p id="ff-meta" class="subtle"></p>
       <pre id="ff-text"></pre>
+      <details class="technical-details">
+        <summary>技术信息（仅用于核对或故障排查）</summary>
+        <p id="ff-tech-revision" class="subtle"></p>
+        <p id="ff-technical-id" class="mono"></p>
+        <button class="secondary" id="ff-copy-id" type="button">复制实验编号</button>
+        <p id="ff-sha" class="mono"></p>
+      </details>
     </section>
     <section class="surface" id="ff-branches" hidden aria-label="分支执行">
-      <h2>分支执行</h2>
+      <h2><span class="step-indicator" aria-hidden="true">04</span>分支执行</h2>
       <button class="secondary" id="ff-launch" type="button">发起分支（K 个新标签）</button>
       <div id="ff-branch-boxes"></div>
     </section>
     <section class="surface" id="ff-compare" hidden aria-label="去标签对照与裁决">
-      <h2>去标签对照</h2>
+      <h2><span class="step-indicator" aria-hidden="true">05</span>比较结果</h2>
       <p class="subtle" id="ff-compare-note"></p>
       <button class="secondary" id="ff-compare-btn" type="button">生成去标签对照（所有分支完成后）</button>
       <div id="ff-columns"></div>

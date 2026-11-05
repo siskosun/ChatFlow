@@ -58,7 +58,7 @@ async def main():
     await w.locator('#home-view').wait_for(state='visible');assert await w.locator('#home-view .flow-choice').count()==2
     assert await w.locator('#home-view .flow-choice').evaluate_all('(xs)=>new Set(xs.map(x=>x.className)).size===1')
     assert '保存并接到新对话' in await w.locator('#home-view').inner_text()
-    assert '外部助手' in await w.locator('#home-view').inner_text()
+    assert '其他助手' in await w.locator('#home-view').inner_text()
     assert await w.locator('#first-run-prereqs li').count()==3
     assert await w.locator('.chatgpt-link').get_attribute('href')=='https://chatgpt.com/'
     for width in [320,360,480,768,1280]:
@@ -85,12 +85,27 @@ async def main():
     sources=await w.evaluate("async()=>(await chrome.runtime.sendMessage({type:'tl:sources'})).data")
     ta=next(x['id'] for x in sources if x['url']==URL_A);tb=next(x['id'] for x in sources if x['url']==URL_B)
     await poll(w,'()=>document.querySelectorAll("#task-source option").length===3')
+    choices=await w.locator('#task-source option').evaluate_all("xs=>xs.slice(1).map(x=>({text:x.textContent,value:x.value,url:x.dataset.sourceUrl}))")
+    assert len(choices)==2 and len(set(item['value'] for item in choices))==2,choices
+    assert set(item['text'] for item in choices)=={'Same title · 标签页 1','Same title · 标签页 2'},choices
+    assert set(item['url'] for item in choices)=={URL_A,URL_B},choices
+    assert all('CF-' not in item['text'] and '20261103' not in item['text'] for item in choices),choices
+    passed('same_title_source_choices_use_human_labels_not_conversation_suffixes')
     for tabid in [ta,tb]:
      await w.locator('#task-source').select_option(str(tabid));await w.locator('#task-text').fill(TEXT);await w.locator('#task-create').click()
      await poll(w,'n=>TLTaskStore.list().then(xs=>xs.length===n)',1 if tabid==ta else 2)
     rows=await w.evaluate('()=>TLTaskStore.list()');at=next(x for x in rows if x['source']['url']==URL_A);bt=next(x for x in rows if x['source']['url']==URL_B)
     assert at['code']!=bt['code'];assert await w.evaluate('()=>TLStore.all("captures").then(xs=>xs.length)')==0
     passed('same_title_same_text_tasks_bound_to_distinct_sources_without_capture')
+    task_labels=await w.locator('#task-list .task-row').evaluate_all("""rows=>rows.map(row=>({
+      title:row.querySelector('strong')?.textContent,
+      detail:row.querySelector('small')?.textContent,
+      id:row.dataset.taskId
+    }))""")
+    assert len(task_labels)==2 and len(set(row['id'] for row in task_labels))==2,task_labels
+    assert set(row['title'] for row in task_labels)=={'identical small task · 任务 1','identical small task · 任务 2'},task_labels
+    assert all('CF-' not in row['detail'] and '20261103' not in row['detail'] and 'Same title' in row['detail'] for row in task_labels),task_labels
+    passed('same_title_task_rows_hide_codes_and_keep_stable_ids')
     await w.locator('#task-mode-return').click()
     for t in [bt,at]:
      text='['+t['code']+']\nresult for '+t['source']['conversationId'];await w.locator('#task-result-text').fill(text)
@@ -106,6 +121,11 @@ async def main():
     await w.locator('#task-open-only').click();assert await a.locator('#prompt-textarea').input_value()=='existing user draft';assert await a.evaluate('window.sent')==0 and await b.evaluate('window.sent')==0
     passed('clipboard_denial_keeps_selectable_result_and_return_never_sends_or_overwrites')
     await w.bring_to_front();await w.locator('#task-result-text').fill('untagged result');await w.locator('#task-manual').wait_for(state='visible');assert await w.locator('#task-save-result').is_disabled()
+    manual_options=await w.locator('#task-manual-source option').evaluate_all("xs=>xs.slice(1).map(x=>({text:x.textContent,value:x.value}))")
+    assert len(manual_options)==2 and len(set(item['value'] for item in manual_options))==2,manual_options
+    assert set(item['text'] for item in manual_options)=={'identical small task · 任务 1','identical small task · 任务 2'},manual_options
+    assert all('CF-' not in item['text'] for item in manual_options),manual_options
+    passed('manual_return_source_choices_use_human_names_not_codes')
     await w.locator('#task-manual-source').select_option(bt['id']);await poll(w,"url=>document.querySelector('#task-match a')?.href===url",URL_B);assert await w.locator('#task-status').inner_text()=='';await w.locator('#task-manual-confirm').check();await w.locator('#task-save-result').click();await w.locator('#task-return-origin').wait_for(state='visible')
     assert any(r['assignment']=='manual_assigned' for r in await w.evaluate('()=>TLTaskStore.results()'))
     await w.locator('#task-result-text').fill('['+at['code']+']\n['+bt['code']+']\nconflict');await w.locator('#task-manual').wait_for(state='visible');assert await w.locator('#task-save-result').is_disabled()
@@ -148,6 +168,10 @@ async def main():
     # the final URL. Verify both API and selector have recovered from B to A.
     await poll(w,"async x=>{const rows=(await chrome.runtime.sendMessage({type:'tl:sources'})).data;return rows?.some(r=>r.id===x[0]&&r.url===x[1]);}",[ta,URL_A])
     await poll(w,"x=>{const s=document.querySelector('#source');return [...s.options].some(o=>o.value===String(x[0])&&o.dataset.sourceUrl===x[1]);}",[ta,URL_A])
+    capture_choices=await w.locator('#source option').evaluate_all("xs=>xs.map(x=>({text:x.textContent,value:x.value,url:x.dataset.sourceUrl}))")
+    assert len(capture_choices)==2 and set(item['text'] for item in capture_choices)=={'Same title · 标签页 1','Same title · 标签页 2'},capture_choices
+    assert set(item['url'] for item in capture_choices)=={URL_A,URL_B},capture_choices
+    passed('capture_source_titles_hide_conversation_ids')
     await w.locator('#source').select_option(str(ta))
     selected=await w.evaluate("()=>({id:document.querySelector('#source').value,url:document.querySelector('#source').selectedOptions[0]?.dataset.sourceUrl})")
     options=await w.evaluate("()=>[...document.querySelector('#source').options].map(o=>({id:o.value,url:o.dataset.sourceUrl}))")

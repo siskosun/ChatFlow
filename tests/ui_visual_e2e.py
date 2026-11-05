@@ -45,12 +45,38 @@ async def main():
       await page.set_viewport_size({'width':width,'height':950})
       for view in ['home','capture','archive','handoff','tasks','settings']:
        await page.evaluate('v=>ChatFlowWorkspace.show(v)',view);await page.wait_for_timeout(160)
-       if view=='archive':await page.locator('.archive-button').first.click();await page.locator('#detail h2').wait_for()
+       if view=='archive':
+        await page.locator('.archive-button').first.click();await page.locator('#detail h2').wait_for()
+        header=await page.locator('#detail .message strong').first.inner_text()
+        assert header=='ChatGPT · 第 1 条',header
        if view=='tasks':await page.locator('#task-mode-return').click()
        value=await page.evaluate(CHECK);value.update({'view':view,'scheme':scheme,'result':'fail' if value['documentWidth']>width+2 or value['failures'] else 'pass'})
        if (width==360 and scheme=='dark') or (width==1440 and scheme=='light'):await page.screenshot(path=str(OUT/f'ui-{view}-{scheme}-{width}.png'),full_page=True)
        report['cases'].append(value)
     experiment=await context.new_page();experiment.on('pageerror',lambda e:report['errors'].append(str(e)));await experiment.goto(base+'experiments.html');await experiment.wait_for_function("()=>!document.querySelector('#ff-notice').textContent.includes('正在检查')&&!document.querySelector('#ff-enable').disabled");await experiment.locator('#ff-enable').check();await experiment.wait_for_function("()=>document.querySelector('#ff-enable').checked&&!document.querySelector('#ff-enable').disabled&&!document.querySelector('#ff-local').hidden");await experiment.locator('#ff-p').fill('合成比较任务')
+    await experiment.locator('#ff-save').click()
+    await experiment.locator('#ff-detail').wait_for(state='visible')
+    experiments_ui=await experiment.evaluate("""() => {
+      const button=document.querySelector('#ff-list button');
+      const detail=document.querySelector('#ff-detail');
+      const meta=document.querySelector('#ff-meta');
+      const hidden=document.querySelector('.technical-details');
+      return {
+        display:button?.textContent||'',
+        meta:meta?.textContent||'',
+        technicalClosed:!!hidden&&!hidden.open,
+        exactIdKept:!!document.querySelector('#ff-technical-id')?.textContent,
+        shaKept:/[a-f0-9]{64}/.test(document.querySelector('#ff-sha')?.textContent||''),
+        detailVisible:!!detail&&!detail.hidden
+      };
+    }""")
+    assert experiments_ui['detailVisible'] and experiments_ui['technicalClosed'],experiments_ui
+    assert experiments_ui['exactIdKept'] and experiments_ui['shaKept'],experiments_ui
+    assert '合成比较任务' in experiments_ui['display'] and '个分支' in experiments_ui['display'],experiments_ui
+    assert 'revision' not in experiments_ui['meta'] and 'K=' not in experiments_ui['display'],experiments_ui
+    assert not re.search(r'[a-f0-9]{8}-[a-f0-9-]{27,}',experiments_ui['display']),experiments_ui
+    report['human_facing_experiment_fields']=experiments_ui
+    print('PASS experiment_identifiers_are_hidden_in_technical_details',flush=True)
     # The criteria field is shown only after comparison and calibration. Drive its
     # existing DOM input listeners without bypassing the installed extension.
     # A disabled submit button must not be advertised as aria-valid.
