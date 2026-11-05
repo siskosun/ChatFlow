@@ -210,7 +210,7 @@ async def main():
                 }""")
                 assert position['own']['left'] >= position['ask']['right']-2, position
                 assert abs(position['own']['top']-position['ask']['top'])<8, position
-                assert await chat.locator('#native-ask').inner_text()=='向 ChatGPT 提问'
+                assert (await chat.locator('#native-ask').text_content() or '').strip()=='向 ChatGPT 提问'
                 await chat.evaluate('()=>getSelection().removeAllRanges()')
                 await wait(chat, "()=>document.querySelector('#chatflow-selected-action')?.hidden===true")
                 passed('selected_text_action_aligns_with_observable_native_quote_without_replacing_it')
