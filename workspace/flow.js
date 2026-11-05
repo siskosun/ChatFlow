@@ -175,10 +175,14 @@
   const sameSource=rows.find(r=>String(r.id)===old&&(!oldUrl||r.url===oldUrl));
   if(sameSource)source.value=old;
   else if(text.value.trim()){
-   // A tab closing or navigating must not silently reassign a nonempty draft
-   // to the next active conversation. Keep its text and require a new choice.
-   source.value='';stopSelectionWatch();selectedFromWatch=null;invalidateCreation();
-   selectionFeedback('error','来源对话已变化，任务文字已保留。请重新选择来源。',oldUrl);return;
+   // Keep an unassigned draft unassigned on refresh. Only report a lost source
+   // if one was actually selected before this refresh.
+   source.value='';
+   if(old||oldUrl){
+    stopSelectionWatch();selectedFromWatch=null;invalidateCreation();
+    selectionFeedback('error','来源对话已变化，任务文字已保留。请重新选择来源。',oldUrl);
+   }else updateCreateState();
+   return;
   }else{
    const [activeTab]=await chrome.tabs.query({active:true,currentWindow:true});
    if(epoch!==sourceRefreshEpoch)return;
