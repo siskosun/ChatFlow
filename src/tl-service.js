@@ -68,7 +68,13 @@ async function sourceRun(msg,sender){
 }
 async function sendToSource(tabId,message,documentId){
  const target={tabId,documentIds:[documentId]},options={documentId};
- try{return await api.tabs.sendMessage(tabId,message,options);}catch{await api.scripting.executeScript({target,files:['src/tl-core.js','src/tl-provider.js','src/tl-capture.js','src/tl-inject.js']});return api.tabs.sendMessage(tabId,message,options);}
+ try{return await api.tabs.sendMessage(tabId,message,options);}catch{
+  // An already-open tab may predate extension installation. Reinject the same
+  // dependency graph declared for normal content-script loading, not a subset.
+  const files=api.runtime.getManifest().content_scripts?.find(row=>row.js?.includes('src/tl-capture.js'))?.js;
+  C.check(Array.isArray(files)&&files.length>0,'CAPTURE_SCRIPT_LIST_MISSING');
+  await api.scripting.executeScript({target,files});return api.tabs.sendMessage(tabId,message,options);
+ }
 }
 async function startCapture(msg){
  C.check(Number.isInteger(msg.tabId),'INVALID_TAB_ID');
