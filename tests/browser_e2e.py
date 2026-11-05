@@ -250,11 +250,19 @@ async def main():
             for feature in ['context','live','diagnostics','passages']:
                 await workspace.locator('[data-view="settings"]').click()
                 await workspace.locator('#pref-'+feature).check()
-                # Enabling a feature now takes the user to its actual work area.
-                target='archive' if feature in ['context','passages'] else 'capture'
-                await workspace.locator('#'+target+'-view').wait_for(state='visible')
+                # Merely enabling an option MUST NOT silently navigate away.
+                assert await workspace.locator('#settings-view').is_visible()
                 assert await workspace.locator('#pref-'+feature).is_checked()
                 assert (await workspace.evaluate('key=>chrome.storage.local.get("cfPreferences").then(v=>v.cfPreferences?.[key])',feature)) is True
+                await workspace.locator('#feature-open-'+feature).click()
+                if feature in ['context','passages']:
+                    assert await workspace.locator('#archive-view').is_visible()
+                elif feature=='live':
+                    assert await workspace.locator('#settings-view').is_visible()
+                    assert await workspace.locator('#settings-live-panel').is_visible()
+                else:
+                    assert await workspace.locator('#settings-view').is_visible()
+                    assert await workspace.locator('#settings-view details.advanced').first.evaluate('(e)=>e.open')
             await workspace.locator('[data-view="settings"]').click()
             await workspace.locator('#settings-view [data-view="home"]').click()
             await workspace.locator('#home-view [data-view="capture"]').click()
