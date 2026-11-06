@@ -60,7 +60,7 @@
  const prerequisites=n('ol');for(const item of ['使用 Chrome 116+ 或支持侧边栏的 Edge，且不是无痕窗口。','已在浏览器标签页登录 ChatGPT。','打开一段已有的 ChatGPT 对话；空白新聊天无法保存。'])prerequisites.append(n('li',item));requirements.append(prerequisites);setup.append(requirements);
  const openChat=n('a','打开 ChatGPT',{class:'chatgpt-link',href:'https://chatgpt.com/',target:'_blank',rel:'noopener noreferrer'});setup.append(openChat);
  const resumeHandoff=button('继续上次接续','resume-handoff',()=>ChatFlowWorkspace.resume(),'quiet');
- resumeHandoff.hidden=true;resumeHandoff.dataset.captureId='';
+ resumeHandoff.hidden=true;
  home.append(intro,choices,resumeHandoff,setup);main.insertBefore(home,$('capture-view'));setTimeout(()=>safe(()=>ChatFlowExperimentTabs.refresh()),0);
  const taskView=n('section',null,{id:'tasks-view',class:'view',hidden:''}),head=n('div',null,{class:'view-heading'});
  head.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','任务回传'));
