@@ -197,9 +197,27 @@ async def main():
             print('PASS indexeddb_v1_to_v6_migration_preserves_existing_records',flush=True)
             v2=await page.evaluate("""async()=>{const db=await TLStore.open('chatflow-v2-migration-test');const tx=db.transaction(['captures','passages'],'readonly'),read=r=>new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});const capture=await read(tx.objectStore('captures').get('v2-capture')),passage=await read(tx.objectStore('passages').get('v2-passage'));return{version:db.version,capture,passage,stores:Array.from(db.objectStoreNames)};}""")
             assert v2['version']==6 and v2['capture']['id']=='v2-capture' and v2['passage']['text']=='existing original excerpt' and {'tasks','taskResults'}.issubset(v2['stores']),v2
+            has_index=await page.evaluate("""async()=>{const db=await TLStore.open('chatflow-v2-migration-test');return db.transaction('handoffs','readonly').objectStore('handoffs').indexNames.contains('capture')}""")
+            assert has_index, 'v6 migration must create a captureId handoff index'
             ready=await page.evaluate('chrome.runtime.sendMessage({type:"tl:sessions"})')
             assert ready['ok'],ready
             result['cases']=[{'name':'indexeddb_v1_to_v6_migration_preserves_existing_records','result':'pass'},{'name':'indexeddb_v2_to_v6_preserves_archives_and_passages','result':'pass'}]+await page.evaluate(CASES)
+            prune=await page.evaluate("""async()=>{
+              const S=TLStore,captureId='v6-prune-test',day=86400000;
+              await S.set('captures',{id:captureId,state:'ready',live:false,createdAt:new Date().toISOString()});
+              const blob=await S.putBlob(new Blob(['shared bytes retained for active handoff']));
+              const files=[{sha256:blob.sha256,size:blob.size}],old=new Date(Date.now()-25*day).toISOString();
+              const mk=(id,state,createdAt)=>({id,captureId,createdAt,state,files,batches:[[0]],missing:[]});
+              await S.set('handoffs',mk('old-blocked','injection_blocked',old));
+              await S.set('handoffs',mk('old-claimed','claimed',old));
+              await S.set('handoffs',mk('recent-prepared','prepared',new Date().toISOString()));
+              const before=await S.handoffsForCapture(captureId);
+              const removed=await S.pruneHandoffs(captureId,'recent-prepared');
+              const after=await S.handoffsForCapture(captureId);
+              return {before:before.length,removed,states:after.map(x=>x.state).sort(),blobPresent:!!(await S.get('files',blob.sha256))};
+            }""")
+            assert prune=={'before':3,'removed':1,'states':['claimed','prepared'],'blobPresent':True},prune
+            result['cases'].append({'name':'v6_capture_index_prunes_only_stale_unclaimed_without_losing_shared_bytes','result':'pass'})
             result['status']='pass'
             for case in result['cases']:print('PASS',case['name'],flush=True)
         except Exception as e:
