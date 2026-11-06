@@ -63,6 +63,28 @@ async def main():
             await page.add_script_tag(path=str(ROOT/"src"/name))
 
         await select(page)
+        initial = await state(page)
+        assert initial["label"] == "ChatFlow选文", initial
+        design = await page.evaluate("""() => {
+          const button=document.querySelector('#chatflow-selected-action').shadowRoot.querySelector('button');
+          const style=getComputedStyle(button);
+          return {height:button.getBoundingClientRect().height,color:style.backgroundColor,border:style.borderTopWidth};
+        }""")
+        assert design["height"] <= 38 and design["color"] == "rgb(255, 255, 255)", design
+        report["native_scale_secondary_action"] = design
+        await page.emulate_media(color_scheme="dark")
+        dark_color = await page.evaluate("""() => getComputedStyle(
+          document.querySelector('#chatflow-selected-action').shadowRoot.querySelector('button')
+        ).backgroundColor""")
+        assert dark_color == "rgb(48, 48, 48)", dark_color
+        report["dark_mode_action_matches_dark_surface"] = True
+        await page.emulate_media(color_scheme="light")
+        # A second isolated injection has a new global flag but the same DOM.
+        await page.evaluate("() => {delete globalThis.ChatFlowSelectionActionInstalled;}")
+        await page.add_script_tag(path=str(ROOT/"src"/"tl-selection-action.js"))
+        await select(page)
+        assert await page.evaluate("() => document.querySelectorAll('#chatflow-selected-action').length") == 1
+        report["duplicate_injection_keeps_one_dom_action"] = True
         # Delay the native portal beyond both old 120ms / 420ms placement attempts.
         await page.evaluate("""() => setTimeout(() => {
           const control=document.createElement('button');control.id='native-ask';
@@ -74,7 +96,7 @@ async def main():
           const native=document.querySelector('#native-ask');
           const host=document.querySelector('#chatflow-selected-action');
           if(!native || !host || host.hidden)return false;
-          return Math.abs(host.getBoundingClientRect().left-native.getBoundingClientRect().right-8)<2;
+          return Math.abs(host.getBoundingClientRect().left-native.getBoundingClientRect().right-6)<2;
         }""", timeout=4000)
         report["late_native_toolbar_followed"] = True
 
@@ -116,7 +138,7 @@ async def main():
         await page.evaluate("() => window.finishSelectionReply({ok:false,code:'OLD_FAILURE'})")
         await page.wait_for_timeout(50)
         current = await state(page)
-        assert not current["hidden"] and current["label"] == "交给 ChatFlow"
+        assert not current["hidden"] and current["label"] == "ChatFlow选文"
         report["old_async_result_ignores_new_selection"] = True
 
         before = await page.evaluate("() => selectionRequests.length")

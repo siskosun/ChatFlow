@@ -283,7 +283,7 @@ async def main():
                     const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
                 }""")
                 await wait(chat, """()=>{const host=document.querySelector('#chatflow-selected-action');
-                    return !!host&&!host.hidden&&host.shadowRoot?.querySelector('button')?.textContent.includes('交给 ChatFlow');}""")
+                    return !!host&&!host.hidden&&host.shadowRoot?.querySelector('button')?.textContent.includes('ChatFlow选文');}""")
                 position = await chat.evaluate("""()=>{
                   const own=document.getElementById('chatflow-selected-action').getBoundingClientRect(),
                     ask=document.getElementById('native-ask').getBoundingClientRect();

@@ -80,7 +80,9 @@
             if (stableFrames >= BUDGET.stableFrames) {
               if (!guard()) return result('cancelled');
               const final = resolve();
-              if (final?.el === found.el && targetRect.bottom>boxRect.top && targetRect.top<boxRect.top+box.clientHeight) return result(found.confidence==='verified_message_id'?'matched':'observed', {confidence:found.confidence,el:found.el});
+              const finalRect = final?.el?.getBoundingClientRect();
+              const visibleBox = box===globalThis.document?.scrollingElement ? {top:0,height:box.clientHeight} : box.getBoundingClientRect();
+              if (final?.el === found.el && finalRect && finalRect.bottom>visibleBox.top && finalRect.top<visibleBox.top+box.clientHeight) return result(found.confidence==='verified_message_id'?'matched':'observed', {confidence:found.confidence,el:found.el});
               stableFrames=0; previous=null;
             }
           }

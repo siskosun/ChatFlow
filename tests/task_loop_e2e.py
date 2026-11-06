@@ -100,7 +100,7 @@ async def main():
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     }""")
     await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');
-      return el&&!el.hidden&&el.shadowRoot?.querySelector('button')?.textContent.includes('交给 ChatFlow');}""")
+      return el&&!el.hidden&&el.shadowRoot?.querySelector('button')?.textContent.includes('ChatFlow选文');}""")
     await a.screenshot(path=str(OUT/'chatflow-inline-selection-action.png'))
     await a.evaluate('()=>window.getSelection().removeAllRanges()')
     await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');return el?.hidden;}""")
@@ -113,7 +113,7 @@ async def main():
       const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     }""")
     await poll(a,"""()=>{const el=document.querySelector('#chatflow-selected-action');
-      return el&&!el.hidden&&el.shadowRoot?.querySelector('button')?.textContent.includes('交给 ChatFlow');}""")
+      return el&&!el.hidden&&el.shadowRoot?.querySelector('button')?.textContent.includes('ChatFlow选文');}""")
     await a.locator('#chatflow-selected-action button').click()
     await poll(w,"()=>document.querySelector('#task-text').value==='duplicate identical paragraph'")
     assert await w.locator('#task-source').input_value()==str(ta)

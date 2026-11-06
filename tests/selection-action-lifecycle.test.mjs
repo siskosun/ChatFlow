@@ -11,7 +11,7 @@ function deferred() {
  const promise = new Promise((yes, no) => {resolve = yes;reject = no;});
  return {promise, resolve, reject};
 }
-function fixture() {
+function fixture({foreignHost=false}={}) {
  let now = 0, sequence = 0;
  const timers = new Map(), observers = new Set(), natives = [], responses = [], sent = [];
  const state = {
@@ -52,6 +52,9 @@ function fixture() {
  doc.documentElement = new Element('html');
  doc.createElement = tag => new Element(tag);
  doc.querySelectorAll = () => natives;
+  doc.querySelector = selector => selector==='#chatflow-selected-action'
+   ? doc.documentElement.children.find(el=>el.id==='chatflow-selected-action')||null : null;
+  if(foreignHost){const owner=new Element('div');owner.id='chatflow-selected-action';doc.documentElement.append(owner);}
  const selection = () => ({
   rangeCount: state.empty ? 0 : 1,
   getRangeAt: () => ({
@@ -113,8 +116,8 @@ test('a late native quote toolbar is followed, then the temporary observer disco
  const native=f.native(box(300,155,110,32));
  await f.advance(81);
  const after=f.host().getBoundingClientRect();
- assert.equal(after.left,native.rect.right+8);
- assert.equal(after.top,native.rect.top);
+ assert.equal(after.left,native.rect.right+6);
+ assert.ok(Math.abs(after.top-(native.rect.top+(native.rect.height-after.height)/2))<=1);
  assert.notEqual(after.left,before.left);
  await f.advance(3000);
  assert.equal(f.observers.size,0);
@@ -150,7 +153,7 @@ test('failed opening stays actionable until retry or a new selection',async()=>{
  await f.win.emit('resize');await f.advance(121);
  assert.equal(f.host().hidden,true);
  await f.select('another selected task',3);
- assert.equal(f.button().textContent,'交给 ChatFlow');
+ assert.equal(f.button().textContent,'ChatFlow选文');
 });
 
 test('placement uses actual error dimensions and flips within a resized viewport',async()=>{
@@ -195,7 +198,7 @@ test('an old async success or failure cannot hide or relabel a newer selection',
   assert.equal(f.button().disabled,false);
   pending.resolve(response);await old;
   assert.equal(f.host().hidden,false);
-  assert.equal(f.button().textContent,'交给 ChatFlow');
+  assert.equal(f.button().textContent,'ChatFlow选文');
   await f.button().emit('click');
   assert.equal(f.sent.at(-1).text,'newer task');
  }
@@ -210,4 +213,12 @@ test('Escape while opening detaches late results without restoring the action',a
  await f.advance(5000);await f.win.emit('resize');await f.advance(121);
  assert.equal(f.host().hidden,true);
  assert.equal(f.observers.size,0);
+});
+
+test('a second isolated injection never mounts another same-document selection action',async()=>{
+ const f=fixture({foreignHost:true});
+ await f.select('selection from another injected build');
+ assert.equal(f.doc.documentElement.children.filter(el=>el.id==='chatflow-selected-action').length,1);
+ assert.equal(f.sent.length,0);
+ assert.equal(f.host().shadowRoot,undefined,'the new injection must leave the existing owner untouched');
 });

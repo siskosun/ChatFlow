@@ -85,23 +85,32 @@
     if (!id) return result('unavailable', null, null);
     const threads = [...document.querySelectorAll('.thread-scroll-container')];
     const candidates = threads.length ? threads : [...document.querySelectorAll('main')];
-    if (candidates.length > MAX_CANDIDATES) return result('ambiguous', null, id);
+    if (candidates.length > MAX_CANDIDATES * 8) return result('ambiguous', null, id);
     const visible = candidates.filter(isVisible);
     if (!visible.length) return result('unavailable', null, id);
+    // Nested visible scroll containers for one thread are one candidate.
+    // Independent peers or conflicting conversation markers remain ambiguous.
+    const visibleSet = new Set(visible);
+    const roots = visible.filter(root => {
+      for (let node = root.parentElement; node; node = node.parentElement)
+        if (visibleSet.has(node)) return false;
+      return true;
+    });
+    if (roots.length > MAX_CANDIDATES) return result('ambiguous', null, id);
     // Long ChatGPT pages may expose multiple visible containers. A scope can
     // still be identified if exactly one visible root explicitly identifies
     // this conversation, and every other root is a distinct or unmarked one.
     // Never infer a source from visibility alone or accept duplicate matches.
     const confirmed = [];
     let empty = 0;
-    for (const root of visible) {
+    for (const root of roots) {
       let ids;
       try { ids = identities(root); } catch { return result('ambiguous', null, id); }
       if (ids.size === 1 && ids.has(id)) confirmed.push(root);
       else if (!ids.size) empty++;
     }
     if (confirmed.length === 1) return result('confirmed', confirmed[0], id);
-    if (visible.length === 1 && empty === 1) return result('unverified', visible[0], id);
+    if (roots.length === 1 && empty === 1) return result('unverified', roots[0], id);
     return result('ambiguous', null, id);
   }
 

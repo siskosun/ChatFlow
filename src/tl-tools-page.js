@@ -5,6 +5,7 @@
   globalThis.CFPageToolsInstalled = true;
   const C = globalThis.TLCore, K = globalThis.CFToolkit, api = chrome;
   const S = globalThis.TLPageScope;
+  const PAGE_SIZE = 60;
   let live = null;
   const n = (tag, text, attrs = {}) => {
     const el = document.createElement(tag);
@@ -170,7 +171,9 @@
     session.coverageNode.textContent = label + ' · ' + messages.length + ' 条';
     session.retry.hidden=!session.loadError;
     session.status.textContent = session.loadError ? (messages.length?'只显示已加载内容，未取得完整历史。':'本次未读取到可确认的消息。')+' 可重试完整读取（'+session.loadError+'）。' : '';
-    session.turns = K.groupExportMessagesIntoTurns(messages); render(session);
+    session.turns = K.groupExportMessagesIntoTurns(messages);
+    session.turnByMessage = new Map(session.turns.flatMap(turn => turn.messages.map(entry => [entry.message,turn])));
+    session.page = 0; render(session);
   }
   function reportJumpError(session, error) {
     if (!current(session)) return;
@@ -259,21 +262,31 @@
     });
     details.append(summary,load,hint,list);return details;
   }
-  function render(session) {
-    session.list.replaceChildren(); session.cursor = -1;
+  function render(session, {keepCursor = false} = {}) {
+    session.list.replaceChildren(); session.list.scrollTop = 0;
+    if (!keepCursor) session.cursor = -1;
     const query = session.query.value.trim(), tooLong = query.length > 200;
     session.query.setCustomValidity(tooLong ? '搜索词超过 200 个字符，全文已保留。' : '');
     session.query.setAttribute('aria-invalid', String(tooLong));
     if (tooLong) {
       session.matches = []; session.prev.disabled = session.next.disabled = true;
+      if (session.pageNav) session.pageNav.hidden = true;
       session.count.textContent = '搜索词过长'; session.status.textContent = '搜索词超过 200 个字符，全文已保留。请缩短后搜索。'; return;
     }
     session.matches = session.messages.filter(item => query ? K.getSearchMatchRanges(item.text, query).length : item.role === 'user');
     session.count.textContent = session.matches.length + (query ? ' 条命中' : ' 个提问');
     session.prev.disabled = session.next.disabled = !session.matches.length;
-    for (const item of session.matches.slice(0, 200)) {
+    const pages = Math.ceil(session.matches.length / PAGE_SIZE);
+    session.page = Math.max(0, Math.min(session.page || 0, Math.max(0, pages - 1)));
+    if (session.pageNav) {
+      session.pageNav.hidden = pages <= 1;
+      session.pageLabel.textContent = '第 ' + (session.page + 1) + ' / ' + Math.max(1, pages) + ' 页';
+      session.pagePrev.disabled = session.page === 0;
+      session.pageNext.disabled = session.page >= pages - 1;
+    }
+    for (const item of session.matches.slice(session.page * PAGE_SIZE, (session.page + 1) * PAGE_SIZE)) {
       const row = n('div', null, { class: 'row' });
-      const turn = session.turns.find(group => group.messages.some(entry => entry.message === item));
+      const turn = session.turnByMessage?.get(item);
       const check = n('input', null, { type: 'checkbox', 'aria-label': '选择此问答回合' });
       check.checked = session.selected.has(turn?.id); check.dataset.turnId = turn?.id || '';
       check.onchange = () => {
@@ -292,9 +305,9 @@
       const answers=item.role==='assistant'?[item]:(turn?.assistantMessages||[]).map(entry=>entry.message);
       for(const answer of answers){const menu=headingMenu(session,answer);if(menu)session.list.append(menu);}
     }
-    if (session.matches.length > 200) session.list.append(n('p', '显示前 200 条；请缩小搜索范围。'));
   }
   const STYLE = `:host{all:initial;position:fixed;right:18px;top:80px;z-index:2147483646;width:min(340px,calc(100vw - 32px));font:14px/1.5 system-ui;color:#11100e;color-scheme:light}*{box-sizing:border-box}.panel{background:#fffdf5;border:2px solid #11100e;border-radius:14px;box-shadow:6px 6px 0 #11100e;padding:17px;max-height:calc(100vh - 160px);overflow:auto}header,.controls,.row{display:flex;gap:8px;align-items:center}header{justify-content:space-between;margin-bottom:12px}h2{font-size:19px;font-weight:830;letter-spacing:-.04em;margin:0}button,input,select{font:inherit;color:inherit}button{min-height:44px;padding:8px 10px;border:1.5px solid #11100e;border-radius:9px;background:#fbf4e0;cursor:pointer;font-weight:700}button:hover:not(:disabled){background:#c9b6ff}button:disabled{opacity:.56}input[type=search],select{width:100%;padding:10px;border:1.5px solid #11100e;border-radius:9px;margin:7px 0;background:#fffdf5}input[type=checkbox]{flex:none;width:18px;height:18px;accent-color:#ff7a66}.row{border-bottom:1px solid #d6cbbb}.row button{flex:1;text-align:left;border:0;overflow-wrap:anywhere;min-width:0;background:transparent}.row button:hover:not(:disabled){background:#f4e6c9}.controls{justify-content:space-between}.hint,small{color:#514940;font-size:12px}#list{max-height:38vh;overflow:auto;margin:8px 0}p{overflow-wrap:anywhere}details{margin-top:12px}.cf-headings{margin:0 0 8px 26px}.cf-heading-list{display:flex;flex-direction:column;gap:3px}.cf-heading{text-align:left;overflow-wrap:anywhere}.cf-headings summary{font-size:12px}summary{cursor:pointer;min-height:44px;padding-top:10px}mark{background:#ff7a66;color:#11100e}button:focus-visible,input:focus-visible,summary:focus-visible,select:focus-visible{outline:3px solid #8369ef;outline-offset:3px}@media(prefers-color-scheme:dark){:host{color:#fff3df;color-scheme:dark}.panel{background:#24231e;border-color:#fff3df;box-shadow:6px 6px 0 #0e0e0c}button,input[type=search],select{background:#302c28;color:#fff3df;border-color:#fff3df}.hint,small{color:#e1d3bf}.row{border-color:#555047}mark{background:#ff947f;color:#11100e}.row button:hover:not(:disabled){background:#43394e}}`;
+  const PAGE_STYLE=`.panel .cf-page-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:9px 0}.panel .cf-page-nav[hidden]{display:none!important}.panel .cf-page-nav button{min-height:36px;padding:5px 10px;font-size:12px}.panel .cf-page-nav span{font-size:12px;white-space:nowrap;color:inherit}`;
   const UX_STYLE=`.panel{padding:13px;max-height:calc(100vh - 60px);overflow-y:auto}.panel header{margin-bottom:10px}.panel header button{min-width:36px;width:39px;height:40px;min-height:40px;padding:0;font-size:24px}.panel h2{font-size:19px}.panel .controls button{min-height:40px;padding:7px 11px}.panel .controls{justify-content:space-between;gap:10px;margin:10px 0}.panel #list{max-height:40vh;overflow:auto}.panel .row{align-items:flex-start;border-bottom:1px solid #d6cbbb}.panel .row button{font-weight:540;padding:7px 5px;min-height:40px}.panel .cf-headings{margin:2px 0 9px 21px;border-left:2px solid #e9e0d4;padding-left:8px}.panel .cf-headings summary{min-height:34px;padding:5px 0;font-size:13px;font-weight:650;color:#514940}.panel .cf-outline{font-size:13px;padding:4px 0;color:#514940;overflow-wrap:anywhere}.panel .cf-headings .cf-read-headings{font-size:12px;min-height:35px;padding:5px 9px;background:#e9e5ef}.panel .cf-retry{width:100%;margin:6px 0 12px;background:#dde9dd}.panel .hint{line-height:1.55}.panel [role=status]{margin:9px 0;white-space:normal}.panel input[type=search]{margin:0}@media(prefers-color-scheme:dark){.panel .cf-headings summary,.panel .cf-outline{color:#e3d5c3}.panel .cf-headings{border-color:#575046}.panel .cf-headings .cf-read-headings,.panel .cf-retry{background:#353d35;color:#fff3df;border-color:#e3d5c3}}`;
   function show(url) {
     C.check(canonical() === url, 'TOOLS_SOURCE_CHANGED'); close();
@@ -305,16 +318,32 @@
     const header = n('header'), x = n('button', '×', { type: 'button', 'aria-label': '关闭对话工具' });
     x.onclick = close; header.append(n('h2', '对话导航'), x);
     session.query = n('input', null, { type: 'search', placeholder: '搜索当前对话', 'aria-label': '搜索当前对话' });
-    session.query.oninput = () => { session.jump += 1; session.navigationController?.abort(); render(session); };
+    session.query.oninput = () => { session.jump += 1; session.navigationController?.abort(); session.page = 0; render(session); };
     session.coverageNode = n('p', null, { class: 'hint' }); session.count = n('span');
     session.prev = n('button', '上一条', { type: 'button' }); session.next = n('button', '下一条', { type: 'button' });
     for (const [button, step] of [[session.prev, -1], [session.next, 1]]) button.onclick = () => {
       if (!session.matches.length) return;
       session.cursor = K.nextMatchIndex(session.cursor, step, session.matches.length);
+      const page = Math.floor(session.cursor / PAGE_SIZE);
+      if (page !== session.page) { session.page = page; render(session, {keepCursor:true}); }
       jump(session, session.matches[session.cursor]).catch(error => reportJumpError(session, error));
     };
     const controls = n('div', null, { class: 'controls' }); controls.append(session.prev, session.count, session.next);
     session.list = n('div', null, { id: 'list' }); session.status = n('p', null, { role: 'status', 'aria-live': 'polite', class: 'hint' });
+    session.pageNav = n('nav', null, { class:'cf-page-nav', 'aria-label':'导航结果分页', hidden:'' });
+    session.pagePrev = n('button', '上一页', { type:'button' });
+    session.pageNext = n('button', '下一页', { type:'button' });
+    session.pageLabel = n('span', '', { 'aria-live':'polite' });
+    for (const [button, direction] of [[session.pagePrev,-1],[session.pageNext,1]]) button.onclick = () => {
+      session.jump += 1; session.navigationController?.abort();
+      session.page += direction;
+      // The first next/previous press after manual pagination must navigate
+      // within the displayed page, not jump back to an old/global cursor.
+      session.cursor = direction > 0 ? session.page * PAGE_SIZE - 1 :
+        Math.min(session.matches.length, (session.page + 1) * PAGE_SIZE);
+      render(session, {keepCursor:true});
+    };
+    session.pageNav.append(session.pagePrev, session.pageLabel, session.pageNext);
     const extra = n('details'), summary = n('summary', '导出所选回合与公式复制');
     const format = n('select', null, { 'aria-label': '导出格式' });
     for (const value of ['md', 'json', 'txt']) format.add(new Option(value.toUpperCase(), value));
@@ -364,8 +393,8 @@
     extra.append(summary, format, exportButton, n('p', '只导出勾选回合，包含来源身份与覆盖范围。', { class: 'hint' }), formulas, copyFormula, fallback, refresh);
     session.retry=n('button','重试读取',{type:'button',class:'cf-retry',hidden:''});
     session.retry.onclick=()=>{session.loadError=null;load(session).catch(error=>reportJumpError(session,error));};
-    panel.append(header, session.query, session.coverageNode, controls, session.list, session.status, session.retry, extra);
-    shadow.append(n('style', STYLE),n('style', UX_STYLE), panel); document.documentElement.append(host); session.query.focus();
+    panel.append(header, session.query, session.coverageNode, controls, session.list, session.pageNav, session.status, session.retry, extra);
+    shadow.append(n('style', STYLE),n('style', UX_STYLE),n('style', PAGE_STYLE), panel); document.documentElement.append(host); session.query.focus();
     panel.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) return;
       event.preventDefault();
