@@ -9,6 +9,27 @@
  Object.assign(errors,{API_JSON_RESPONSE_TOO_LARGE:'对话数据超过安全读取上限，已在解析前停止；未保存不完整数据。',API_JSON_LENGTH_MISMATCH:'API 响应字节数与声明不符，本次读取已停止。',API_JSON_NOT_JSON:'ChatGPT 返回了非 JSON 页面，请确认登录状态并重试。',API_JSON_BODY_MISSING:'对话接口返回空响应体，本次读取已停止。',TOOLS_SOURCE_UNVERIFIED:'当前页面内容来源尚未确认，不能将这些内容作为已核验的对话导出或公式。',SOURCE_CONVERSATION_CHANGED:'来源对话已切换，请重新选择后保存。',SOURCE_DOCUMENT_CHANGED:'来源页面已刷新，请重新选择后保存。',SOURCE_NAVIGATED:'来源对话已切换，采集已停止。',SOURCE_LOCK_REQUIRED:'请重新打开 ChatFlow，再选择来源对话。',DOCUMENT_ID_UNAVAILABLE:'无法确认来源页面，请刷新后重试。',CAPTURE_SESSION_NOT_FOUND:'采集已停止，请重新保存。',LOCAL_FILE_INTEGRITY_FAILED:'本地文件校验失败，未生成备份。请重新保存该文件。',ARCHIVE_SOURCE_MISMATCH:'备份来源与正文不一致，恢复已停止。',ARCHIVE_METADATA_TOO_LARGE:'对话或清单超过备份容量，未生成备份；本地内容仍保留。',HANDOFF_INSTRUCTIONS_TOO_LONG:'接续目标超过 4,000 个字符；全文已保留，请缩短后继续。',INVALID_CONTEXT_QUERY:'筛选关键词超过 500 个字符；全文已保留，请缩短后继续。'});
  Object.assign(errors,{RESTORE_DATABASE_READBACK_FAILED:'档案已导入，但数据库回读失败；请保留原备份。',RESTORE_SNAPSHOT_READBACK_FAILED:'档案已导入，但正文结构回读不一致；请保留原备份。',RESTORE_ASSET_READBACK_FAILED:'档案已导入，但附件清单回读不一致；请保留原备份。',RESTORE_PASSAGE_READBACK_FAILED:'档案已导入，但重点片段回读不一致；请保留原备份。',RESTORE_BLOB_READBACK_FAILED:'档案已导入，但文件字节回读不一致；请保留原备份。',RESTORE_RECEIPT_WRITE_FAILED:'档案已导入并完成读回，但无法保存验证回执；请保留原备份。'});
  Object.assign(errors,{INVALID_CONTEXT_SOURCES:'上下文来源选择无效，请重新选择本地档案。',CONTEXT_SOURCE_NOT_READY:'所选档案尚未准备好，请完成保存或换一份档案。',PASSAGE_SELECTION_REQUIRED:'请先选择要使用的重点片段。',PASSAGE_REANCHOR_SOURCE_MISMATCH:'片段所在对话已经变化，请返回原档案重新定位。',USER_CONFIRMATION_REQUIRED:'请先勾选人工核对确认；这并不代表模型已读取附件。',HANDOFF_NOT_PREPARED:'接续包尚未准备，请先检查历史与文件。',REGENERATE_HANDOFF_AFTER_CHANGES:'接续选项已经变化，请重新准备历史与文件。',EXTENSION_UNAVAILABLE:'扩展后台暂时无响应，请刷新工作区；如仍失败，请重启扩展。',HANDOFF_ALREADY_OPENED:'已经打开此接续包的新聊天，不会重复打开。',NO_VISIBLE_MESSAGES:'当前对话没有可访问的消息，不能生成快照。',SAVE_SCOPE_CHANGED:'保存期间文件范围已更改；未使用过期选择，请重新开始保存。',LIVE_SAVE_MODE_CHANGED:'保存期间实时缓存选项已更改；请重新开始保存。',TAB_CLOSED:'来源标签页已关闭，请重新选择对话。',DOCUMENT_ID_INVALID:'原页面已重载，请重新打开来源对话。',INJECT_FAILED:'无法注入读取脚本，请检查扩展网站权限。',IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS:'本地存储升级被其他 ChatFlow 窗口阻挡；请关闭其他扩展工作区后重试。',STARTUP_FAILED:'扩展启动未完成，请检查存储权限并重新打开工作区。',FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。'});
+ Object.assign(errors,{
+  HANDOFF_NOT_CONFIRMED:'自动接续未能确认具体原因。请检查新聊天已有草稿和附件，再手动补齐；不会自动重试或发送。',
+  TARGET_NAVIGATION_UNCONFIRMED:'无法确认新聊天已正确打开。请检查目标标签页，必要时手动打开新聊天并使用接续文件。',
+  COMPOSER_NOT_READY:'新聊天输入框未准备好。请先确认 ChatGPT 页面已加载，再手动粘贴接续内容。',
+  COMPOSER_UNAVAILABLE_OR_AMBIGUOUS:'无法唯一识别新聊天输入框，自动预填已停止。请使用接续文件手动继续。',
+  NON_STANDARD_CHAT:'目标不是普通新聊天，自动预填已停止。请在普通新聊天中手动继续。',
+  EXISTING_CHAT_REJECTED:'目标对话已经有消息，未修改原有对话。请在新的普通聊天中手动继续。',
+  USER_FILES_PRESENT:'目标输入区已有附件，为避免覆盖或重复上传已停止。请先核对已有附件。',
+  USER_DRAFT_CHANGED:'输入框内容已经变化，自动预填已停止，现有草稿保留。',
+  PREFILL_NOT_CONFIRMED:'页面未确认接续提示完整填入。请核对草稿，勿直接发送。',
+  COMPOSER_REPLACED:'ChatGPT 重新渲染了输入框或附件区域。请核对已填入内容和附件后手动继续。',
+  GENERAL_FILE_INPUT_UNAVAILABLE_OR_AMBIGUOUS:'无法确定唯一的上传入口。接续提示可保留，请手动上传文件。',
+  FILE_INPUT_IS_SINGLE_ONLY:'页面目前仅支持选择单个文件。请按接续索引手动上传其余文件。',
+  HANDOFF_FILE_SIZE_CHANGED:'接续文件在读取期间大小不一致，未确认上传。请重新检查本地文件。',
+  HANDOFF_FILE_TRUNCATED:'接续文件未完整读取，未确认上传。请从接续包手动补齐。',
+  HANDOFF_FILE_HASH_MISMATCH:'接续文件校验失败，未确认上传。请使用已核验的接续文件手动补齐。',
+  EMPTY_FILE_REJECTED:'接续文件为空，不能代替真实附件。请检查原档案文件。',
+  HANDOFF_TARGET_MISMATCH:'新聊天身份已变化，不会向其他页面自动注入。请核对当前标签页。',
+  HANDOFF_ATTEMPT_MISMATCH:'接续请求已过期或改变，不会重用旧请求。请核对新聊天后手动继续。',
+  HANDOFF_ALREADY_FINISHED:'接续尝试已结束，不会重复注入。请检查新聊天和已准备的文件。'
+ });
  function explain(e){const key=String(e?.message||e||'');if(Object.hasOwn(errors,key))return errors[key];if(/^HTTP_\d+$/.test(key))return '文件暂时无法下载，请检查登录和网络后重试；不能据此认定文件已被删除。';return '操作未完成，请重试；如持续失败，可在高级功能中查看诊断信息。';}
  let statusTimeout=null;
  function status(text,error=false){
@@ -464,7 +485,14 @@
    control.textContent=checked?'\u5df2\u4eba\u5de5\u6838\u5bf9':'\u6807\u8bb0\u4e3a\u5df2\u4eba\u5de5\u6838\u5bf9';
   }
 
-  const message=(labels[h.state]||'状态待确认')+(h.lastError?' · '+explain(h.lastError):'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
+  const blocked=['injection_blocked','partial_injection'].includes(h.state);
+  const reason=h.lastError?(Object.hasOwn(errors,h.lastError)?errors[h.lastError]:blocked?'无法确认具体原因，请先检查目标聊天并手动继续。':explain(h.lastError)):'';
+  const message=(labels[h.state]||'状态待确认')+(reason?' · '+reason:'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
+  const recovery=$('handoff-recovery');
+  recovery.hidden=!blocked;
+  recovery.textContent=!blocked?'':h.state==='partial_injection'?
+   '草稿或部分附件可能已经进入新聊天。先点击“查看新聊天”核对，避免重复上传；再用“下载全部接续文件”手动补齐缺失内容。不会自动重试或发送。':
+   '本次自动预填未完成确认。先点击“查看新聊天”核对已有草稿与附件，再用“下载全部接续文件”手动继续。不会自动重试或发送。';
   const ready=h.state==='prepared'&&planFingerprint===fingerprint()&&fresh;
   $('prepare').hidden=ready;
   $('prepare').textContent='重新生成接续材料';

@@ -463,3 +463,13 @@ body { overflow-x: clip; }
  .mode-switch button:not([aria-pressed="true"]){background:var(--paper);color:var(--ink);border-color:#F7E9D2}
  .mode-switch button[aria-pressed="true"],.mode-switch button[aria-pressed="true"]:hover{background:#433E33;color:#FFF3DF;border-color:#F7E9D2}
 }
+
+#handoff-recovery {margin:10px 0 14px;color:var(--muted);font-size:14px;line-height:1.6}
+#handoff-recovery[hidden],#diagnostic-technical[hidden] {display:none!important}
+#diagnostic-list {padding-left:19px;margin:9px 0;color:var(--ink);font-size:13px;line-height:1.6}
+#diagnostic-list:empty {display:none}
+#diagnostic-list li {margin-bottom:7px;overflow-wrap:anywhere}
+#settings-diagnostics-panel #read-diagnostics {min-height:40px}
+#diagnostic-technical {max-width:100%;min-width:0}
+#diagnostic-technical>summary {cursor:pointer;min-height:38px;padding:7px 0;color:var(--muted);font-size:13px}
+#diagnostic-technical pre {max-height:220px;overflow:auto;white-space:pre-wrap}
