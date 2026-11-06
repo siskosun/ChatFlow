@@ -243,10 +243,43 @@
  }
  resultText.addEventListener('input',()=>{invalidateSavedResultOpen();taskStatus.textContent='';confirmBox.checked=false;safe(updateMatch);});manualSource.addEventListener('change',()=>{invalidateSavedResultOpen();taskStatus.textContent='';confirmBox.checked=false;safe(updateMatch);});confirmBox.addEventListener('change',()=>{invalidateSavedResultOpen();safe(updateMatch);});
  const settings=n('section',null,{id:'settings-view',class:'view',hidden:''}),sh=n('div',null,{class:'view-heading'});sh.append(n('button','‹ 首页',{type:'button','data-view':'home',class:'back quiet'}),n('h1','高级功能'));settings.append(sh);
- const diagnosticDetails=n('details',null,{class:'advanced'}),diagnosticOutput=n('pre',null,{id:'diagnostic-codes'});
- diagnosticDetails.append(n('summary','\u5de5\u7a0b\u8bca\u65ad\uff08\u4e0d\u542b\u5bf9\u8bdd\u539f\u6587\uff09'),button('\u8bfb\u53d6\u672c\u5730\u9519\u8bef\u7c7b\u578b','read-diagnostics',async()=>{diagnosticOutput.textContent=JSON.stringify(await TLDiagnostics.list(),null,2);}),diagnosticOutput);
+ const diagnosticStatus=n('p','尚未检查。',{id:'diagnostic-status',role:'status','aria-live':'polite'});
+ const diagnosticList=n('ul',null,{id:'diagnostic-list',class:'diagnostic-list'});
+ const diagnosticOutput=n('pre',null,{id:'diagnostic-codes'}),diagnosticTechnical=n('details',null,{id:'diagnostic-technical',class:'technical-details',hidden:''});
+ diagnosticTechnical.append(n('summary','查看技术记录'),diagnosticOutput);
+ const diagnosticOperations={'handoff-inject':'接续到新聊天','experiment-tab-update':'并行实验页面更新','experiment-tab-close':'并行实验标签页关闭',
+  'handoff-announce':'接续页面通知','capture-stop':'停止保存','sidepanel-setup':'侧边栏启动','workspace-refresh':'工作区刷新'};
+ const diagnosticReasons={'USER_DRAFT_PRESENT':'目标已有草稿，未覆盖','USER_FILES_PRESENT':'目标已有附件，未覆盖',
+  'COMPOSER_NOT_READY':'输入框尚未准备好','COMPOSER_UNAVAILABLE_OR_AMBIGUOUS':'无法确定唯一的输入框',
+  'NON_STANDARD_CHAT':'目标不是普通聊天','EXISTING_CHAT_REJECTED':'目标已有消息',
+  'USER_DRAFT_CHANGED':'草稿在操作期间发生变化','PREFILL_NOT_CONFIRMED':'预填内容未确认',
+  'COMPOSER_REPLACED':'输入框或附件区域已变化',
+  'GENERAL_FILE_INPUT_UNAVAILABLE_OR_AMBIGUOUS':'无法确认上传入口',
+  'FILE_INPUT_IS_SINGLE_ONLY':'上传入口一次只能选一个文件',
+  'HANDOFF_FILE_SIZE_CHANGED':'文件大小发生变化','HANDOFF_FILE_TRUNCATED':'文件未完整读取',
+  'HANDOFF_FILE_HASH_MISMATCH':'文件校验失败','EMPTY_FILE_REJECTED':'文件为空',
+  'TARGET_NAVIGATION_UNCONFIRMED':'新聊天未能确认打开',
+  'HANDOFF_TARGET_MISMATCH':'目标聊天身份已变化','HANDOFF_ATTEMPT_MISMATCH':'接续请求已过期',
+  'HANDOFF_ALREADY_FINISHED':'接续尝试已经结束','EXTENSION_UNAVAILABLE':'扩展后台暂时无响应',
+  'CANCELLED_OR_TIMEOUT':'操作超时或被取消','HANDOFF_NOT_CONFIRMED':'失败类型尚未识别'};
+ async function readDiagnostics(){
+  const result=await TLDiagnostics.list(),rows=result.rows||[];
+  diagnosticList.replaceChildren();
+  for(const entry of rows.slice(-12).reverse()){
+   const label=diagnosticOperations[entry.operation]||'后台操作';
+   const reason=entry.code?(diagnosticReasons[entry.code]||'失败类型尚未识别'):'已记录本地错误';
+   diagnosticList.append(n('li',new Date(entry.at).toLocaleString()+' · '+label+'：'+reason));
+  }
+  diagnosticStatus.textContent=result.storageFailed?
+   '本地诊断记录读取不完整，请检查扩展存储权限；这不能说明接续是否成功。':
+   rows.length?'显示最近 '+Math.min(rows.length,12)+' 条错误类型记录，不含对话内容。':
+   '目前没有可读取的错误记录。这不代表接续或上传已经成功。';
+  diagnosticOutput.textContent=JSON.stringify(result,null,2);
+  diagnosticTechnical.hidden=!rows.length&&!result.storageFailed;
+ }
  const diagnosticsPanel=n('section',null,{id:'settings-diagnostics-panel',class:'feature-inline-tools',hidden:''});
- diagnosticsPanel.append(diagnosticDetails);
+ diagnosticsPanel.append(n('strong','最近错误记录'),n('p','只记录有限的失败类型；不会保存对话原文。'),
+  button('重新检查','read-diagnostics',readDiagnostics,'quiet'),diagnosticStatus,diagnosticList,diagnosticTechnical);
 
  const settingsBox=n('div',null,{class:'task-card'});
  const featureRows=[
@@ -296,7 +329,7 @@
   if(key==='diagnostics'){
    diagnosticsPanel.hidden=false;
    $('feature-open-diagnostics').after(diagnosticsPanel);
-   diagnosticDetails.open=true;
+   await readDiagnostics();
    const q=await navigator.storage.estimate();
    $('quota').textContent='本地已用 '+(q.usage||0).toLocaleString()+' B'+(q.quota?' / 可用配额 '+q.quota.toLocaleString()+' B':'');
    diagnosticDetails.scrollIntoView({block:'nearest'});
@@ -317,7 +350,7 @@
   }
  }
  toolsSource.addEventListener('change',()=>{toolsOpen.disabled=!toolsSource.value;});
- diagnosticDetails.append($('quota'),$('persist'));
+ diagnosticsPanel.append(n('p','本地空间与保留设置（不能单独判断接续是否成功）',{class:'hint'}),$('quota'),$('persist'));
  for(const[key,title,description]of featureRows){
   const input=n('input',null,{type:'checkbox',id:'pref-'+key}),l=n('label',null,{class:'preference-row'}),copy=n('span',null,{class:'preference-copy'});
   copy.append(n('span',title,{class:'preference-title'}));
@@ -334,7 +367,7 @@
     prefs[key]=next;applyPreferences();action.hidden=!next;
     if(next)say('已开启“'+title+'”。点击“'+action.textContent+'”继续。');
     else{if(key==='live')livePanel.hidden=true;if(key==='tools')toolsPanel.hidden=true;
-     if(key==='diagnostics'){diagnosticsPanel.hidden=true;diagnosticDetails.open=false;}
+     if(key==='diagnostics'){diagnosticsPanel.hidden=true;diagnosticTechnical.open=false;}
      say('已关闭“'+title+'”。');}
    }catch(error){prefs[key]=old;input.checked=old;applyPreferences();action.hidden=!old;throw error;}
    finally{input.disabled=false;}
