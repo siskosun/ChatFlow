@@ -23,6 +23,13 @@ test('workspace error codes are actionable without exposing raw failures',()=>{
  assert.match(explain(new Error('UNMAPPED_SAMPLE_CODE')),/操作未完成/);
  assert.doesNotMatch(explain(new Error('PRIVATE_TOKEN=secret')),/secret|PRIVATE_TOKEN/);
 });
+test('failed handoff retry is rejected while its original tab is open',()=>{
+ const worker=read('src/tl-service.js'),ui=read('workspace/app.js'),store=read('src/tl-store.js');
+ assert.match(worker,/HANDOFF_OLD_TARGET_STILL_OPEN/);
+ assert.match(worker,/api\.tabs\.query\(\{\}\)/);
+ assert.match(ui,/HANDOFF_OLD_TARGET_STILL_OPEN:/);
+ assert.match(store,/openIds!==null&&!openIds\.has\(h\.targetTabId\)/);
+});
 test('manual handoff always exposes a native link, verified prompt copy and selectable fallback',()=>{
  const html=read('workspace/index.html'),app=read('workspace/app.js');
  assert.match(html,/id="manual-handoff"/);

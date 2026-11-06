@@ -35,6 +35,7 @@ function workerHarness() {
   };
   const context = vm.createContext({
     TextEncoder, S: storage, C: {
+      BYTE_LIMITS: { persistedSnapshotJson: limit },
       check(valid, code) { if (!valid) throw Error(code); }
     }
   });
@@ -57,6 +58,7 @@ function contentHarness(snapshot) {
   };
   const core = {
     TRANSFER_CHUNK_BYTES: 262144,
+    BYTE_LIMITS: { rawConversationJson: 32 * 1024 ** 2, persistedSnapshotJson: limit },
     check(value, code) { if (!value) throw Error(code); },
     normalizeConversation() { return model; },
     persistedSnapshot() { return snapshot; },
@@ -134,4 +136,21 @@ test('content adapter sends exact 24 MiB intact, but never submits an over-limit
       assert.equal(failed?.code, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
     }
   }
+});
+
+test('raw API, persisted snapshot and imported legacy ZIP have independent byte budgets', () => {
+  const ctx = vm.createContext({ URL, TextEncoder, TextDecoder, Uint8Array, Uint32Array, DataView, ArrayBuffer });
+  vm.runInContext(read('src/tl-core.js'), ctx);
+  const C = ctx.TLCore;
+  assert.equal(C.BYTE_LIMITS.rawConversationJson, 32 * 1024 ** 2);
+  assert.equal(C.BYTE_LIMITS.persistedSnapshotJson, 24 * 1024 ** 2);
+  assert.equal(C.BYTE_LIMITS.archiveMetadataJson, 32 * 1024 ** 2);
+  const raw = {
+    conversation_id: 'source-synthetic-12345', current_node: 'n1',
+    mapping: { n1: {parent: null, children: [], message: {id:'m1',author:{role:'user'},content:{parts:['brief']}}} },
+    transportOnlyMetadata: 'x'.repeat(limit + 1024)
+  };
+  const rawSize = size(raw), normalized = C.persistedSnapshot(C.normalizeConversation(raw,'https://chatgpt.com/c/source-synthetic-12345'));
+  assert.ok(rawSize > limit && rawSize < C.BYTE_LIMITS.rawConversationJson);
+  assert.ok(size(normalized) < limit / 2, 'unused raw transport fields are not saved');
 });
