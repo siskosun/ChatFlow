@@ -121,7 +121,7 @@ async function prepareHandoff(msg){
  const rows=await S.assets(c.id),plan=C.handoff(snapshot,rows,selected,instructions,batchLimit),files=[],names=new Set(['handoff_index.md']);
  // Validated identical preparation is idempotent across repeated UI actions.
  const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex();
- const prepareFingerprint=new C.SHA256().update(JSON.stringify([c.id,snapshotHash,branchNodeIds,[...new Set(selected)],instructions,batchLimit])).hex();
+ const prepareFingerprint=new C.SHA256().update(JSON.stringify(['handoff-provenance/2',c.id,snapshotHash,branchNodeIds,[...new Set(selected)],instructions,batchLimit])).hex();
  const previous=(await S.all('handoffs')).find(row=>row.state==='prepared'&&row.captureId===c.id&&row.snapshotHash===snapshotHash&&row.prepareFingerprint===prepareFingerprint);
  if(previous)return previous;
  for(const f of plan.files){
@@ -129,7 +129,7 @@ async function prepareHandoff(msg){
   if(f.kind==='asset'){const b=await S.verifiedBlob(f.sha256);files.push({...f,uploadName,size:b.size});}
   else{const blob=new Blob([f.text],{type:f.mime}),info=await S.putBlob(blob);files.push({kind:'history',name:f.name,uploadName,mime:f.mime,...info});}
  }
- const index=['# 接续文件索引','','仅下列文件已准备；网页是否上传成功需另行核对。',...files.map(f=>'- 上传名：'+f.uploadName+'；原名：'+f.name+'；SHA-256：'+f.sha256),...plan.missing.map(f=>'- 未取得文件：'+f.name+'（'+f.reason+'）'),...plan.excluded.map(f=>'- 按保存范围跳过：'+f.name+'（未取得文件字节）')].join('\n');
+ const index=['# 接续文件索引','','仅下列文件已准备；网页是否上传成功需另行核对。','同名文件请先按历史中的消息、节点和附件引用匹配，再使用对应上传名。',...files.map(f=>'- 上传名：'+JSON.stringify(f.uploadName)+'；原名：'+JSON.stringify(f.name)+(f.kind==='asset'?'；消息：'+JSON.stringify(f.messageId)+'；节点：'+JSON.stringify(f.nodeId)+'；附件引用：'+JSON.stringify(f.key):'；类型：历史分段')+'；SHA-256：'+f.sha256),...plan.missing.map(f=>'- 未取得文件：'+f.name+'（'+f.reason+'）'),...plan.excluded.map(f=>'- 按保存范围跳过：'+f.name+'（未取得文件字节）')].join('\n');
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
@@ -212,37 +212,96 @@ async function applyHandoffEvidence(msg,sender){
  await S.set('handoffs',updated);return updated;
 }
 const QUICK_SELECTION_KEY = 'cfPendingSelectedTask';
+const quickSelectionWrites = new Map(), quickSelectionRequests = new Map();
+function quickSelectionKey(windowId) {
+ C.check(Number.isInteger(windowId)&&windowId>=0,'WORKSPACE_WINDOW_REQUIRED');
+ return QUICK_SELECTION_KEY+':'+windowId;
+}
+// Serialize only storage writes for the same window; unrelated windows stay independent.
+function selectionWrite(key,work) {
+ const next=(quickSelectionWrites.get(key)||Promise.resolve()).then(work);
+ const settled=next.then(()=>{},()=>{});
+ quickSelectionWrites.set(key,settled);
+ settled.then(()=>{if(quickSelectionWrites.get(key)===settled)quickSelectionWrites.delete(key);});
+ return next;
+}
+async function selectionDocumentCurrent(pending) {
+ try {
+  const rows=await api.scripting.executeScript({
+   target:{tabId:pending.tabId,documentIds:[pending.documentId]},
+   func:()=>({url:location.origin+location.pathname,generation:globalThis.TLPageScope?.current()?.generation??null})
+  });
+  return rows.some(row=>row.frameId===0&&row.documentId===pending.documentId&&
+   row.result?.url===pending.url&&
+   (pending.generation==null||row.result.generation===pending.generation));
+ } catch { return false; }
+}
 async function quickSelection(msg,sender){
- C.check(trusted(sender)&&Number.isInteger(sender?.tab?.id)&&sender.documentId,'SOURCE_LOCK_REQUIRED');
+ C.check(trusted(sender)&&Number.isInteger(sender?.tab?.id)&&Number.isInteger(sender.tab.windowId)&&sender.documentId,'SOURCE_LOCK_REQUIRED');
  C.check(typeof msg.text==='string'&&msg.text.trim()&&msg.text.length<=20000,'TASK_TEXT_LIMIT');
+ C.check(msg.generation==null||(Number.isSafeInteger(msg.generation)&&msg.generation>=0),'TASK_SOURCE_CHANGED');
  const source=C.chatUrl(sender.url||sender.tab.url),declared=C.chatUrl(msg.url);
  C.check(source.url===declared.url,'TASK_SOURCE_CHANGED');
- // Preserve Chromium's trusted user activation: open before the first await.
- // Tab/document identity and payload are still validated before persistence.
- const opened=api.sidePanel.open({tabId:sender.tab.id});
+ const windowId=sender.tab.windowId,key=quickSelectionKey(windowId),nonce=C.id();
+ quickSelectionRequests.set(key,nonce);
+ // Preserve trusted user activation. Observe rejection immediately so a failed
+ // open cannot become an unhandled promise while tab/document checks are pending.
+ let opened;
+ try{opened=Promise.resolve(api.sidePanel.open({tabId:sender.tab.id})).then(()=>true,()=>false);}
+ catch{opened=Promise.resolve(false);}
+ // A newer explicit choice invalidates the old pending value even if opening
+ // fails. The serialized removal cannot delete a later request's draft.
+ await selectionWrite(key,async()=>{
+  if(quickSelectionRequests.get(key)===nonce)await api.storage.session.remove(key);
+ });
  const tab=await api.tabs.get(sender.tab.id);
- C.check(C.chatUrl(tab.url).url===source.url,'TASK_SOURCE_CHANGED');
- const pending={tabId:sender.tab.id,documentId:sender.documentId,url:source.url,
-  text:msg.text,at:Date.now(),nonce:C.id(),evidence:msg.evidence==='confirmed'?'confirmed':'unverified',
+ C.check(tab.windowId===windowId&&C.chatUrl(tab.url).url===source.url,'TASK_SOURCE_CHANGED');
+ const pending={windowId,tabId:sender.tab.id,documentId:sender.documentId,url:source.url,
+  text:msg.text,at:Date.now(),nonce,generation:msg.generation??null,
+  evidence:msg.evidence==='confirmed'?'confirmed':'unverified',
   messageId:msg.evidence==='confirmed'?msg.messageId||null:null};
- try { await api.storage.session.set({[QUICK_SELECTION_KEY]:pending});await opened; }
- catch(error){await api.storage.session.remove(QUICK_SELECTION_KEY).catch(()=>{});throw error;}
- return {opened:true};
+ C.check(await selectionDocumentCurrent(pending),'TASK_SOURCE_CHANGED');
+ C.check(await opened,'SELECTION_OPEN_FAILED');
+ return selectionWrite(key,async()=>{
+  C.check(quickSelectionRequests.get(key)===nonce,'QUICK_SELECTION_SUPERSEDED');
+  const currentTab=await api.tabs.get(pending.tabId);
+  C.check(currentTab.windowId===windowId&&C.chatUrl(currentTab.url).url===pending.url,'TASK_SOURCE_CHANGED');
+  C.check(quickSelectionRequests.get(key)===nonce,'QUICK_SELECTION_SUPERSEDED');
+  await api.storage.session.set({[key]:pending});
+  return {opened:true};
+ });
 }
-async function claimQuickSelection(sender){
+async function claimQuickSelection(msg,sender){
  workspace(sender);
- const pending=(await api.storage.session.get(QUICK_SELECTION_KEY))[QUICK_SELECTION_KEY];
- if(!pending)return null;
- if(!Number.isInteger(pending.tabId)||Date.now()-pending.at>90000||Date.now()-pending.at<0){await api.storage.session.remove(QUICK_SELECTION_KEY);return null;}
+ const windowId=await workspaceWindow(msg,sender),key=quickSelectionKey(windowId);
+ const pending=(await api.storage.session.get(key))[key];
+ if(!pending||pending.windowId!==windowId||(msg.nonce&&msg.nonce!==pending.nonce))return null;
+ const requested=quickSelectionRequests.get(key);
+ if(requested&&requested!==pending.nonce)return null;
+ if(!Number.isInteger(pending.tabId)||!Number.isFinite(pending.at)||Date.now()-pending.at>90000||Date.now()-pending.at<0){
+  await selectionWrite(key,async()=>{
+   if((await api.storage.session.get(key))[key]?.nonce===pending.nonce)await api.storage.session.remove(key);
+  });return null;
+ }
  let tab;try{tab=await api.tabs.get(pending.tabId);}catch{return null;}
- try{if(C.chatUrl(tab.url).url!==pending.url)return null;}catch{return null;}
- // Check the exact document, not just a URL that may have reloaded in place.
- try{
-  const rows=await api.scripting.executeScript({target:{tabId:pending.tabId,documentIds:[pending.documentId]},func:()=>location.origin+location.pathname});
-  if(!rows.some(row=>row.frameId===0&&row.documentId===pending.documentId&&row.result===pending.url))return null;
- }catch{return null;}
- return {tabId:pending.tabId,url:pending.url,text:pending.text,nonce:pending.nonce,evidence:pending.evidence,
+ try{if(tab.windowId!==windowId||C.chatUrl(tab.url).url!==pending.url)return null;}catch{return null;}
+ if(!await selectionDocumentCurrent(pending))return null;
+ // A slow document probe must not hand out a draft superseded during its await.
+ const latest=(await api.storage.session.get(key))[key];
+ if(latest?.nonce!==pending.nonce)return null;
+ const latestRequest=quickSelectionRequests.get(key);
+ if(latestRequest&&latestRequest!==pending.nonce)return null;
+ return {windowId,tabId:pending.tabId,url:pending.url,text:pending.text,nonce:pending.nonce,evidence:pending.evidence,
    messageId:pending.messageId,documentId:pending.documentId};
+}
+async function ackQuickSelection(msg,sender){
+ workspace(sender);
+ const windowId=await workspaceWindow(msg,sender),key=quickSelectionKey(windowId);
+ return selectionWrite(key,async()=>{
+  const stored=(await api.storage.session.get(key))[key];
+  if(stored?.windowId!==windowId||stored.nonce!==msg.nonce)return {acknowledged:false};
+  await api.storage.session.remove(key);return {acknowledged:true};
+ });
 }
 // Static manifest scripts only run on navigation. An already-open chat tab
 // can predate extension install, so bootstrap the missing listener in place.
@@ -272,9 +331,9 @@ async function ensureSelectionActions(){
 }
 async function handle(msg,sender){
  C.check(trusted(sender),'FOREIGN_EXTENSION');
- if(msg.type==='tl:ackQuickSelection'){workspace(sender);const stored=(await api.storage.session.get(QUICK_SELECTION_KEY))[QUICK_SELECTION_KEY];if(stored?.nonce===msg.nonce)await api.storage.session.remove(QUICK_SELECTION_KEY);return {acknowledged:true};}
+ if(msg.type==='tl:ackQuickSelection')return ackQuickSelection(msg,sender);
  if(msg.type==='tl:quickSelection')return quickSelection(msg,sender);
- if(msg.type==='tl:claimQuickSelection')return claimQuickSelection(sender);
+ if(msg.type==='tl:claimQuickSelection')return claimQuickSelection(msg,sender);
  if(msg.type==='tl:ensureSelectionActions'){workspace(sender);return ensureSelectionActions();}
  if(msg.type==='tl:retryBoot'){workspace(sender);return retryBoot();}
  await boot;C.check(!bootError,bootError||'STARTUP_FAILED');

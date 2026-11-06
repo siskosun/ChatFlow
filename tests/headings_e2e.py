@@ -77,8 +77,26 @@ async def main():
                 assert (await w.evaluate("async t=>chrome.runtime.sendMessage({type:'tl:openTools',tabId:t.id,expectedUrl:t.url})",plain_tab))['ok']
                 plain_tools=plain.locator('#chatflow-page-tools')
                 await poll(plain,"()=>document.querySelector('#chatflow-page-tools')?.shadowRoot.textContent.includes('264 条')")
-                await plain_tools.locator('input[type=search]').fill('Question number 0')
+                plain_query=plain_tools.locator('input[type=search]')
+                question_count=await plain_tools.locator('.row').count()
+                assert question_count>1
+                await plain_query.fill('Question number 0')
                 assert await plain_tools.locator('.cf-headings').count()==0
+                assert await plain_tools.locator('.row').count()==1
+                # IME Escape is not a request to clear or dismiss navigation.
+                for ime in ({'isComposing':True},{'keyCode':229}):
+                    await plain_query.evaluate("(input,ime)=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,composed:true,cancelable:true,...ime}))",ime)
+                    assert await plain_query.input_value()=='Question number 0'
+                    assert await plain_tools.count()==1
+                # Escape from another panel control restores the questions and
+                # focuses search; only the next Escape closes the floating panel.
+                await plain_tools.get_by_role('button',name='下一条',exact=True).press('Escape')
+                assert await plain_query.input_value()==''
+                assert await plain_tools.locator('.row').count()==question_count
+                assert await plain_query.evaluate("input=>input.getRootNode().activeElement===input")
+                await plain_query.press('Escape')
+                await plain_tools.wait_for(state='detached')
+                report['cases'].append({'name':'navigation_escape_clears_search_then_closes_and_ignores_ime','result':'pass'})
                 await plain.close()
                 report['cases'].append({'name':'no_generic_chapter_buttons_without_real_headings','result':'pass'})
                 # Page-only fallback still contains real rendered H2/H3/H6,

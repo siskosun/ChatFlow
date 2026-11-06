@@ -48,7 +48,7 @@
    const sourceIndex=sourceRecords.length;
    for(const message of selected){
     const identity=JSON.stringify([snapshot.source.origin,snapshot.source.conversationId,message.id,message.nodeId]);
-    const contentHash=new C.SHA256().update(JSON.stringify([message.role,message.text])).hex();
+    const contentHash=new C.SHA256().update(JSON.stringify([message.role,message.text,message.sourceReferences||[]])).hex();
     const previous=seenMessages.get(identity);
     if(previous&&previous.contentHash===contentHash){
      const duplicate={captureId:source.captureId,messageId:message.id,nodeId:message.nodeId,duplicateOf:previous.captureId};
