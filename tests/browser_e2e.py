@@ -610,6 +610,7 @@ async def main():
             # through the persisted handoff's bounded lastError code.
             await workspace.locator('header [data-view="settings"]').click()
             await workspace.locator('#feature-open-diagnostics').click()
+            await wait_async(workspace, "()=>document.querySelector('#diagnostic-list')?.textContent.includes('已保存接续失败记录：目标已有草稿，未覆盖')", timeout=15000)
             assert '已保存接续失败记录：目标已有草稿，未覆盖' in await workspace.locator('#diagnostic-list').inner_text()
             technical=await workspace.locator('#diagnostic-codes').text_content()
             assert 'USER_DRAFT_PRESENT' in technical
