@@ -162,8 +162,17 @@ async def main():
                     r['width']<=1 and r['height']<=1 and r['clip']=='inset(50%)'
                     for r in hidden_help),hidden_help
                 assert await workspace.locator('#settings-view').is_visible()
-                assert await workspace.locator('#settings-view details.advanced').first.evaluate('(d)=>d.open')
+                assert await workspace.locator('#diagnostic-status').is_visible()
+                assert not await workspace.locator('#diagnostic-technical').is_visible()
                 assert '本地已用' in await workspace.locator('#quota').inner_text()
+                await workspace.evaluate("()=>TLDiagnostics.record('handoff-inject',new Error('USER_DRAFT_PRESENT'))")
+                await workspace.locator('#read-diagnostics').click()
+                assert '目标已有草稿，未覆盖' in await workspace.locator('#diagnostic-list').inner_text()
+                panel_text=await workspace.locator('#settings-diagnostics-panel').inner_text()
+                assert '"rows"' not in panel_text and 'storageFailed' not in panel_text, panel_text
+                await workspace.locator('#diagnostic-technical > summary').click()
+                assert 'USER_DRAFT_PRESENT' in await workspace.locator('#diagnostic-codes').inner_text()
+                await workspace.locator('#diagnostic-technical > summary').click()
                 await workspace.locator('#feature-open-tools').click()
                 assert await workspace.locator('#settings-tools-panel').is_visible()
                 assert await workspace.locator('#settings-view').is_visible()

@@ -15,6 +15,10 @@ test('workspace error codes are actionable without exposing raw failures',()=>{
  assert.match(explain(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS')),/关闭其他/);
  assert.match(explain(new Error('REGENERATE_HANDOFF_AFTER_CHANGES')),/重新准备/);
  assert.match(explain(new Error('NO_VISIBLE_MESSAGES')),/没有可访问/);
+ assert.match(explain(new Error('COMPOSER_NOT_READY')),/输入框未准备/);
+ assert.match(explain(new Error('USER_DRAFT_PRESENT')),/草稿|不会覆盖/);
+ assert.match(explain(new Error('HANDOFF_NOT_CONFIRMED')),/核对|接续未能确认/);
+ assert.match(explain(new Error('HANDOFF_FILE_HASH_MISMATCH')),/文件校验失败/);
  assert.doesNotMatch(explain(new Error('UNMAPPED_SAMPLE_CODE')),/UNMAPPED_SAMPLE_CODE/);
  assert.match(explain(new Error('UNMAPPED_SAMPLE_CODE')),/操作未完成/);
  assert.doesNotMatch(explain(new Error('PRIVATE_TOKEN=secret')),/secret|PRIVATE_TOKEN/);

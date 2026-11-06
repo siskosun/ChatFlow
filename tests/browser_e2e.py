@@ -490,7 +490,9 @@ async def main():
             assert dh['state']=='injection_blocked' and dh['lastError']=='USER_DRAFT_PRESENT',dh
             assert await draft_target.locator('#prompt-textarea').input_value()=='USER EXISTING DRAFT'
             assert await draft_target.evaluate('window.uploadEvents')==0
+            await wait_async(workspace,"async()=>{const r=await TLDiagnostics.list();return r.rows.some(x=>x.operation==='handoff-inject'&&x.code==='USER_DRAFT_PRESENT');}")
             passed('existing_user_draft_is_not_overwritten')
+            passed('blocked_handoff_reason_is_recorded_without_source_content')
             unknown_target,uh=await handoff(target_mode='unknown',draft=False)
             assert uh['state']=='upload_unknown',uh
             assert await unknown_target.evaluate('window.sends')==0 and await unknown_target.evaluate('window.uploadEvents')==1
@@ -599,8 +601,12 @@ async def main():
             }""",prepared_id)
             await wait_async(workspace,'()=>!document.querySelector("#prepare").hidden&&document.querySelector("#open-target").hidden',timeout=12000)
             assert await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).is_visible()
+            assert await workspace.locator('#handoff-recovery').is_visible()
+            assert '已有草稿' in await workspace.locator('#handoff-state').inner_text()
+            assert '不会自动重试或发送' in await workspace.locator('#handoff-recovery').inner_text()
             await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
+            assert await workspace.locator('#handoff-recovery').is_hidden()
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
             # A previously prepared package must not survive a source-branch change.
             await workspace.get_by_role('button',name='我的档案').click()
