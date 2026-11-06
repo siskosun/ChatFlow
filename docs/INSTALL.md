@@ -12,6 +12,8 @@
 
 ## 途径 B：准确提交的可复现候选 ZIP
 
+**当前已核验候选（2026-11-06）**：[下载 Edge + Chrome 双版本 artifact](https://github.com/siskosun/ChatFlow/actions/runs/42185621241/artifacts/13488335005)，对应 `main@aee60b30a5e4e3cae8a4749e7e2d76c6fd03aba8`。外层解压后分别选择 `chatflow-edge-0.3-candidate.zip` 或 `chatflow-chrome-0.3-candidate.zip`。这份附件对应固定提交，不会随着 main 后续更新自动变化。
+
 1. 在 [GitHub Actions verify](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain) 选择 main 上 verify、windows-baseline、reproducible-build **全部通过**的运行，记录该运行的准确 SHA。
 2. 下载 `chatflow-candidate-<SHA>` artifact。解压外层包，校验 SHA256SUMS，然后再解压其中的 Edge/Chrome 候选 ZIP。
 3. 选择**内层**直接包含 manifest.json、workspace/、src/、BUILD_INFO.json 的目录加载，不要选 ZIP 文件或外层 artifact 文件夹。
@@ -41,7 +43,7 @@
 
 **不要把“卸载旧扩展再安装”当作普通更新步骤。** 保留当前浏览器配置、扩展身份及加载目录，将已核验的新包内容替换到原来的扩展目录，再在扩展管理页对原有 ChatFlow 点击“重新加载”。重新打开后核对扩展 ID、版本和本地档案是否仍在。
 
-0.3 使用 IndexedDB v4。升级保留 v1/v2/v3 原记录，新增档案、任务和结果的摘要索引及临时导入区；摘要在升级事务内回填。若更换浏览器配置、扩展 ID 或安装路径而无法读取旧库，应通过已校验备份迁移，不操作或删除浏览器内部存储文件。
+当前主分支使用 **IndexedDB v6**：保留此前 v4 的档案、任务、结果摘要索引与临时导入区；v5 修复旧 passage 索引，v6 为 `handoffs` 增加按 `captureId` 查找的索引。数据库升级通过原扩展身份下的事务迁移执行，不以卸载重装代替。若更换浏览器配置、扩展 ID 或安装路径导致旧库不可访问，应通过已校验的备份迁移；不要直接修改或删除浏览器内部存储文件。
 
 重新加载会重启后台。进行中的采集或并行分支可能转为 interrupted/unknown，不自动重放不确定操作。旧 ThreadLine/研线扩展与 ChatFlow 身份不同，需要先在旧扩展导出，再在 ChatFlow 恢复；不能把更改数据库名称当成自动迁移。
 
