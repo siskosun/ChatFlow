@@ -72,6 +72,13 @@ async def main():
         }""")
         assert design["height"] <= 38 and design["color"] == "rgb(255, 255, 255)", design
         report["native_scale_secondary_action"] = design
+        await page.emulate_media(color_scheme="dark")
+        dark_color = await page.evaluate("""() => getComputedStyle(
+          document.querySelector('#chatflow-selected-action').shadowRoot.querySelector('button')
+        ).backgroundColor""")
+        assert dark_color == "rgb(48, 48, 48)", dark_color
+        report["dark_mode_action_matches_dark_surface"] = True
+        await page.emulate_media(color_scheme="light")
         # A second isolated injection has a new global flag but the same DOM.
         await page.evaluate("() => {delete globalThis.ChatFlowSelectionActionInstalled;}")
         await page.add_script_tag(path=str(ROOT/"src"/"tl-selection-action.js"))

@@ -107,7 +107,8 @@
    'padding:6px 11px;min-height:32px;max-width:calc(100vw - 20px);box-shadow:0 2px 8px #00000020;white-space:nowrap;overflow-wrap:anywhere;cursor:pointer}',
    'button:hover:not(:disabled){background:#f4f4f5;border-color:#b5bac3}',
    'button:focus-visible{outline:3px solid #8369ef;outline-offset:2px}',
-   'button:disabled{opacity:.65;cursor:progress;box-shadow:none}'
+   'button:disabled{opacity:.65;cursor:progress;box-shadow:none}',
+   '@media(prefers-color-scheme:dark){button{color:#f7f7f7;background:#303030;border-color:#626262;box-shadow:0 2px 8px #0008}button:hover:not(:disabled){background:#454545;border-color:#888}}'
   ].join('\n');
   button = document.createElement('button');button.type = 'button';button.textContent = LABEL;
   button.setAttribute('aria-live', 'polite');
