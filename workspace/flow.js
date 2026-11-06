@@ -332,7 +332,7 @@
    await readDiagnostics();
    const q=await navigator.storage.estimate();
    $('quota').textContent='本地已用 '+(q.usage||0).toLocaleString()+' B'+(q.quota?' / 可用配额 '+q.quota.toLocaleString()+' B':'');
-   diagnosticDetails.scrollIntoView({block:'nearest'});
+   diagnosticsPanel.scrollIntoView({block:'nearest'});
    say('已展开本地存储与文件诊断。');return;
   }
   if(key==='tools'){
