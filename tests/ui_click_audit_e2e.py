@@ -167,6 +167,7 @@ async def main():
                 assert '本地已用' in await workspace.locator('#quota').inner_text()
                 await workspace.evaluate("()=>TLDiagnostics.record('handoff-inject',new Error('USER_DRAFT_PRESENT'))")
                 await workspace.locator('#read-diagnostics').click()
+                await wait(workspace, "()=>document.querySelector('#diagnostic-list')?.textContent.includes('目标已有草稿，未覆盖')", seconds=15)
                 assert '目标已有草稿，未覆盖' in await workspace.locator('#diagnostic-list').inner_text()
                 panel_text=await workspace.locator('#settings-diagnostics-panel').inner_text()
                 assert '"rows"' not in panel_text and 'storageFailed' not in panel_text, panel_text
