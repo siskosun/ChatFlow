@@ -670,6 +670,9 @@ async def main():
             passed('partial_injection_batch_attestation_requires_explicit_checkbox_and_matches_file_controls')
             # A previously prepared package must not survive a source-branch change.
             await workspace.get_by_role('button',name='我的档案').click()
+            history=workspace.locator('#detail details[data-archive-history]')
+            if not await history.evaluate('(d)=>d.open'):
+                await history.locator('summary').click()
             await workspace.locator('#archive-branch').select_option(alternate_value)
             await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').wait_for(state='visible')
             await workspace.get_by_role('button',name='继续到新对话').click()
