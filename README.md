@@ -1,19 +1,31 @@
 # ChatFlow
 
-**0.3 工程试用候选 · 本地优先 · 尚未通过真实账号及独立真人验收。** ChatFlow 是 Chrome/Edge 原生侧边栏扩展，可在本地保存 ChatGPT 对话与实际取得的文件，并由用户把材料接到新的聊天。扩展不会自动发送消息或向外部助手发起请求。当前只适配 ChatGPT。
+**0.3 工程候选 · Chrome / Edge 原生侧边栏 · 本地优先 · 仅适配 ChatGPT。** ChatFlow 把用户选定的 ChatGPT 对话和实际取得的附件保存在浏览器本地，并提供可核对的接续材料、手动任务回传及按需启用的工具。**不会自动点击发送，不会替用户联系外部助手。** 尚未完成真实登录账号、独立用户和真人辅助技术验收，也未在商店正式发布。
 
-## 立即试用：无需 Release
+## 下载与安装（Microsoft Edge / Google Chrome）
 
-1. 打开 [main 源码](https://github.com/siskosun/ChatFlow/tree/main)，选择 **Code → Download ZIP**，解压后找到**根目录**的 `manifest.json`。也可 `git clone`。
-2. Edge 打开 `edge://extensions/`（Chrome 用 `chrome://extensions/`），开启开发人员模式，点击**加载解压缩的扩展**，选择上述根目录。
-3. 在普通窗口（非无痕）打开并登录 ChatGPT，进入一段**已有对话**，点击 ChatFlow 图标打开侧边栏。
-4. 查看 [main 提交 SHA](https://github.com/siskosun/ChatFlow/commits/main) 和 [main CI](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain)。直接加载源码没有 `BUILD_INFO.json`，属于开发者试用，不等于已打包的可复现候选 ZIP。
+**2026-11-06 已验证的工程候选包**：对应 `main` 提交 `aee60b30a5e4e3cae8a4749e7e2d76c6fd03aba8`（PR #38 已合并）；该提交的 [GitHub Actions #42185621241](https://github.com/siskosun/ChatFlow/actions/runs/42185621241) 三项验证任务全部通过。
 
-需要带构建信息的 ZIP：从同一 SHA 的成功 Actions 运行中下载 `chatflow-candidate-<SHA>`，再解压其中的 Edge 或 Chrome ZIP。**Actions artifact 会过期，没有永久下载链接；正式 Release 尚未创建。** [完整安装与安全更新说明](docs/INSTALL.md)。
+[**下载 Edge + Chrome 双浏览器候选包（GitHub Actions artifact）**](https://github.com/siskosun/ChatFlow/actions/runs/42185621241/artifacts/13488335005)
+
+| 浏览器 | 外层压缩包中对应文件 | 安装入口 |
+| --- | --- | --- |
+| Microsoft Edge | `chatflow-edge-0.3-candidate.zip` | `edge://extensions/` |
+| Google Chrome | `chatflow-chrome-0.3-candidate.zip` | `chrome://extensions/` |
+
+1. 下载并**先解压外层 artifact ZIP**，核对 `SHA256SUMS`；再解压自己浏览器的候选 ZIP。
+2. 打开表中对应的扩展管理地址，启用开发人员模式，选择「加载解压缩的扩展」。
+3. 选中**直接包含 `manifest.json` 和 `BUILD_INFO.json`** 的内层目录。检查 `BUILD_INFO.json` 的 `source_commit` 等于上述提交。
+4. 在普通（非无痕）窗口登录 ChatGPT，打开一段已有对话，点击 ChatFlow 图标使用侧边栏。
+
+**已有安装请先备份再更新。** 不要把卸载重装当作常规升级：保留原扩展 ID、浏览器配置和加载目录，用核验过的新包替换原目录内容，然后在扩展管理页点原扩展的「重新加载」。更新后核对本地档案。当前主分支的 IndexedDB 为 **v6**，包含接续记录按档案查询的索引。详细操作见 [安装、更新与备份说明](docs/INSTALL.md)。
+
+候选包是**固定提交的试用产物**，不是商店版本或正式 Release；GitHub Actions 附件可能要求登录且会过期。之后的更新，请在 [main 最新成功 CI](https://github.com/siskosun/ChatFlow/actions/workflows/verify.yml?query=branch%3Amain) 中选择三项作业均成功的同一提交及其 `chatflow-candidate-<SHA>`。如需直接加载源码，可在 [main](https://github.com/siskosun/ChatFlow/tree/main) 下载源码 ZIP（没有 `BUILD_INFO.json`，不等同于可复现候选包）。
+
 
 ## 两项主功能
 
-**保存并接到新对话**：保存已有对话与取得的附件，在本地核对后准备接续文件，打开新的普通 ChatGPT 标签页。由用户自行上传、核对与发送。
+**保存并接到新对话**：保存已有对话与通过校验的附件，按所选分支与文件生成接续材料。可尝试向新聊天预填，但网页结构或附件状态不确定时会停止；此时仍可**复制接续提示、下载完整文件包、打开普通新聊天**，由用户核对、上传并手动发送。接续状态可在侧边栏重开后恢复。
 
 **任务回传**：为外部助手生成带来源标记的任务文本；由用户复制给外部助手，收到结果后粘贴回来。扩展只做本地保存与返回来源，不代发。
 
@@ -22,7 +34,7 @@
 
 1. **打开侧边栏并保存对话**：在普通窗口登录 ChatGPT，打开一段已有对话，点击 ChatFlow 图标，在侧边栏确认来源、文件范围并保存。
 2. **我的档案**：查找档案、检查消息/分支/附件完整性、导出或恢复 ZIP。
-3. **继续到新对话**：选择需要的原始附件，生成接续包并在当前浏览器窗口打开新的普通聊天标签页。ChatFlow 只预填和附加文件，永不自动发送。
+3. **继续到新对话**：选择需要的原始附件，生成带来源核验信息的接续包。可在同一浏览器窗口打开新的普通聊天并尝试预填；不成功时从「手动接续」复制提示、下载文件并人工上传。关闭或刷新侧边栏后，可通过「继续上次接续」找回本地记录。**永不自动发送**。
 4. **创建上下文包**：从多份档案中筛选所选分支/全部可访问分支、完整消息或重点片段与关键词，按预算完整分段，输出来源清单和可选原始附件。档案详情中的“继续到新对话”也沿用所选分支，并记录来源哈希。
 5. **重点片段**：在档案消息中选择并保存关键原文，保留消息/分支来源，支持高亮恢复、重新定位和按片段编译上下文。
 6. **并行对照实验**：冻结同一份材料与任务，开启 2–4 个独立会话，逐个手动发送，采集结果后进行盲测比较与人工裁决。
@@ -32,14 +44,16 @@
 - 只采集用户明确选择的对话；实时缓存必须按单个对话明确开启。
 - 只有实际非零文件字节通过校验后才显示已保存。
 - 保存、ZIP 下载、附件上传和用户发送是不同状态。
-- 不覆盖已有草稿，不对未知上传状态自动重试，不自动发送。
+- 不覆盖已有草稿，不把网页文件名或上传进度当作已确认结果，不对未知上传状态自动重试，不自动发送。
+- **受阻重试防双草稿**：原接续目标标签页仍打开时拒绝重试；需先检查并妥善处理旧草稿，再关闭旧标签页。扩展不会自行删除网页草稿。
+- **接续记录回收**：仅在满足年龄和状态条件、且确认旧目标标签页已关闭后清理符合条件的受阻记录；无法确认是否关闭时保留。
 - 不删除或修改 ChatGPT 源对话和项目。
 - 扩展图标打开浏览器原生侧边栏；接续和任务回源仍只在明确操作时打开或切换普通 ChatGPT 标签页。
 - 本地数据保存在当前浏览器配置文件；ZIP 是独立备份。
 
 ## 开发状态
 
-**版本：0.3 工程试用候选（未正式发布）。** 自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[0.3 工程验证](docs/VERIFICATION_0.3.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
+**版本：0.3 工程候选（未正式发布）。** 2026-11-06 的合并提交 `aee60b30` 通过了 [CI #42185621241](https://github.com/siskosun/ChatFlow/actions/runs/42185621241) 的 Windows、Linux 和可复现构建检查；自动化通过不等于真实 ChatGPT 账号验收或真人 UX 验收通过。详见 [安装与更新](docs/INSTALL.md)、[0.3 工程验证](docs/VERIFICATION_0.3.md)、[变更记录](CHANGELOG.md)、[开发计划](docs/PLAN.md)、[档案格式](docs/ARCHIVE_FORMAT.md)、[Context Builder](docs/CONTEXT_BUILDER.md)、[并行实验说明](docs/EXPERIMENTS.md)、[Provider Adapter](docs/PROVIDER_ADAPTER.md) 和 [真实账号验收](docs/REAL_ACCOUNT_ACCEPTANCE.md)。
 
 ## 构建
 
