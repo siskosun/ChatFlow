@@ -110,13 +110,21 @@
   C.check(typeof captureId==='string'&&captureId.length>0,'INVALID_HANDOFF_CAPTURE');
   return transaction(['handoffs'],'readonly',s=>request(s.handoffs.index('capture').getAll(captureId)));
  };
- // Expire only old unclaimed or blocked records. A claimed or partially
- // injected handoff may still contain a draft and is never automatically removed.
- async function pruneHandoffs(captureId,keepId){
+ // Retain live-target handoffs, claimed attempts and partial uploads.
+ // Blocked records are eligible only when their target tab is verified absent.
+ // A missing/failed tab listing permits prepared-only cleanup (fail closed).
+ async function pruneHandoffs(captureId,keepId,openTabIds=null){
+  const openIds=Array.isArray(openTabIds)&&openTabIds.every(Number.isInteger)?new Set(openTabIds):null;
   return transaction(['handoffs','files','assets'],'readwrite',async s=>{
    const rows=await request(s.handoffs.index('capture').getAll(captureId));
-   const stale=rows.filter(h=>h.id!==keepId&&!h.targetTabId&&['prepared','injection_blocked'].includes(h.state)&&
-    Number.isFinite(Date.parse(h.createdAt))&&Date.now()-Date.parse(h.createdAt)>14*86400000);
+   const stale=rows.filter(h=>{
+    if(h.id===keepId)return false;
+    const last=Date.parse(h.reportedAt||h.retriedAt||h.createdAt);
+    if(!Number.isFinite(last)||Date.now()-last<=14*86400000)return false;
+    if(h.state==='prepared')return !h.targetTabId;
+    if(h.state==='injection_blocked')return Number.isInteger(h.targetTabId)&&openIds!==null&&!openIds.has(h.targetTabId);
+    return false;
+   });
    if(!stale.length)return 0;
    const hashes=new Set();
    for(const h of stale){s.handoffs.delete(h.id);for(const f of h.files||[])if(f.sha256)hashes.add(f.sha256);}

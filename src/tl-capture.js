@@ -5,7 +5,7 @@
   globalThis.TLCaptureInstalled = true;
   const C = globalThis.TLCore, P = globalThis.ChatFlowProviders, api = chrome;
   const DOWNLOAD_TIMEOUT_MS = 60000, CHUNK_BYTES = C.TRANSFER_CHUNK_BYTES;
-  const JSON_LIMITS = Object.freeze({ session: 1024 ** 2, conversation: 32 * 1024 ** 2, metadata: 2 * 1024 ** 2 });
+  const JSON_LIMITS = Object.freeze({ session: 1024 ** 2, conversation: C.BYTE_LIMITS.rawConversationJson, metadata: 2 * 1024 ** 2 });
   let active = null;
   const code = e => e?.name === 'AbortError' ? 'CANCELLED_OR_TIMEOUT' :
     /^[A-Z0-9_]{2,100}$/.test(e?.message || '') ? e.message : 'CAPTURE_REQUEST_FAILED';
@@ -263,7 +263,7 @@
       }
       const persisted = C.persistedSnapshot(model);
       // Preserve the snapshot whole or reject it; never silently truncate.
-      C.check(new TextEncoder().encode(JSON.stringify(persisted)).byteLength <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
+      C.check(new TextEncoder().encode(JSON.stringify(persisted)).byteLength <= C.BYTE_LIMITS.persistedSnapshotJson, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
       sameSource(run);
       const saved = new Set((await message('tl:snapshot', { snapshot: persisted }, run.nonce)).savedKeys);
       for (const asset of model.assets) {

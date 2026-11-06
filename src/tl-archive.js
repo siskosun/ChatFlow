@@ -37,7 +37,7 @@
  const exactNumber=x=>{C.check(x<=BigInt(Number.MAX_SAFE_INTEGER),'ZIP64_OFFSET_TOO_LARGE');return Number(x);};
  // The writer and reader share the same resource contract. Large *files* may
  // span bounded entries; this never raises the decompression or total limits.
- const MAX_ZIP_EXPANDED=256*1024**2,MAX_ZIP_ENTRY=64*1024**2,MAX_ZIP_RATIO=200,MAX_ZIP_ENTRIES=50000,MAX_ZIP_CENTRAL=32*1024**2,MAX_JSON=32*1024**2;
+ const MAX_ZIP_EXPANDED=256*1024**2,MAX_ZIP_ENTRY=64*1024**2,MAX_ZIP_RATIO=200,MAX_ZIP_ENTRIES=50000,MAX_ZIP_CENTRAL=32*1024**2,MAX_JSON=C.BYTE_LIMITS.archiveMetadataJson;
  const isChatFlow=m=>m.schema==='chatflow.archive/1'||m.schema==='chatflow.archive/2';
  const partPath=(sha,index)=>'assets/'+sha+'/'+String(index).padStart(6,'0')+'.bin';
  function exportLimits(entries){
