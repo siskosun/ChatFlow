@@ -124,13 +124,13 @@ async function prepareHandoff(msg){
  const prepareFingerprint=new C.SHA256().update(JSON.stringify(['handoff-provenance/2',c.id,snapshotHash,branchNodeIds,[...new Set(selected)],instructions,batchLimit])).hex();
  const same=(await S.handoffsForCapture(c.id)).filter(row=>row.snapshotHash===snapshotHash&&row.prepareFingerprint===prepareFingerprint)
   .sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
- const previous=same.find(row=>row.state==='prepared');
- if(previous)return previous;
- // Retry only on an explicit user action; never rebind to an older tab
- // whose draft or partial upload status the extension cannot guarantee.
- if(msg.retryBlocked===true){
-  const blocked=same.find(row=>row.state==='injection_blocked');
-  if(blocked){
+ const latest=same[0];
+ if(latest?.state==='prepared')return latest;
+ // Retry only on an explicit user action. Never revive an older preparation
+ // while a newer attempt may be claimed or may hold an unsent draft.
+ if(msg.retryBlocked===true&&latest?.state==='injection_blocked'){
+  const blocked=latest;
+  {
    const reset={...blocked,state:'prepared',targetTabId:null,targetWindowId:null,targetDocumentId:null,
     attemptId:null,fileEvidence:null,userFileChecks:[],lastError:null,reportedAt:null,
     retriedAt:new Date().toISOString(),retryCount:Math.min(10000,(blocked.retryCount||0)+1)};
