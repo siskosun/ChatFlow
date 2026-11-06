@@ -122,8 +122,21 @@ async function prepareHandoff(msg){
  // Validated identical preparation is idempotent across repeated UI actions.
  const snapshotHash=new C.SHA256().update(JSON.stringify(C.persistedSnapshot(c.snapshot))).hex();
  const prepareFingerprint=new C.SHA256().update(JSON.stringify(['handoff-provenance/2',c.id,snapshotHash,branchNodeIds,[...new Set(selected)],instructions,batchLimit])).hex();
- const previous=(await S.all('handoffs')).find(row=>row.state==='prepared'&&row.captureId===c.id&&row.snapshotHash===snapshotHash&&row.prepareFingerprint===prepareFingerprint);
+ const same=(await S.handoffsForCapture(c.id)).filter(row=>row.snapshotHash===snapshotHash&&row.prepareFingerprint===prepareFingerprint)
+  .sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+ const previous=same.find(row=>row.state==='prepared');
  if(previous)return previous;
+ // Retry only on an explicit user action; never rebind to an older tab
+ // whose draft or partial upload status the extension cannot guarantee.
+ if(msg.retryBlocked===true){
+  const blocked=same.find(row=>row.state==='injection_blocked');
+  if(blocked){
+   const reset={...blocked,state:'prepared',targetTabId:null,targetWindowId:null,targetDocumentId:null,
+    attemptId:null,fileEvidence:null,userFileChecks:[],lastError:null,reportedAt:null,
+    retriedAt:new Date().toISOString(),retryCount:Math.min(10000,(blocked.retryCount||0)+1)};
+   await S.set('handoffs',reset);return reset;
+  }
+ }
  for(const f of plan.files){
   const base=C.safeName(f.name);let uploadName=base,sequence=2;while(names.has(uploadName.toLowerCase()))uploadName=sequence+++'_'+base;names.add(uploadName.toLowerCase());
   if(f.kind==='asset'){const b=await S.verifiedBlob(f.sha256);files.push({...f,uploadName,size:b.size});}
@@ -133,7 +146,9 @@ async function prepareHandoff(msg){
  const indexInfo=await S.putBlob(new Blob([index],{type:'text/markdown'}));files.unshift({kind:'index',name:'handoff_index.md',uploadName:'handoff_index.md',mime:'text/markdown',...indexInfo});
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
- const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash,prepareFingerprint,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);return h;
+ const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash,prepareFingerprint,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);
+ await S.pruneHandoffs(c.id,h.id).catch(()=>{/* Never discard a verified new handoff on cleanup failure. */});
+ return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
 // A single write queue protects whole-record handoff state transitions from
