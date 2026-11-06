@@ -60,7 +60,7 @@ test('new mapping format does not reuse an older prepared handoff without source
  const fresh=await f.prepare(f.msg);assert.notEqual(fresh.id,'legacy-prepared');
  const repeat=await f.prepare(f.msg);assert.equal(repeat.id,fresh.id);
 });
-\ntest('explicit blocked retry uses original identity and detaches the prior tab',async()=>{
+test('explicit blocked retry uses original identity and detaches the prior tab',async()=>{
  const f=await fixture(),prepared=await f.prepare(f.msg);
  const stored=f.records.find(x=>x.id===prepared.id);
  stored.state='injection_blocked';stored.targetTabId=123;stored.targetDocumentId='doc-old';
