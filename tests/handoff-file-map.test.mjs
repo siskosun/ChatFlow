@@ -21,9 +21,11 @@ async function fixture({identical=false}={}){
  const records=[],capture={id:'capture-files',state:'ready',snapshot};
  const S={get:async(store,id)=>store==='captures'&&id===capture.id?capture:null,assets:async()=>rows,
   all:async store=>store==='handoffs'?records:[],
+  handoffsForCapture:async id=>records.filter(x=>x.captureId===id),
+  pruneHandoffs:async()=>0,
   verifiedBlob:async hash=>{assert.ok(blobs.has(hash));return blobs.get(hash);},
   putBlob:async blob=>{const sha256=await C.hashBlob(blob);blobs.set(sha256,blob);return {sha256,size:blob.size};},
-  set:async(store,row)=>{assert.equal(store,'handoffs');records.push(row);return row;}};
+  set:async(store,row)=>{assert.equal(store,'handoffs');const prior=records.findIndex(x=>x.id===row.id);if(prior>=0)records[prior]=row;else records.push(row);return row;}};
  const prepare=vm.runInNewContext(service.slice(start,end)+'\nprepareHandoff',{C,S,Blob});
  return {prepare,rows,capture,blobs,records,msg:{captureId:capture.id,keys:rows.map(r=>r.key),instructions:'Continue',batchLimit:10}};
 }
@@ -57,4 +59,16 @@ test('new mapping format does not reuse an older prepared handoff without source
  f.records.push({id:'legacy-prepared',state:'prepared',captureId:f.capture.id,snapshotHash,prepareFingerprint:oldFingerprint});
  const fresh=await f.prepare(f.msg);assert.notEqual(fresh.id,'legacy-prepared');
  const repeat=await f.prepare(f.msg);assert.equal(repeat.id,fresh.id);
+});
+test('explicit blocked retry uses original identity and detaches the prior tab',async()=>{
+ const f=await fixture(),prepared=await f.prepare(f.msg);
+ const stored=f.records.find(x=>x.id===prepared.id);
+ stored.state='injection_blocked';stored.targetTabId=123;stored.targetDocumentId='doc-old';
+ const same=await f.prepare({...f.msg,retryBlocked:true});
+ assert.equal(same.id,prepared.id);
+ assert.equal(same.state,'prepared');
+ assert.equal(same.targetTabId,null);
+ assert.equal(same.targetDocumentId,null);
+ assert.equal(same.retryCount,1);
+ assert.equal(f.records.filter(x=>x.id===prepared.id).length,1);
 });

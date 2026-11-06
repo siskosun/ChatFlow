@@ -11,7 +11,7 @@ test('handoff changes are serialized through one state writer',()=>{
 });
 test('preparation is content-addressed and duplicate actions are dropped',()=>{
  assert.match(worker,/prepareFingerprint/);
- assert.match(worker,/if\(previous\)return previous/);
+ assert.match(worker,/if\(latest\?\.state==='prepared'\)return latest/);
  assert.match(app,/function singleFlight\(id,fn\)/);
  assert.match(app,/frozenFingerprint=fingerprint\(\)/);
 });

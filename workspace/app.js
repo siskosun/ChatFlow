@@ -3,6 +3,54 @@
  'use strict';
  const C=TLCore,S=TLStore,A=TLArchive,$=id=>document.getElementById(id);
  let selectedId=null,selectedKeys=new Set(),contextSelectedIds=new Set(),contextSelectedPassageIds=new Set(),branchSelections=new Map(),reanchorPassageId=null,handoffId=null,planFingerprint=null,staged=new Map(),view='home',refreshing=false,messageLimit=100,detailEpoch=0,sourceLookupKey=null,sourceLookupCaptureId=null,sourceOptionsSignature=null,runningSignature=null,runningEpoch=0,downloadStatusNonce=0;
+ // Session pointers provide fast resumption; complete handoff materials live in
+ // IndexedDB and remain recoverable after session storage or panel reload.
+ const handoffSessionKey=captureId=>'cfHandoffActive:'+captureId;
+ const resumableHandoffStates=new Set(['prepared','target_opened','claimed','draft_prepared','upload_unknown','upload_confirmed','injection_blocked','partial_injection','user_verified_upload']);
+ async function rememberHandoff(h){
+  try{await chrome.storage.session.set({[handoffSessionKey(h.captureId)]:{id:h.id,at:Date.now()}});}catch{/* IDB remains the durable recovery source. */}
+ }
+ async function resumeHandoffForCapture(captureId){
+  const rows=(await S.handoffsForCapture(captureId)).filter(h=>resumableHandoffStates.has(h.state))
+   .sort((a,b)=>String(b.retriedAt||b.createdAt||'').localeCompare(String(a.retriedAt||a.createdAt||'')));
+  let ptr=null;
+  try{ptr=(await chrome.storage.session.get(handoffSessionKey(captureId)))[handoffSessionKey(captureId)];}catch{}
+  const pointed=rows.find(row=>row.id===ptr?.id),latest=rows[0];
+  // Session pointers are hints. A newer prepared/attempted record supersedes
+  // an older pointer created by another sidebar, not the other way around.
+  const date=h=>String(h?.retriedAt||h?.createdAt||'');
+  const h=pointed&&date(pointed)>=date(latest)?pointed:latest;
+  if(!h)return false;
+  const capture=await S.get('captures',captureId);
+  if(!capture?.snapshot||TLPassages.snapshotHash(capture.snapshot)!==h.snapshotHash)return false;
+  const input=h.resumeForm;
+  if(input&&typeof input.instructions==='string'&&input.instructions.length<=4000&&
+   Number.isInteger(input.batchLimit)&&input.batchLimit>=2&&input.batchLimit<=50&&
+   Array.isArray(input.selectedKeys)&&input.selectedKeys.every(k=>typeof k==='string')){
+   $('instructions').value=input.instructions;$('batch-limit').value=String(input.batchLimit);
+   selectedKeys=new Set(input.selectedKeys);
+   if(input.branchEndNode&&branchChoices(capture.snapshot).some(c=>c.endNode===input.branchEndNode))
+    branchSelections.set(captureId,input.branchEndNode);
+   planFingerprint=fingerprint()===input.fingerprint?input.fingerprint:null;
+  }else planFingerprint=null;
+  handoffId=h.id;
+  try{await renderHandoff(h);await rememberHandoff(h);return true;}
+  catch(e){handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;status('已有接续记录，但相关文件暂时无法验证；请回到档案重新准备。',true);return false;}
+ }
+ async function latestResumeCapture(){
+  const rows=(await S.all('handoffs')).filter(h=>resumableHandoffStates.has(h.state))
+   .sort((a,b)=>String(b.retriedAt||b.createdAt||'').localeCompare(String(a.retriedAt||a.createdAt||'')));
+  for(const h of rows.slice(0,30)){const c=await S.get('captures',h.captureId);if(c?.snapshot&&TLPassages.snapshotHash(c.snapshot)===h.snapshotHash)return h.captureId;}
+  return null;
+ }
+ async function refreshResumeButton(){
+  const button=$('resume-handoff');if(!button)return;
+  const id=await latestResumeCapture();button.hidden=!id;button.dataset.captureId=id||'';
+ }
+ async function resumeLatestHandoff(){
+  const id=$('resume-handoff')?.dataset.captureId||await latestResumeCapture();
+  C.check(id,'HANDOFF_NOT_PREPARED');await choose(id);switchView('handoff');
+ }
  const labels={ready:'可访问快照已保存',partial:'部分保存',capturing:'保存中',interrupted:'已中断',error:'保存失败',cancelled:'已取消',saved:'文件已保存',excluded:'按保存范围跳过',unavailable:'未取得文件字节',discovered:'待下载',downloading:'下载中',corrupt:'本地校验失败',prepared:'接续包已生成',target_opened:'新聊天标签页已打开',claimed:'准备草稿与文件中',draft_prepared:'草稿已预填',upload_confirmed:'网页曾显示首批附件就绪（仅页面观察）',upload_unknown:'首批上传结果未知',injection_blocked:'自动注入已停止',partial_injection:'注入未完整确认',user_verified_upload:'用户已核对首批上传'};
  const errors={SOURCE_SELECTION_CHANGED:'所选对话已变化，请重新选择后保存。',SOURCE_CHANGED:'来源对话已变化，保存已停止。',SOURCE_IDENTITY_MISMATCH:'来源身份不一致，未保存其他对话。',ARCHIVE_BUSY:'文件仍在下载，请完成或停止采集后再备份。',ARCHIVE_EXPORT_LIMIT:'当前内容超过可恢复备份的容量，未生成备份；本地内容仍保留。',HANDOFF_SOURCE_CHANGED:'来源档案或分支已变化，请重新准备接续包。',HANDOFF_SOURCE_CHANGED_REGENERATE:'来源档案已变化，请重新准备接续包。',PASSAGE_COUNT_LIMIT:'每份档案最多保存 5000 条重点片段。',PASSAGE_NOT_FOUND:'这条重点片段已不存在，请重新打开档案。',PASSAGE_NOT_ANCHORED_TO_SOURCE:'片段来源已变化，请刷新档案并重新选择。',CONTEXT_PASSAGE_NOT_ANCHORED:'部分重点片段已过期或有歧义，请重新定位后再编译。',CONTEXT_PASSAGE_OUTSIDE_BRANCH_SCOPE:'所选重点片段不属于当前分支；请切换分支或选择全部可访问分支。',NO_SELECTED_CONTEXT_PASSAGES:'请先选择要编译的重点片段。',CHATGPT_PAGE_NOT_READY:'ChatGPT 页面尚未准备好，请打开原对话后重试。',CHATGPT_LOGIN_REQUIRED:'请先在所选 ChatGPT 标签页登录。',NO_CONVERSATION_ID:'请选择已有的 ChatGPT 对话，而不是空白首页。',SOURCE_ALREADY_RUNNING:'这个对话已有采集在运行，请先停止。',LOCAL_STORAGE_FULL:'本地存储空间不足。已保存的文件保留，请先导出 ZIP 或清理本地档案。',MEDIA_PERMISSION_REQUIRED:'未授予 OpenAI 文件域名权限，正文可保存，但有关文件尚未取得字节。',OUT_OF_SAVE_SCOPE:'该文件未尝试下载，因为它不在本次保存范围内。',SAVE_SCOPE_SOURCE_UNRESOLVED:'文件来源或消息位置无法确认，不能判断它是否为当前分支最后生成文件；未自动下载。',LIVE_CACHE_REQUIRES_ALL_SCOPE:'仅保存最后生成文件不能同时开启实时缓存，请选择全部文件或关闭实时缓存。',USER_DRAFT_PRESENT:'目标窗口已有草稿，自动预填已停止，不会覆盖。',SELECTED_FILE_NOT_SAVED:'所选文件尚未取得实际字节，不能加入接续。',CAPTURE_NOT_READY:'该档案仍在采集，或没有可用快照。',SNAPSHOT_HASH_MISMATCH:'档案快照哈希不匹配，恢复已中止。',ARCHIVE_FILE_HASH_MISMATCH:'归档文件哈希不匹配，恢复已中止。',LOCAL_FILE_HASH_MISMATCH:'本地文件校验失败，不会上传。',ZIP_RESOURCE_LIMIT:'档案超过当前版本的安全恢复上限（单个 ZIP 条目 64 MiB，合计 256 MiB）；恢复已中止，原有档案未更改。',ZIP_COMPRESSION_RATIO_LIMIT:'ZIP 内文件压缩比例超过安全上限，已拒绝恢复。',ZIP_EXPANSION_LIMIT:'ZIP 实际展开尺寸超过安全上限，已中止恢复。',UNRECOGNIZED_ARCHIVE:'这不是可识别的ChatFlow档案 ZIP。官方导出请使用“对照官方 ZIP”。',INVALID_ZIP:'文件不是有效 ZIP，请选择正确的备份文件。',ZIP_END_NOT_FOUND:'ZIP 文件不完整或损坏，未导入任何数据。',INVALID_ZIP_DIRECTORY:'ZIP 文件结构损坏，未导入任何数据。',INVALID_HANDOFF_BRANCH_PATH:'所选分支路径不完整或已变化，请重新选择分支。',INVALID_CONTEXT_BRANCH_PATH:'所选分支路径不完整，请重新选择分支。',WORKSPACE_WINDOW_REQUIRED:'无法确认工作区所在的浏览器窗口，未创建新标签页。请从当前窗口重新打开 ChatFlow。',NEW_TAB_FAILED:'无法在当前浏览器窗口创建新标签页。'};
  Object.assign(errors,{SNAPSHOT_MESSAGE_SIZE_LIMIT:'对话正文超过单份档案的容量限制（约 24 MiB）；已停止保存，不能将截断内容当作完整历史。',CANCELLED_OR_TIMEOUT:'读取超时或已取消。请确认来源对话仍打开后重试；原档案不会被截断覆盖。'});
@@ -259,7 +307,16 @@
   const zip=await A.buildZip(entries);await download(zip,'chatflow-context-'+new Date().toISOString().replace(/[:.]/g,'-')+'.zip');
   status('上下文包已生成：'+compiled.manifest.sources.length+' 份档案、'+compiled.manifest.sources.reduce((n,s)=>n+s.messageIds.length,0)+' 条消息、'+compiled.parts.length+' 个历史分段、估算 '+compiled.estimatedTokens+' tokens。'+(compiled.manifest.budgetExceeded?'已超过预算，内容已完整分段，请分批上传。':'')+'请核对清单后手动上传。');
  }
- async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;if(selectedId!==id){selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;$('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='生成接续材料';$('open-target').disabled=true;$('open-target').hidden=false;}selectedId=id;await renderDetail();await refreshArchives();await updateSelection();}
+ async function choose(id){sourceLookupKey=null;sourceLookupCaptureId=null;
+  if(selectedId!==id){
+   selectedKeys.clear();reanchorPassageId=null;messageLimit=100;handoffId=null;planFingerprint=null;
+   $('handoff-result').hidden=true;$('prepare').hidden=false;$('prepare').textContent='生成接续材料';
+   $('open-target').disabled=true;$('open-target').hidden=false;
+  }
+  selectedId=id;
+  if(!handoffId)await resumeHandoffForCapture(id);
+  await renderDetail();await refreshArchives();await updateSelection();
+ }
  function fileInput(text,onFile){const label=node('label',text,'file-button'),input=document.createElement('input');input.type='file';input.accept='.zip,application/zip';input.addEventListener('change',()=>guard(async()=>{const file=input.files?.[0];try{if(file)await onFile(file);}finally{input.value='';}}));label.append(input);return label;}
  async function download(blob,name){
   const url=URL.createObjectURL(blob),serial=++downloadStatusNonce,filename=C.safeName(name),label=$('download-status');
@@ -347,7 +404,25 @@
   const actions=node('div',null,'actions');actions.append(next,backup,fileInput('对照官方 ZIP',async file=>{status('正在本地读取官方导出，未识别格式不会被当作文件不存在。');const report=await A.compareOfficial(c.id,file);await download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),'official-comparison.json');status('对照完成：'+report.records.filter(x=>x.result==='bytes_match').length+'/'+report.records.length+' 个文件字节一致。详情见下载报告。');}));
   if(c.live)actions.append(button('停止实时缓存',async()=>{await call('tl:stop',{captureId:c.id});await renderDetail();}));
   el.append(actions);
-  if(snapshot.integrity.issues.length){const d=node('details');d.append(node('summary','分支与内容完整性问题：'+snapshot.integrity.issues.length+' 项'),node('pre',JSON.stringify(snapshot.integrity.issues,null,2)));el.append(d);}
+  if(snapshot.integrity.issues.length){
+   const issueLabels={INVALID_NODE:'存在无法读取的对话节点',DUPLICATE_CHILD:'存在重复的分支关系',
+    DUPLICATE_MESSAGE_ID:'消息编号重复',BROKEN_PARENT:'部分回复的上级节点缺失',
+    PARENT_CHILD_MISMATCH:'上级和下级的分支关系不一致',
+    CHILD_PARENT_MISMATCH:'子节点和上级的分支关系不一致',
+    PARENT_CYCLE:'分支关系出现循环',MISSING_CURRENT_NODE:'无法确认归档时所在的分支',
+    UNREACHABLE_NODE:'部分消息不属于可访问的分支',
+    CONTENT_REFERENCE_LIMIT:'引用信息超出可核验范围',
+    UNRESOLVED_CONTENT_REFERENCE:'部分内容引用无法对应有效来源'};
+   const box=node('section',null,'integrity-summary');
+   box.append(node('strong','发现 '+snapshot.integrity.issues.length+' 项分支或内容完整性问题'));
+   const list=node('ul');
+   for(const issue of snapshot.integrity.issues.slice(0,30))
+    list.append(node('li',issueLabels[issue.code]||'有一项结构或引用问题尚无法自动解释'));
+   box.append(list);
+   if(snapshot.integrity.issues.length>30)box.append(node('p','另有 '+(snapshot.integrity.issues.length-30)+' 项，请展开技术详情查看。','hint'));
+   const detail=node('details');detail.append(node('summary','查看技术详情'),node('pre',JSON.stringify(snapshot.integrity.issues,null,2)));
+   box.append(detail);el.append(box);
+  }
   el.append(node('h3','选择本次接续需要的原始文件'));
   const fileDetails=node('details');fileDetails.append(node('summary','选择要带到新聊天的原始附件'));
   const fileList=node('div',null,'list');
@@ -451,11 +526,25 @@
  async function updateSelection(){const c=selectedId&&await S.get('captures',selectedId),rows=c?.snapshot?await S.assets(c.id):[],excluded=rows.filter(a=>a.state==='excluded').length,missing=rows.filter(a=>a.state!=='saved'&&a.state!=='excluded').length;$('handoff-source').textContent=c?.snapshot?'来源：'+c.snapshot.title:'先在本地档案中选择来源。';$('selection-summary').textContent=(selectedKeys.size?'已选 '+selectedKeys.size+' 个原始文件；':'历史文件将自动准备。')+(missing?' '+missing+' 个文件未取得。':'')+(excluded?' '+excluded+' 个按范围排除。':'');$('prepare').disabled=!c?.snapshot||['capturing','error'].includes(c.state)||$('instructions').value.length>4000;}
  async function prepare(){
   const frozenFingerprint=fingerprint();
-  C.check(selectedId,'CAPTURE_NOT_READY');C.check($('instructions').value.length<=4000,'HANDOFF_INSTRUCTIONS_TOO_LONG');status('正在校验接续文件。');
+  C.check(selectedId,'CAPTURE_NOT_READY');C.check($('instructions').value.length<=4000,'HANDOFF_INSTRUCTIONS_TOO_LONG');
+  const previous=handoffId&&await S.get('handoffs',handoffId);
+  const same=previous&&planFingerprint===frozenFingerprint;
+  if(same&&['injection_blocked','partial_injection'].includes(previous.state)){
+   if(!window.confirm('旧聊天可能已有草稿或附件。请先核对原标签页；重新准备不会删除旧标签页，也不会自动发送。确认继续？'))return;
+  }
+  status('正在校验接续文件。');
   const capture=await S.get('captures',selectedId);C.check(capture?.snapshot,'CAPTURE_NOT_READY');
-  const h=await call('tl:prepareHandoff',{captureId:selectedId,activeNodes:selectedBranchNodes(capture),keys:[...selectedKeys],instructions:$('instructions').value,batchLimit:Number($('batch-limit').value)});
+  const h=await call('tl:prepareHandoff',{captureId:selectedId,activeNodes:selectedBranchNodes(capture),keys:[...selectedKeys],
+   instructions:$('instructions').value,batchLimit:Number($('batch-limit').value),
+   retryBlocked:!!(same&&previous?.state==='injection_blocked')});
   if(fingerprint()!==frozenFingerprint){status('准备期间接续选项已经变化，请核对后重新准备。',true);return;}
-  handoffId=h.id;planFingerprint=frozenFingerprint;await renderHandoff(h);status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
+  const bound={...h,resumeForm:{fingerprint:frozenFingerprint,selectedKeys:[...selectedKeys],
+   branchEndNode:branchSelections.get(selectedId)||null,instructions:$('instructions').value,
+   batchLimit:Number($('batch-limit').value)}};
+  await S.set('handoffs',bound);
+  handoffId=bound.id;planFingerprint=frozenFingerprint;await rememberHandoff(bound);
+  await renderHandoff(bound);await refreshResumeButton();
+  status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
  }
  async function renderHandoff(h){
   $('handoff-result').hidden=false;$('prepare').hidden=true;$('staging-details').open=false;$('manual-handoff').open=false;$('manual-copy-status').textContent='';$('prompt').textContent=h.prompt;$('confirmed').checked=false;$('open-target').disabled=h.state!=='prepared';$('focus-target').disabled=!h.targetTabId;
@@ -477,7 +566,7 @@
   if(!handoffId)return;const h=await S.get('handoffs',handoffId);if(!h)return;
   const source=await S.get('captures',h.captureId),snapshotMatches=!!source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash,branchMatches=!!source?.snapshot&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]);
   const fresh=snapshotMatches&&branchMatches;
-  const fileLabels={prepared:'\u672c\u5730\u5b57\u8282\u5df2\u6821\u9a8c\uff0c\u672a\u786e\u8ba4\u4ea4\u7ed9\u7f51\u9875',offered:'\u5df2\u5c1d\u8bd5\u4ea4\u7ed9\u7f51\u9875',page_ready:'\u7f51\u9875\u66fe\u663e\u793a\u5c31\u7eea\uff08\u4ec5\u9875\u9762\u89c2\u5bdf\uff09',unknown:'\u7f51\u9875\u72b6\u6001\u672a\u77e5',user_checked:'\u7528\u6237\u5df2\u6838\u5bf9\uff08\u4e0d\u4ee3\u8868\u5df2\u53d1\u9001\uff09',legacy_unverified:'\u65e7\u8bb0\u5f55\u65e0\u9010\u6587\u4ef6\u8bc1\u636e'};
+  const fileLabels={prepared:'\u672c\u5730\u5b57\u8282\u5df2\u6821\u9a8c\uff0c\u672a\u786e\u8ba4\u4ea4\u7ed9\u7f51\u9875',offered:'\u5df2\u5c1d\u8bd5\u4ea4\u7ed9\u7f51\u9875',page_ready:'\u7f51\u9875\u66fe\u663e\u793a\u5c31\u7eea\uff08\u4ec5\u9875\u9762\u89c2\u5bdf\uff09',unknown:'网页未提供足够证据，无法自动确认（附件名可能截断）。请在新聊天人工核对',user_checked:'\u7528\u6237\u5df2\u6838\u5bf9\uff08\u4e0d\u4ee3\u8868\u5df2\u53d1\u9001\uff09',legacy_unverified:'\u65e7\u8bb0\u5f55\u65e0\u9010\u6587\u4ef6\u8bc1\u636e'};
   for(const label of $('staging').querySelectorAll('[data-file-evidence]')){const index=Number(label.dataset.fileEvidence),proof=TLEvidence.fileReport(h,index);label.textContent=fileLabels[proof.state]+(proof.observedAt?' \u00b7 '+new Date(proof.observedAt).toLocaleString():'');label.dataset.evidenceState=proof.state;}
   for(const control of $('staging').querySelectorAll('[data-verify-file]')){
    const checked=TLEvidence.fileReport(h,Number(control.dataset.verifyFile)).state==='user_checked';
@@ -500,7 +589,7 @@
   $('open-target').disabled=!ready;
   $('open-target').hidden=!ready;
   $('focus-target').disabled=!h.targetTabId;
-  const mayConfirm=fresh&&['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state);
+  const mayConfirm=fresh&&['upload_unknown','upload_confirmed','draft_prepared','partial_injection'].includes(h.state);
   $('confirm-upload').dataset.allowed=String(mayConfirm);
   $('confirm-upload').disabled=!mayConfirm||!$('confirmed').checked;
  }
@@ -534,7 +623,7 @@
   await download(await A.buildZip(entries),'chatflow-handoff.zip');status('接续包已生成。请解压后上传实际文件，不要假设 ChatGPT 一定能读取 ZIP 内的全部内容。');
  }
  document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;e.preventDefault();switchView(b.dataset.view);});
- globalThis.ChatFlowWorkspace=Object.freeze({show:switchView});
+ globalThis.ChatFlowWorkspace=Object.freeze({show:switchView,resume:resumeLatestHandoff});
  $('capture-backup').onclick=()=>guard(async()=>{const captureId=selectedId;C.check(captureId,'CAPTURE_NOT_READY');const control=$('capture-backup');control.disabled=true;try{const capture=await S.get('captures',captureId),title=capture?.snapshot?.title||'ChatFlow';status('正在校验备份可恢复性…');const out=await A.exportVerified(captureId);await download(out.blob,C.safeName(title)+'.chatflow.zip');status('已为「'+title+'」生成备份并发起下载。');}finally{control.disabled=control.dataset.busy==='true';}});
  function singleFlight(id,fn){let pending=false;return ()=>guard(async()=>{if(pending)return;const control=$(id);pending=true;control.dataset.pending='true';const original=control.textContent;control.disabled=true;control.textContent='处理中…';try{return await fn();}finally{pending=false;delete control.dataset.pending;control.textContent=original;if(id==='prepare'){control.disabled=!selectedId||$('instructions').value.length>4000;}else if(id==='open-target'||id==='confirm-upload'){if(handoffId)await renderHandoffState().catch(e=>status(explain(e),true));}else control.disabled=false;}});}
  $('refresh-source').onclick=singleFlight('refresh-source',async()=>{await sources();selectedId=null;guard(renderRunning);});$('capture').onclick=()=>guard(start);$('source').onchange=()=>{selectedId=null;sourceLookupKey=null;sourceLookupCaptureId=null;$('capture').hidden=false;$('capture').textContent='保存对话';$('continue').hidden=true;guard(renderRunning);};$('asset-scope').onchange=()=>{selectedId=null;sourceLookupKey=null;sourceLookupCaptureId=null;updateScopeUI();guard(renderRunning);};$('continue').onclick=()=>guard(async()=>{await choose(selectedId);switchView('handoff');});$('refresh').onclick=singleFlight('refresh',async()=>{await refreshArchives();if(selectedId)await renderDetail();});$('build-context').onclick=singleFlight('build-context',buildContextPackage);
@@ -576,6 +665,7 @@
    try{await task();}catch{failed.push(label);}
   }
   if(failed.length){$('retry-workspace').hidden=false;status('工作区部分初始化失败（'+failed.join('、')+'），已保留可用数据；可点击重试。',true);return false;}
+  await refreshResumeButton().catch(()=>{});
   status('');return true;
  }
  $('retry-workspace').onclick=()=>guard(async()=>{const button=$('retry-workspace');if(button.disabled)return;button.disabled=true;try{await S.open();await call('tl:retryBoot');const ready=await initializeWorkspace();if(ready){button.hidden=true;status('工作区已恢复，可以继续操作。');}}finally{button.disabled=false;}});

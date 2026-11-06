@@ -84,7 +84,7 @@ async def main():
                     opening.onupgradeneeded=()=>{const db=opening.result;db.createObjectStore('captures',{keyPath:'id'});if(version>=2){const p=db.createObjectStore('passages',{keyPath:'passageId'});p.createIndex('capture','captureId');if(version===2||version===4)p.createIndex('message',['captureId','messageId','nodeId']);}};
                     const db=await request(opening),names=version>=2?['captures','passages']:['captures'];
                     await new Promise((resolve,reject)=>{const tx=db.transaction(names,'readwrite');tx.objectStore('captures').put({id:'retained',state:'partial',payload:'unchanged'});if(version>=2)tx.objectStore('passages').put({passageId:'p1',captureId:'retained',conversationId:'c',messageId:'m',nodeId:'n',createdAt:42,text:'unchanged'});tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error);});db.close();
-                    const up=await TLStore.open(name);if(up.version!==5)throw Error('INDEX_REPAIR_NOT_APPLIED');
+                    const up=await TLStore.open(name);if(up.version!==6)throw Error('INDEX_REPAIR_NOT_APPLIED');
                     const row=await request(up.transaction('captures').objectStore('captures').get('retained'));if(row.payload!=='unchanged')throw Error('MIGRATION_DATA_LOSS');
                     const ps=up.transaction('passages').objectStore('passages');if(!ps.indexNames.contains('createdAt')||!ps.indexNames.contains('source'))throw Error('INDEX_MISSING');
                     if(version>=2&&(await request(ps.get('p1'))).text!=='unchanged')throw Error('PASSAGE_MIGRATION_LOSS');

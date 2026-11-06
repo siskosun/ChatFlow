@@ -480,3 +480,10 @@ body { overflow-x: clip; }
 #manual-handoff .file-button {text-align:center}
 #manual-copy-status {margin:8px 0;color:var(--ink);font-size:13px;line-height:1.6}
 #manual-copy-status:empty {display:none}
+
+#resume-handoff {display:block;width:calc(100% - 32px);margin:12px 16px 0;min-height:44px;font-size:14px}
+#resume-handoff[hidden]{display:none!important}
+.integrity-summary {margin:13px 0;border:1px solid var(--line);border-radius:12px;padding:12px}
+.integrity-summary ul {padding-left:20px;margin:9px 0;line-height:1.6}
+.integrity-summary li {font-size:13px;margin-bottom:3px}
+.integrity-summary pre {overflow:auto;max-height:240px;white-space:pre-wrap}

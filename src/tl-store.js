@@ -7,7 +7,7 @@
  function putCapture(stores,capture){stores.captures.put(capture);stores.captureSummaries.put(captureSummary(capture));}
  // Version 5 repairs v2 -> v4 databases whose existing passages store missed indexes.
  // No records, keys, archive formats or blob references are rewritten.
- const DB_VERSION = 5;
+ const DB_VERSION = 6;
  const schema = {
   tasks: ['id', [['code','code',true]]],
   taskResults: ['id', [['task','taskId'], ['content',['taskId','textHash'],true]]],
@@ -15,7 +15,7 @@
   assets: [['captureId','key'], [['capture','captureId']]],
   files: ['sha256', []],
   chunks: [['captureId','key','seq'], [['owner',['captureId','key']], ['capture','captureId']]],
-  handoffs: ['id', []],
+  handoffs: ['id', [['capture','captureId']]],
   passages: ['passageId', [['capture','captureId'], ['createdAt','createdAt'], ['source',['captureId','conversationId','messageId','nodeId']]]],
   captureSummaries: ['id', [['updatedAt',['updatedAt','id']], ['sourceScope',['source.origin','source.conversationId','saveScope']]]],
   taskSummaries: ['id', [['createdAt',['createdAt','id']]]],
@@ -103,6 +103,28 @@
    C.check(await request(s.captures.get(value.captureId)),'HANDOFF_SOURCE_DELETED');
    for(const f of value.files){C.check(/^[a-f0-9]{64}$/.test(f.sha256||'')&&f.size>0,'INVALID_HANDOFF_FILE');const row=await request(s.files.get(f.sha256));C.check(row?.blob instanceof Blob&&row.size===f.size&&row.blob.size===f.size,'LOCAL_FILE_MISSING');}
    return request(s.handoffs.put(value));
+  });
+ }
+ // Capture-scoped access, including old records migrated from v1-v5.
+ const handoffsForCapture=captureId=>{
+  C.check(typeof captureId==='string'&&captureId.length>0,'INVALID_HANDOFF_CAPTURE');
+  return transaction(['handoffs'],'readonly',s=>request(s.handoffs.index('capture').getAll(captureId)));
+ };
+ // Expire only old unclaimed or blocked records. A claimed or partially
+ // injected handoff may still contain a draft and is never automatically removed.
+ async function pruneHandoffs(captureId,keepId){
+  return transaction(['handoffs','files','assets'],'readwrite',async s=>{
+   const rows=await request(s.handoffs.index('capture').getAll(captureId));
+   const stale=rows.filter(h=>h.id!==keepId&&!h.targetTabId&&['prepared','injection_blocked'].includes(h.state)&&
+    Number.isFinite(Date.parse(h.createdAt))&&Date.now()-Date.parse(h.createdAt)>14*86400000);
+   if(!stale.length)return 0;
+   const hashes=new Set();
+   for(const h of stale){s.handoffs.delete(h.id);for(const f of h.files||[])if(f.sha256)hashes.add(f.sha256);}
+   const survivors=await request(s.handoffs.getAll());
+   const used=new Set(survivors.flatMap(h=>(h.files||[]).map(f=>f.sha256)));
+   for(const a of await request(s.assets.getAll()))if(a.sha256)used.add(a.sha256);
+   for(const sha of hashes)if(!used.has(sha))s.files.delete(sha);
+   return stale.length;
   });
  }
  const assets=captureId=>transaction(['assets'],'readonly',s=>request(s.assets.index('capture').getAll(captureId)));
@@ -269,5 +291,5 @@
    putCapture(stores,{...capture,verifications});return true;
   });
  }
- globalThis.TLStore=Object.freeze({DB_VERSION,recordVerification,open,get,all,set,assets,readArchive,listCaptures,findCapture,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
+ globalThis.TLStore=Object.freeze({DB_VERSION,recordVerification,open,get,all,set,handoffsForCapture,pruneHandoffs,assets,readArchive,listCaptures,findCapture,passages,allPassages,putPassage,deletePassage,updatePassageStatus,updatePassageColor,snapshot,beginAsset,chunk,finishAsset,failAsset,finishCapture,verifiedBlob,putBlob,recover,removeCapture,importCapture});
 })();

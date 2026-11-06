@@ -596,6 +596,17 @@ async def main():
               return all.find(h=>h.state==='prepared'&&h.prompt===shown)?.id;
             }""")
             assert prepared_id, 'UI prepared handoff not found'
+            # A closed/reloaded side panel can recover the same handoff,
+            # selections and branch without creating another archive or tab.
+            await workspace.reload()
+            await wait_async(workspace,"()=>document.querySelector('#resume-handoff')&&!document.querySelector('#resume-handoff').hidden",timeout=15000)
+            await workspace.locator('#resume-handoff').click()
+            await wait_async(workspace,"()=>!document.querySelector('#handoff-result').hidden",timeout=15000)
+            restored=await workspace.evaluate("()=>document.querySelector('#prompt').textContent")
+            restored_id=await workspace.evaluate("""async()=>{const all=await TLStore.all('handoffs');return all.find(h=>h.state==='prepared'&&h.prompt===document.querySelector('#prompt').textContent)?.id}""")
+            assert restored_id==prepared_id and restored
+            assert await workspace.locator('#open-target').is_enabled()
+            passed('handoff_restored_with_same_id_after_sidebar_reload')
             await workspace.evaluate("""async id=>{
               const h=await TLStore.get('handoffs',id);
               await TLStore.set('handoffs',{...h,state:'injection_blocked',lastError:'USER_DRAFT_PRESENT'});
@@ -616,8 +627,13 @@ async def main():
             assert 'USER_DRAFT_PRESENT' in technical
             assert 'sourceConversationId' not in technical and 'snapshotHash' not in technical
             await workspace.evaluate("()=>ChatFlowWorkspace.show('handoff')")
+            workspace.once('dialog',lambda dialog: asyncio.create_task(dialog.accept()))
             await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
+            retried=await workspace.evaluate("async id=>TLStore.get('handoffs',id)",prepared_id)
+            assert retried['id']==prepared_id and retried['state']=='prepared' and retried['retryCount']==1
+            assert retried.get('targetTabId') is None
+            passed('explicit_retry_reuses_blocked_handoff_without_rebinding_old_tab')
             assert await workspace.locator('#handoff-recovery').is_hidden()
             assert not await workspace.locator('#manual-handoff').evaluate('(d)=>d.open')
             # Fully manual flow remains usable without touching ChatGPT's DOM.
@@ -637,8 +653,26 @@ async def main():
             assert await workspace.evaluate("()=>getSelection().toString()===document.querySelector('#prompt').textContent")
             passed('manual_handoff_keeps_exact_prompt_copyable_without_injection_or_clobber')
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
+            # A partial injection allows both per-file and batch user attestations.
+            await workspace.evaluate("""async id=>{
+              const h=await TLStore.get('handoffs',id);
+              await TLStore.set('handoffs',{...h,state:'partial_injection',targetTabId:12345});
+            }""",prepared_id)
+            await wait_async(workspace,"()=>document.querySelector('#handoff-state').textContent.includes('注入未完整确认')")
+            summary=workspace.locator('#handoff-view details.advanced summary').filter(has_text='上传核对')
+            await summary.click()
+            await workspace.locator('#confirmed').check()
+            await wait_async(workspace,"()=>!document.querySelector('#confirm-upload').disabled")
+            await workspace.locator('#confirm-upload').click()
+            await wait_async(workspace,"async()=> (await TLStore.get('handoffs','%s'))?.state==='user_verified_upload'"%prepared_id)
+            attest=await workspace.evaluate("async id=>TLStore.get('handoffs',id)",prepared_id)
+            assert set(attest['userFileChecks'])==set(attest['batches'][0])
+            passed('partial_injection_batch_attestation_requires_explicit_checkbox_and_matches_file_controls')
             # A previously prepared package must not survive a source-branch change.
             await workspace.get_by_role('button',name='我的档案').click()
+            history=workspace.locator('#detail details[data-archive-history]')
+            if not await history.evaluate('(d)=>d.open'):
+                await history.locator('summary').click()
             await workspace.locator('#archive-branch').select_option(alternate_value)
             await workspace.locator('.message pre').filter(has_text='Alternative conclusion, not the active path.').wait_for(state='visible')
             await workspace.get_by_role('button',name='继续到新对话').click()

@@ -8,7 +8,10 @@ const provider=fs.readFileSync(new URL('../src/tl-provider.js',import.meta.url),
 const service=fs.readFileSync(new URL('../src/tl-service.js',import.meta.url),'utf8');
 async function harness({navigationFails=false,navigationGate=null,bootFailures=0}={}){
  const records=new Map([['handoff',{id:'handoff',captureId:'capture',state:'prepared',prompt:'Test',files:[{name:'history.md',size:1,sha256:'a'.repeat(64)}],batches:[[0]],missing:[]}]]),events=[],tabs=new Map(),panelBehaviors=[];
- const store={get:async(name,key)=>structuredClone(records.get(key)),all:async name=>name==='handoffs'?[...records.values()].map(x=>structuredClone(x)):[],set:async(name,value)=>{records.set(value.id,structuredClone(value));events.push('persist:'+value.state);},recover:async()=>{}};
+ const store={get:async(name,key)=>structuredClone(records.get(key)),all:async name=>name==='handoffs'?[...records.values()].map(x=>structuredClone(x)):[],
+  handoffsForCapture:async captureId=>[...records.values()].filter(x=>x.captureId===captureId).map(x=>structuredClone(x)),
+  pruneHandoffs:async()=>0,
+  set:async(name,value)=>{records.set(value.id,structuredClone(value));events.push('persist:'+value.state);},recover:async()=>{}};
  const event=()=>({addListener(){}});
  const api={runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:event()},storage:{session:{get:async()=>{if(bootFailures-->0)throw Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS');return{};},set:async()=>{}}},action:{onClicked:{addListener(){throw Error('Legacy full-page action handler must not be registered');}}},sidePanel:{setPanelBehavior:async options=>{panelBehaviors.push({...options});}},scripting:{executeScript:async()=>{}},permissions:{contains:async()=>true},
   windows:{create:async()=>{throw Error('WINDOW_CREATION_NOT_ALLOWED');},update:async()=>{}},
