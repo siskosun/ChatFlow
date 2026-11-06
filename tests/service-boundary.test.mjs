@@ -14,7 +14,7 @@ async function harness({navigationFails=false,navigationGate=null,bootFailures=0
   windows:{create:async()=>{throw Error('WINDOW_CREATION_NOT_ALLOWED');},update:async()=>{}},
   tabs:{onUpdated:event(),onRemoved:event(),create:async options=>{assert.equal(options.url,'about:blank');assert.equal(options.windowId,9);assert.equal(options.active,true);events.push('create-tab');const tab={id:17,windowId:9,url:'about:blank',status:'complete'};tabs.set(17,tab);return tab;},get:async id=>tabs.get(id),query:async()=>[],sendMessage:async()=>{events.push('announce');},update:async(id,options)=>{const h=records.get('handoff');assert.equal(h.targetTabId,id);assert.equal(h.state,'target_opened');events.push('navigate');if(navigationGate)await navigationGate;if(navigationFails)throw Error('network failure');tabs.set(id,{...tabs.get(id),url:options.url,status:'loading'});return tabs.get(id);}}
  };
- const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,ChatFlowExperimentService:{handle:async()=>undefined,recover:async()=>{},onTabUpdated:async()=>{},onTabRemoved:async()=>{},onCaptureFinished:async()=>{}},importScripts(){},structuredClone});
+ const context=vm.createContext({console,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,Uint32Array,DataView,ArrayBuffer,Blob,AbortController,setTimeout,clearTimeout,crypto:webcrypto,atob,btoa,chrome:api,TLStore:store,TLDiagnostics:{record:async(operation,error)=>{events.push('diagnostic:'+operation+':'+error.message);return true;}},ChatFlowExperimentService:{handle:async()=>undefined,recover:async()=>{},onTabUpdated:async()=>{},onTabRemoved:async()=>{},onCaptureFinished:async()=>{}},importScripts(){},structuredClone});
  vm.runInContext(core,context);
  vm.runInContext(provider,context);
  vm.runInContext(service+'\n globalThis.TEST_BOUNDARY={openHandoff,claim,targetHandoff,handle,sourceRun,runs,boot};',context);
@@ -57,6 +57,7 @@ test('navigation uncertainty is persisted and never automatically retried',async
  assert.equal(h.records.get('handoff').state,'injection_blocked');
  await assert.rejects(h.openHandoff('handoff',workspaceSender),/HANDOFF_ALREADY_OPENED/);
  assert.equal(h.events.filter(x=>x==='navigate').length,1);
+ assert.ok(h.events.includes('diagnostic:handoff-inject:TARGET_NAVIGATION_UNCONFIRMED'));
 });
 test('only the first claim for the exact new tab and document succeeds',async()=>{
  const h=await harness();await h.openHandoff('handoff',workspaceSender);
