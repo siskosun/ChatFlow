@@ -5,7 +5,7 @@
  const S = globalThis.TLPageScope, C = globalThis.TLCore;
  if (!S?.selectedMessage || !C?.chatUrl) return;
  globalThis.ChatFlowSelectionActionInstalled = true;
- const LABEL = '交给 ChatFlow', ERROR = '打开失败，点击重试';
+ const LABEL = 'ChatFlow选文', ERROR = '打开失败，点击重试';
  let host = null, button = null, current = null, dismissed = null;
  let timer = null, nativeTimer = null, nativeStop = null, nativeObserver = null;
 
@@ -68,11 +68,11 @@
   if (!host || host.hidden) return;
   // Measure after the label changes: errors can be wider or wrap to two lines.
   const measured = host.getBoundingClientRect(), width = measured.width, height = measured.height;
-  const pad = 10, gap = 8, native = adjacentNativeButton(value.rect), anchor = native || value.line;
+  const pad = 10, gap = 6, native = adjacentNativeButton(value.rect), anchor = native || value.line;
   let x, y;
   if (native) {
-   if (native.right + gap + width <= innerWidth - pad) { x = native.right + gap;y = native.top; }
-   else if (native.left - gap - width >= pad) { x = native.left - gap - width;y = native.top; }
+   if (native.right + gap + width <= innerWidth - pad) { x = native.right + gap;y = native.top + (native.height-height)/2; }
+   else if (native.left - gap - width >= pad) { x = native.left - gap - width;y = native.top + (native.height-height)/2; }
    else {
     x = native.left;
     y = native.top - height - gap >= pad ? native.top - height - gap : native.bottom + gap;
@@ -94,23 +94,26 @@
   host.hidden = false;place(record.value);
  }
  function createHost() {
-  if (host) return;
+  // A DOM singleton survives duplicate injections with separate JS globals.
+  if (host?.isConnected === false) { host = null;button = null; }
+  if (host) return true;
+  if (document.querySelector?.('#chatflow-selected-action')) return false;
   host = document.createElement('div');host.id = 'chatflow-selected-action';host.hidden = true;
   const shadow = host.attachShadow({ mode: 'open' }), style = document.createElement('style');
   style.textContent = [
    ':host{all:initial;display:block;position:fixed;left:0;top:0;z-index:2147483646;line-height:1;pointer-events:auto;width:max-content;max-width:calc(100vw - 20px)}',
    ':host([hidden]){display:none!important}',
-   'button{box-sizing:border-box;display:block;font:800 13px/1.35 system-ui,sans-serif;color:#11100e;background:#ff7a66;border:1.5px solid #11100e;border-radius:10px;',
-   'padding:8px 12px;min-height:36px;max-width:calc(100vw - 20px);box-shadow:3px 3px 0 #11100e;white-space:normal;overflow-wrap:anywhere;cursor:pointer}',
-   'button:hover:not(:disabled){background:#ffa08f;transform:translate(1px,1px);box-shadow:2px 2px 0 #11100e}',
-   'button:focus-visible{outline:3px solid #8369ef;outline-offset:3px}',
+   'button{box-sizing:border-box;display:block;font:600 13px/1.3 system-ui,sans-serif;color:#262626;background:#fff;border:1px solid #d1d5db;border-radius:12px;',
+   'padding:6px 11px;min-height:32px;max-width:calc(100vw - 20px);box-shadow:0 2px 8px #00000020;white-space:nowrap;overflow-wrap:anywhere;cursor:pointer}',
+   'button:hover:not(:disabled){background:#f4f4f5;border-color:#b5bac3}',
+   'button:focus-visible{outline:3px solid #8369ef;outline-offset:2px}',
    'button:disabled{opacity:.65;cursor:progress;box-shadow:none}'
   ].join('\n');
   button = document.createElement('button');button.type = 'button';button.textContent = LABEL;
   button.setAttribute('aria-live', 'polite');
   button.addEventListener('pointerdown', event => event.preventDefault());
   button.addEventListener('click', activate);
-  shadow.append(style, button);document.documentElement.append(host);
+  shadow.append(style, button);document.documentElement.append(host);return true;
  }
  async function activate() {
   const record = current;
@@ -163,7 +166,7 @@
   if (sameSelection(dismissed, value)) { clearCurrent();return; }
   dismissed = null;
   if (!current || !sameSelection(current.value, value)) {
-   clearCurrent();createHost();
+   clearCurrent();if(!createHost())return;
    const record = { value, pending: false, error: null };
    current = record;render(record);watchNative(record);
   } else {

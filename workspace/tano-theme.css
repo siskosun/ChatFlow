@@ -420,9 +420,11 @@ body { overflow-x: clip; }
   color:var(--muted);font-size:12px;font-weight:650;
   padding:8px 6px;
 }
-.header-actions .nav-settings::before {content:"⚙";margin-right:5px;font-size:15px;}
-.header-actions .nav-settings:hover:not(:disabled) {background:transparent;color:var(--ink);text-decoration:underline;}
-.header-actions [aria-current="page"] {text-decoration:underline;text-underline-offset:4px;}
+.header-actions .nav-settings::before {content:"⚙";display:inline-block;margin-right:5px;font-size:15px;text-decoration:none;}
+.header-actions .nav-settings:hover:not(:disabled) {background:transparent;color:var(--ink);text-decoration:none;}
+.header-actions [aria-current="page"] {text-decoration:none;}
+.header-actions [aria-current="page"] .nav-label,
+.header-actions .nav-settings:hover:not(:disabled) .nav-label {text-decoration:underline;text-underline-offset:4px;}
 .settings-tools-choice {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;}
 .settings-tools-choice select {min-width:0;margin:0;}
 #settings-tools-current {justify-self:stretch;min-height:45px;background:#DDE9DD;box-shadow:none;}
@@ -445,4 +447,19 @@ body { overflow-x: clip; }
  #settings-tools-current {background:#344539;color:#FFF3DF;}
  .settings-experiment,.handoff-steps span {background:#393544;color:#FFF3DF;border-color:#9487A3;}
  #detail details[data-archive-history]>summary {background:#39362F;color:#FFF3DF;border-color:#F3E6D4;}
+}
+
+/* Task actions remain distinct buttons in both active and inactive states. */
+.mode-switch {gap:9px;}
+.mode-switch button:not([aria-pressed="true"]) {
+ border:1.5px solid var(--edge);border-radius:10px;background:var(--paper);color:var(--ink);
+ font-size:14px;font-weight:710;min-height:40px;padding:8px 15px;box-shadow:2px 2px 0 var(--shadow);
+}
+.mode-switch button[aria-pressed="true"],.mode-switch button[aria-pressed="true"]:hover {
+ border:1.5px solid var(--edge);border-radius:10px;background:#C9B6FF;color:#11100E;
+ font-size:14px;font-weight:780;min-height:40px;padding:8px 15px;box-shadow:2px 2px 0 var(--shadow);
+}
+@media(prefers-color-scheme:dark){
+ .mode-switch button:not([aria-pressed="true"]){background:var(--paper);color:var(--ink);border-color:#F7E9D2}
+ .mode-switch button[aria-pressed="true"],.mode-switch button[aria-pressed="true"]:hover{background:#433E33;color:#FFF3DF;border-color:#F7E9D2}
 }
