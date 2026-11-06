@@ -6,7 +6,7 @@ vm.runInThisContext(fs.readFileSync('src/tl-core.js','utf8'));
 const C=TLCore,service=fs.readFileSync('src/tl-service.js','utf8');
 const start=service.indexOf('async function prepareHandoff(msg){'),end=service.indexOf('\nasync function announce(',start);
 assert.ok(start>=0&&end>start);
-async function fixture({identical=false}={}){
+async function fixture({identical=false,openTargets=[]}={}){
  const mapping={};for(let i=0;i<4;i++)mapping['n'+i]={parent:i?'n'+(i-1):null,children:i<3?['n'+(i+1)]:[],message:{
   id:'m'+i,author:{role:i%2?'assistant':'user'},content:{parts:['Synthetic message '+i]},metadata:{
    attachments:[{id:'file-'+i,name:['report.pdf','report.pdf','conversation_history_001.md','handoff_index.md'][i]}]
@@ -26,7 +26,8 @@ async function fixture({identical=false}={}){
   verifiedBlob:async hash=>{assert.ok(blobs.has(hash));return blobs.get(hash);},
   putBlob:async blob=>{const sha256=await C.hashBlob(blob);blobs.set(sha256,blob);return {sha256,size:blob.size};},
   set:async(store,row)=>{assert.equal(store,'handoffs');const prior=records.findIndex(x=>x.id===row.id);if(prior>=0)records[prior]=row;else records.push(row);return row;}};
- const prepare=vm.runInNewContext(service.slice(start,end)+'\nprepareHandoff',{C,S,Blob});
+ const api={tabs:{query:async()=>openTargets.map(id=>({id}))}};
+ const prepare=vm.runInNewContext(service.slice(start,end)+'\nprepareHandoff',{C,S,Blob,api});
  return {prepare,rows,capture,blobs,records,msg:{captureId:capture.id,keys:rows.map(r=>r.key),instructions:'Continue',batchLimit:10}};
 }
 test('same names and reserved history/index names map to exact message and attachment references',async()=>{
@@ -60,10 +61,15 @@ test('new mapping format does not reuse an older prepared handoff without source
  const fresh=await f.prepare(f.msg);assert.notEqual(fresh.id,'legacy-prepared');
  const repeat=await f.prepare(f.msg);assert.equal(repeat.id,fresh.id);
 });
-test('explicit blocked retry uses original identity and detaches the prior tab',async()=>{
- const f=await fixture(),prepared=await f.prepare(f.msg);
+test('explicit blocked retry refuses open old target, then safely reuses identity once closed',async()=>{
+ const openTargets=[123],f=await fixture({openTargets}),prepared=await f.prepare(f.msg);
  const stored=f.records.find(x=>x.id===prepared.id);
  stored.state='injection_blocked';stored.targetTabId=123;stored.targetDocumentId='doc-old';
+ await assert.rejects(f.prepare({...f.msg,retryBlocked:true}),/HANDOFF_OLD_TARGET_STILL_OPEN/);
+ assert.equal(stored.state,'injection_blocked');
+ assert.equal(stored.targetTabId,123);
+ assert.equal(f.records.length,1);
+ openTargets.splice(0);
  const same=await f.prepare({...f.msg,retryBlocked:true});
  assert.equal(same.id,prepared.id);
  assert.equal(same.state,'prepared');
@@ -71,4 +77,13 @@ test('explicit blocked retry uses original identity and detaches the prior tab',
  assert.equal(same.targetDocumentId,null);
  assert.equal(same.retryCount,1);
  assert.equal(f.records.filter(x=>x.id===prepared.id).length,1);
+});
+
+test('cannot verify original tab state: do not clear blocked handoff binding',async()=>{
+ const openTargets=[999],f=await fixture({openTargets}),h=await f.prepare(f.msg);
+ const stored=f.records[0];stored.state='injection_blocked';stored.targetTabId=999;
+ openTargets.map=()=>{throw new Error('temporary tabs outage');};
+ await assert.rejects(f.prepare({...f.msg,retryBlocked:true}),/HANDOFF_TARGET_CHECK_UNAVAILABLE/);
+ assert.equal(stored.targetTabId,999);
+ assert.equal(stored.state,'injection_blocked');
 });

@@ -627,6 +627,21 @@ async def main():
             assert 'USER_DRAFT_PRESENT' in technical
             assert 'sourceConversationId' not in technical and 'snapshotHash' not in technical
             await workspace.evaluate("()=>ChatFlowWorkspace.show('handoff')")
+            # Pre-fill can have left a draft in an original target while the
+            # handoff state is blocked. An explicit retry must fail closed.
+            old_target=await workspace.evaluate("async()=>chrome.tabs.create({url:'https://chatgpt.com/'})")
+            assert old_target['id']>0
+            await workspace.evaluate("""async x=>{
+              const h=await TLStore.get('handoffs',x.handoff);
+              await TLStore.set('handoffs',{...h,targetTabId:x.tab,targetDocumentId:'old-document'});
+            }""",{'handoff':prepared_id,'tab':old_target['id']})
+            workspace.once('dialog',lambda dialog: asyncio.create_task(dialog.accept()))
+            await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
+            await wait_async(workspace,"()=>document.querySelector('#status').textContent.includes('原接续标签页仍打开')",timeout=15000)
+            untouched=await workspace.evaluate("async id=>TLStore.get('handoffs',id)",prepared_id)
+            assert untouched['state']=='injection_blocked' and untouched['targetTabId']==old_target['id']
+            passed('blocked_handoff_retry_refuses_live_old_target_and_preserves_draft_binding')
+            await workspace.evaluate("async id=>chrome.tabs.remove(id)",old_target['id'])
             workspace.once('dialog',lambda dialog: asyncio.create_task(dialog.accept()))
             await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
