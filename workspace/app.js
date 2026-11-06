@@ -15,7 +15,11 @@
    .sort((a,b)=>String(b.retriedAt||b.createdAt||'').localeCompare(String(a.retriedAt||a.createdAt||'')));
   let ptr=null;
   try{ptr=(await chrome.storage.session.get(handoffSessionKey(captureId)))[handoffSessionKey(captureId)];}catch{}
-  const h=rows.find(row=>row.id===ptr?.id)||rows[0];
+  const pointed=rows.find(row=>row.id===ptr?.id),latest=rows[0];
+  // Session pointers are hints. A newer prepared/attempted record supersedes
+  // an older pointer created by another sidebar, not the other way around.
+  const date=h=>String(h?.retriedAt||h?.createdAt||'');
+  const h=pointed&&date(pointed)>=date(latest)?pointed:latest;
   if(!h)return false;
   const capture=await S.get('captures',captureId);
   if(!capture?.snapshot||TLPassages.snapshotHash(capture.snapshot)!==h.snapshotHash)return false;
