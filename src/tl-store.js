@@ -115,7 +115,7 @@
  async function pruneHandoffs(captureId,keepId){
   return transaction(['handoffs','files','assets'],'readwrite',async s=>{
    const rows=await request(s.handoffs.index('capture').getAll(captureId));
-   const stale=rows.filter(h=>h.id!==keepId&&['prepared','injection_blocked'].includes(h.state)&&
+   const stale=rows.filter(h=>h.id!==keepId&&!h.targetTabId&&['prepared','injection_blocked'].includes(h.state)&&
     Number.isFinite(Date.parse(h.createdAt))&&Date.now()-Date.parse(h.createdAt)>14*86400000);
    if(!stale.length)return 0;
    const hashes=new Set();
