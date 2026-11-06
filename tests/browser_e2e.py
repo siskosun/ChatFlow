@@ -606,6 +606,15 @@ async def main():
             assert await workspace.locator('#manual-handoff').evaluate('(d)=>d.open')
             assert '已有草稿' in await workspace.locator('#handoff-state').inner_text()
             assert '不会自动重试或发送' in await workspace.locator('#handoff-recovery').inner_text()
+            # Old failures predate the new event log but must still be visible
+            # through the persisted handoff's bounded lastError code.
+            await workspace.locator('header [data-view="settings"]').click()
+            await workspace.locator('#feature-open-diagnostics').click()
+            assert '已保存接续失败记录：目标已有草稿，未覆盖' in await workspace.locator('#diagnostic-list').inner_text()
+            technical=await workspace.locator('#diagnostic-codes').text_content()
+            assert 'USER_DRAFT_PRESENT' in technical
+            assert 'sourceConversationId' not in technical and 'snapshotHash' not in technical
+            await workspace.evaluate("()=>ChatFlowWorkspace.show('handoff')")
             await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
             assert await workspace.locator('#handoff-recovery').is_hidden()
@@ -617,13 +626,13 @@ async def main():
             await workspace.evaluate("""() => Object.defineProperty(navigator,'clipboard',{configurable:true,
               value:{writeText:async text=>{globalThis.manualCopied=text;}}})""")
             await workspace.locator('#copy-handoff-prompt').click()
-            assert await workspace.evaluate("()=>globalThis.manualCopied===document.querySelector('#prompt').textContent")
+            await wait_async(workspace,"()=>globalThis.manualCopied===document.querySelector('#prompt').textContent",timeout=15000)
             assert '已复制' in await workspace.locator('#manual-copy-status').inner_text()
             # Rejected clipboard writes must expose selectable source, not claim success.
             await workspace.evaluate("""() => Object.defineProperty(navigator,'clipboard',{configurable:true,
               value:{writeText:async()=>{throw new DOMException('denied','NotAllowedError')}}})""")
             await workspace.locator('#copy-handoff-prompt').click()
-            assert '已选中' in await workspace.locator('#manual-copy-status').inner_text()
+            await wait_async(workspace,"()=>document.querySelector('#manual-copy-status').textContent.includes('已选中')",timeout=15000)
             assert await workspace.evaluate("()=>getSelection().toString()===document.querySelector('#prompt').textContent")
             passed('manual_handoff_keeps_exact_prompt_copyable_without_injection_or_clobber')
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')

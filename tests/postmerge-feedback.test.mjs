@@ -32,6 +32,10 @@ test('manual handoff always exposes a native link, verified prompt copy and sele
  assert.match(app,/await navigator\.clipboard\.writeText\(h\.prompt\)/);
  assert.match(app,/range\.selectNodeContents\(prompt\)/);
  assert.match(app,/HANDOFF_SOURCE_CHANGED/);
+ const flow=read('workspace/flow.js');
+ assert.match(flow,/TLStore\.all\('handoffs'\)/);
+ assert.match(flow,/savedHandoffFailures:priorFailures/);
+ assert.doesNotMatch(flow,/prompt:h\.prompt|sourceConversationId:h\.sourceConversationId/);
 });
 test('experiment backend maps known validation failures to stable safe codes',()=>{
  const code=functionFrom('src/tl-service.js','function errorCode(e)','const trusted','errorCode');

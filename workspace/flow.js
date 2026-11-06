@@ -264,18 +264,36 @@
   'CANCELLED_OR_TIMEOUT':'操作超时或被取消','HANDOFF_NOT_CONFIRMED':'失败类型尚未识别'};
  async function readDiagnostics(){
   const result=await TLDiagnostics.list(),rows=result.rows||[];
+  // Earlier releases did not log handoff errors, but kept the safe error
+  // code in the stored handoff record. Reuse that evidence without exposing
+  // source IDs, prompts, file metadata, URLs, or arbitrary error messages.
+  let priorFailures=[],handoffsUnreadable=false;
+  try {
+   const stored=await TLStore.all('handoffs');
+   priorFailures=stored.filter(h=>h&&['injection_blocked','partial_injection'].includes(h.state))
+    .sort((a,b)=>String(b.reportedAt||b.createdAt||'').localeCompare(String(a.reportedAt||a.createdAt||'')))
+    .slice(0,5).map(h=>{
+     const ms=Date.parse(String(h.reportedAt||h.createdAt||''));
+     return {code:Object.hasOwn(diagnosticReasons,h.lastError)?h.lastError:'HANDOFF_NOT_CONFIRMED',
+      at:Number.isFinite(ms)?new Date(ms).toISOString():null};
+    });
+  }catch{handoffsUnreadable=true;}
   diagnosticList.replaceChildren();
+  for(const item of priorFailures){
+   const at=item.at?new Date(item.at).toLocaleString()+' · ':'';
+   diagnosticList.append(n('li',at+'已保存接续失败记录：'+diagnosticReasons[item.code]));
+  }
   for(const entry of rows.slice(-12).reverse()){
    const label=diagnosticOperations[entry.operation]||'后台操作';
    const reason=entry.code?(diagnosticReasons[entry.code]||'失败类型尚未识别'):'已记录本地错误';
    diagnosticList.append(n('li',new Date(entry.at).toLocaleString()+' · '+label+'：'+reason));
   }
-  diagnosticStatus.textContent=result.storageFailed?
-   '本地诊断记录读取不完整，请检查扩展存储权限；这不能说明接续是否成功。':
-   rows.length?'显示最近 '+Math.min(rows.length,12)+' 条错误类型记录，不含对话内容。':
-   '目前没有可读取的错误记录。这不代表接续或上传已经成功。';
-  diagnosticOutput.textContent=JSON.stringify(result,null,2);
-  diagnosticTechnical.hidden=!rows.length&&!result.storageFailed;
+  diagnosticStatus.textContent=result.storageFailed||handoffsUnreadable?
+   '部分本地记录未能读取，当前诊断不完整；请检查扩展存储是否可用。':
+   rows.length||priorFailures.length?'找到 '+priorFailures.length+' 条历史接续失败及 '+rows.length+' 条诊断事件；不含对话内容。':
+   '没有可读取的错误记录。这不代表接续或上传已经成功。';
+  diagnosticOutput.textContent=JSON.stringify({...result,savedHandoffFailures:priorFailures,handoffsUnreadable},null,2);
+  diagnosticTechnical.hidden=!rows.length&&!priorFailures.length&&!result.storageFailed&&!handoffsUnreadable;
  }
  const diagnosticsPanel=n('section',null,{id:'settings-diagnostics-panel',class:'feature-inline-tools',hidden:''});
  diagnosticsPanel.append(n('strong','最近错误记录'),n('p','只记录有限的失败类型；不会保存对话原文。'),
