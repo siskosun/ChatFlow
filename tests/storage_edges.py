@@ -210,13 +210,14 @@ async def main():
               const mk=(id,state,createdAt)=>({id,captureId,createdAt,state,files,batches:[[0]],missing:[]});
               await S.set('handoffs',mk('old-blocked','injection_blocked',old));
               await S.set('handoffs',mk('old-claimed','claimed',old));
+              await S.set('handoffs',{...mk('old-bound','injection_blocked',old),targetTabId:77});
               await S.set('handoffs',mk('recent-prepared','prepared',new Date().toISOString()));
               const before=await S.handoffsForCapture(captureId);
               const removed=await S.pruneHandoffs(captureId,'recent-prepared');
               const after=await S.handoffsForCapture(captureId);
               return {before:before.length,removed,states:after.map(x=>x.state).sort(),blobPresent:!!(await S.get('files',blob.sha256))};
             }""")
-            assert prune=={'before':3,'removed':1,'states':['claimed','prepared'],'blobPresent':True},prune
+            assert prune=={'before':4,'removed':1,'states':['claimed','injection_blocked','prepared'],'blobPresent':True},prune
             result['cases'].append({'name':'v6_capture_index_prunes_only_stale_unclaimed_without_losing_shared_bytes','result':'pass'})
             result['status']='pass'
             for case in result['cases']:print('PASS',case['name'],flush=True)
