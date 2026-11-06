@@ -596,6 +596,17 @@ async def main():
               return all.find(h=>h.state==='prepared'&&h.prompt===shown)?.id;
             }""")
             assert prepared_id, 'UI prepared handoff not found'
+            # A closed/reloaded side panel can recover the same handoff,
+            # selections and branch without creating another archive or tab.
+            await workspace.reload()
+            await wait_async(workspace,"()=>document.querySelector('#resume-handoff')&&!document.querySelector('#resume-handoff').hidden",timeout=15000)
+            await workspace.locator('#resume-handoff').click()
+            await wait_async(workspace,"()=>!document.querySelector('#handoff-result').hidden",timeout=15000)
+            restored=await workspace.evaluate("()=>document.querySelector('#prompt').textContent")
+            restored_id=await workspace.evaluate("""async()=>{const all=await TLStore.all('handoffs');return all.find(h=>h.state==='prepared'&&h.prompt===document.querySelector('#prompt').textContent)?.id}""")
+            assert restored_id==prepared_id and restored
+            assert await workspace.locator('#open-target').is_enabled()
+            passed('handoff_restored_with_same_id_after_sidebar_reload')
             await workspace.evaluate("""async id=>{
               const h=await TLStore.get('handoffs',id);
               await TLStore.set('handoffs',{...h,state:'injection_blocked',lastError:'USER_DRAFT_PRESENT'});
@@ -616,8 +627,13 @@ async def main():
             assert 'USER_DRAFT_PRESENT' in technical
             assert 'sourceConversationId' not in technical and 'snapshotHash' not in technical
             await workspace.evaluate("()=>ChatFlowWorkspace.show('handoff')")
+            workspace.once('dialog',lambda dialog: asyncio.create_task(dialog.accept()))
             await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
+            retried=await workspace.evaluate("async id=>TLStore.get('handoffs',id)",prepared_id)
+            assert retried['id']==prepared_id and retried['state']=='prepared' and retried['retryCount']==1
+            assert retried.get('targetTabId') is None
+            passed('explicit_retry_reuses_blocked_handoff_without_rebinding_old_tab')
             assert await workspace.locator('#handoff-recovery').is_hidden()
             assert not await workspace.locator('#manual-handoff').evaluate('(d)=>d.open')
             # Fully manual flow remains usable without touching ChatGPT's DOM.
