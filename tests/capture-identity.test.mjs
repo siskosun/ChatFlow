@@ -6,7 +6,7 @@ import vm from 'node:vm';
 function harness(files, messages, assets) {
   const scope = { root: { querySelectorAll: () => files }, status: 'confirmed', conversationId: 'source_alpha_1234' };
   const context = vm.createContext({
-    TLCore: { check(ok, code) { if (!ok) throw Error(code); }, safeName: value => value, pointer: value => ({ path: value.slice(8) }) },
+    TLCore: { BYTE_LIMITS:{rawConversationJson:32*1024**2,persistedSnapshotJson:24*1024**2}, check(ok, code) { if (!ok) throw Error(code); }, safeName: value => value, pointer: value => ({ path: value.slice(8) }) },
     ChatFlowProviders: {}, TLPageScope: { current: () => scope, contains: () => true },
     chrome: { runtime: { onMessage: { addListener() {} } } }
   });
@@ -47,7 +47,7 @@ test('two distinct unnamed references do not collapse by filename or case', () =
 });
 
 test('unavailable DOM audit does not turn a verified API snapshot into an incomplete mapping', () => {
-  const context = vm.createContext({ TLCore: {}, ChatFlowProviders: {},
+  const context = vm.createContext({ TLCore: {BYTE_LIMITS:{rawConversationJson:32*1024**2,persistedSnapshotJson:24*1024**2}}, ChatFlowProviders: {},
     TLPageScope: { current: () => ({status:'unavailable',root:null}) },
     chrome: { runtime: { onMessage: { addListener() {} } } } });
   const source=fs.readFileSync(new URL('../src/tl-capture.js', import.meta.url),'utf8');
