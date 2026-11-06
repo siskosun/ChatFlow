@@ -48,6 +48,19 @@ test('active DOM scope refuses stale or conflicting threads; visibility alone st
   state.roots = [new Element()]; assert.equal(context.TLPageScope.current().status, 'unverified');
   state.roots = [root('source-B')]; assert.equal(context.TLPageScope.current().status, 'ambiguous');
 });
+test('nested visible scroll containers form one source, distinct peers and mixed identities do not',()=>{
+  const {context,state,Element}=scopeHarness();
+  const root=id=>{const el=new Element();el.children=[new Element({'data-chatgpt-selection-conversation-id':id})];return el;};
+  const outer=root('source-A'),inner=root('source-A');inner.parentElement=outer;outer.children.push(inner);
+  state.roots=[outer,inner];
+  assert.equal(context.TLPageScope.current().status,'confirmed');
+  assert.equal(context.TLPageScope.current().root,outer);
+  const foreign=root('source-B');foreign.parentElement=outer;foreign.attrs['data-chatgpt-selection-conversation-id']='source-B';
+  outer.children.push(foreign);state.roots=[outer,inner,foreign];
+  assert.equal(context.TLPageScope.current().status,'ambiguous','mixed identities must not be assigned to the current source');
+  state.roots=[outer,root('source-A')];
+  assert.equal(context.TLPageScope.current().status,'ambiguous','independent same-id roots remain ambiguous');
+});
 function injectionHarness() {
   const context = vm.createContext({
     chrome: { runtime: { id: 'test', onMessage: { addListener() {} } } },

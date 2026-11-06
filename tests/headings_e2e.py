@@ -43,6 +43,13 @@ async def main():
             try:
                 worker=ctx.service_workers[0] if ctx.service_workers else await ctx.wait_for_event('serviceworker')
                 page=await ctx.new_page();await page.goto(URL)
+                # Nested visible scroll containers belong to the same thread.
+                # Their shared identity should not block deep navigation.
+                await page.evaluate("""() => {
+                  const inner=document.querySelector('#thread');
+                  const outer=document.createElement('div');outer.className='thread-scroll-container';
+                  inner.parentElement.insertBefore(outer,inner);outer.append(inner);
+                }""")
                 w=await ctx.new_page();await w.goto('chrome-extension://'+worker.url.split('/')[2]+'/workspace/index.html')
                 tab=await w.evaluate("async u=>(await chrome.runtime.sendMessage({type:'tl:sources'})).data.find(t=>t.url===u)",URL)
                 result=await w.evaluate("async x=>chrome.runtime.sendMessage({type:'tl:openTools',tabId:x.id,expectedUrl:x.url})",tab)
@@ -79,10 +86,21 @@ async def main():
                 await poll(plain,"()=>document.querySelector('#chatflow-page-tools')?.shadowRoot.textContent.includes('264 条')")
                 plain_query=plain_tools.locator('input[type=search]')
                 question_count=await plain_tools.locator('.row').count()
-                assert question_count>1
+                assert question_count==60,question_count
+                pages=plain_tools.locator('.cf-page-nav')
+                assert await pages.locator('span').inner_text()=='第 1 / 3 页'
+                await pages.get_by_role('button',name='下一页').click()
+                assert await pages.locator('span').inner_text()=='第 2 / 3 页'
+                assert await plain_tools.locator('.row').count()==60
+                await pages.get_by_role('button',name='下一页').click()
+                assert await pages.locator('span').inner_text()=='第 3 / 3 页'
+                assert await plain_tools.locator('.row').count()==12
+                assert 'Question number 262' in ' '.join(await plain_tools.locator('.row button').all_text_contents())
+                report['cases'].append({'name':'timeline_all_questions_accessible_beyond_first_page','result':'pass'})
                 await plain_query.fill('Question number 0')
                 assert await plain_tools.locator('.cf-headings').count()==0
                 assert await plain_tools.locator('.row').count()==1
+                assert await pages.is_hidden()
                 # IME Escape is not a request to clear or dismiss navigation.
                 for ime in ({'isComposing':True},{'keyCode':229}):
                     await plain_query.evaluate("(input,ime)=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,composed:true,cancelable:true,...ime}))",ime)

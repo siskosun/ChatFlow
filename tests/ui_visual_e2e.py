@@ -57,7 +57,20 @@ async def main():
         await page.locator('#detail details[data-archive-history] > summary').click()
         header=await page.locator('#detail .message strong').first.inner_text()
         assert header=='ChatGPT · 第 1 条',header
-       if view=='tasks':await page.locator('#task-mode-return').click()
+       if view=='tasks':
+         await page.locator('#task-mode-return').click()
+         buttons=await page.evaluate("""() => ['task-mode-compose','task-mode-return'].map(id=>{
+           const style=getComputedStyle(document.getElementById(id));
+           return {id,border:style.borderTopStyle,width:parseFloat(style.borderTopWidth),background:style.backgroundColor};
+         })""")
+         assert all(b['border']=='solid' and b['width']>=1 for b in buttons),buttons
+        if view=='settings':
+         nav=await page.evaluate("""() => {
+           const button=document.querySelector('.nav-settings'),label=button.querySelector('.nav-label');
+           return {active:button.getAttribute('aria-current'),button:getComputedStyle(button).textDecorationLine,
+             label:getComputedStyle(label).textDecorationLine,icon:getComputedStyle(button,'::before').display};
+         }""")
+         assert nav=={'active':'page','button':'none','label':'underline','icon':'inline-block'},nav
        value=await page.evaluate(CHECK);value.update({'view':view,'scheme':scheme,'result':'fail' if value['documentWidth']>width+2 or value['failures'] else 'pass'})
        if (width==360 and scheme=='dark') or (width==1440 and scheme=='light'):await page.screenshot(path=str(OUT/f'ui-{view}-{scheme}-{width}.png'),full_page=True)
        report['cases'].append(value)
