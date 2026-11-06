@@ -130,6 +130,15 @@ async function prepareHandoff(msg){
  // while a newer attempt may be claimed or may hold an unsent draft.
  if(msg.retryBlocked===true&&latest?.state==='injection_blocked'){
   const blocked=latest;
+  // A draft can already exist when prefill succeeds but its verification
+  // fails before attachment dispatch. Never open another target while the
+  // original is still present; this is enforced in the trusted worker.
+  if(Number.isInteger(blocked.targetTabId)){
+   let openTabs;
+   try{openTabs=await api.tabs.query({});}catch{throw new Error('HANDOFF_TARGET_CHECK_UNAVAILABLE');}
+   C.check(Array.isArray(openTabs),'HANDOFF_TARGET_CHECK_UNAVAILABLE');
+   C.check(!openTabs.some(t=>t?.id===blocked.targetTabId),'HANDOFF_OLD_TARGET_STILL_OPEN');
+  }
   {
    const reset={...blocked,state:'prepared',targetTabId:null,targetWindowId:null,targetDocumentId:null,
     attemptId:null,fileEvidence:null,userFileChecks:[],lastError:null,reportedAt:null,
@@ -147,7 +156,10 @@ async function prepareHandoff(msg){
  const batches=[];for(let i=0;i<files.length;i+=plan.batchLimit)batches.push(files.slice(i,i+plan.batchLimit).map((_,j)=>i+j));
  const prompt=plan.prompt.replace(/准备批次：\d+/,'准备批次：'+batches.length)+'\n\n请先查看 handoff_index.md；同名原文件已分配不同上传名，必须按索引及哈希区分。'+(batches.length>1?' 首批不是全部材料，剩余批次需要用户手动补充。':'');
  const h={id:C.id(),evidenceVersion:1,captureId:c.id,sourceConversationId:snapshot.source.conversationId,snapshotHash,prepareFingerprint,createdAt:new Date().toISOString(),state:'prepared',prompt,files,batches,missing:plan.missing,excluded:plan.excluded,branchNodeIds:[...branchNodeIds]};await S.set('handoffs',h);
- await S.pruneHandoffs(c.id,h.id).catch(()=>{/* Never discard a verified new handoff on cleanup failure. */});
+ // Tab query failure cannot certify the disappearance of any target.
+ let openTabIds=null;
+ try{const tabs=await api.tabs.query({});if(Array.isArray(tabs))openTabIds=tabs.filter(t=>Number.isInteger(t?.id)).map(t=>t.id);}catch{}
+ await S.pruneHandoffs(c.id,h.id,openTabIds).catch(()=>{/* Keep the new handoff on cleanup failure. */});
  return h;
 }
 async function announce(tabId){const h=(await S.all('handoffs')).find(h=>h.targetTabId===tabId&&h.state==='target_opened');if(h)await api.tabs.sendMessage(tabId,{type:'tl:handoffAvailable'}).catch(()=>{});}
@@ -388,7 +400,7 @@ async function handle(msg,sender){
 async function handleRunMessage(msg,run){
  if(msg.type==='tl:snapshot'){
   C.check(msg.snapshot?.source?.conversationId===run.source.conversationId&&msg.snapshot?.source?.origin===run.source.origin,'SNAPSHOT_SOURCE_MISMATCH');
-  C.check(new TextEncoder().encode(JSON.stringify(msg.snapshot)).byteLength <= 24 * 1024 ** 2, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
+  C.check(new TextEncoder().encode(JSON.stringify(msg.snapshot)).byteLength <= C.BYTE_LIMITS.persistedSnapshotJson, 'SNAPSHOT_MESSAGE_SIZE_LIMIT');
   await S.snapshot(run.captureId,msg.snapshot);const c=await S.get('captures',run.captureId);await S.set('captures',{...c,live:run.live});const rows=await S.assets(run.captureId);return{savedKeys:rows.filter(a=>a.state==='saved').map(a=>a.key)};
  }
  if(msg.type==='tl:assetBegin'){await S.beginAsset(run.captureId,msg.key);return{ok:true};}

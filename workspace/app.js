@@ -59,6 +59,8 @@
  Object.assign(errors,{INVALID_CONTEXT_SOURCES:'上下文来源选择无效，请重新选择本地档案。',CONTEXT_SOURCE_NOT_READY:'所选档案尚未准备好，请完成保存或换一份档案。',PASSAGE_SELECTION_REQUIRED:'请先选择要使用的重点片段。',PASSAGE_REANCHOR_SOURCE_MISMATCH:'片段所在对话已经变化，请返回原档案重新定位。',USER_CONFIRMATION_REQUIRED:'请先勾选人工核对确认；这并不代表模型已读取附件。',HANDOFF_NOT_PREPARED:'接续包尚未准备，请先检查历史与文件。',REGENERATE_HANDOFF_AFTER_CHANGES:'接续选项已经变化，请重新准备历史与文件。',EXTENSION_UNAVAILABLE:'扩展后台暂时无响应，请刷新工作区；如仍失败，请重启扩展。',HANDOFF_ALREADY_OPENED:'已经打开此接续包的新聊天，不会重复打开。',NO_VISIBLE_MESSAGES:'当前对话没有可访问的消息，不能生成快照。',SAVE_SCOPE_CHANGED:'保存期间文件范围已更改；未使用过期选择，请重新开始保存。',LIVE_SAVE_MODE_CHANGED:'保存期间实时缓存选项已更改；请重新开始保存。',TAB_CLOSED:'来源标签页已关闭，请重新选择对话。',DOCUMENT_ID_INVALID:'原页面已重载，请重新打开来源对话。',INJECT_FAILED:'无法注入读取脚本，请检查扩展网站权限。',IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS:'本地存储升级被其他 ChatFlow 窗口阻挡；请关闭其他扩展工作区后重试。',STARTUP_FAILED:'扩展启动未完成，请检查存储权限并重新打开工作区。',FF_CRITERIA_REQUIRED:'请填写判断依据后再提交。'});
  Object.assign(errors,{
   HANDOFF_NOT_CONFIRMED:'自动接续未能确认具体原因。请检查新聊天已有草稿和附件，再手动补齐；不会自动重试或发送。',
+  HANDOFF_OLD_TARGET_STILL_OPEN:'原接续标签页仍打开，可能已有未发送草稿或附件。请先点“查看新聊天”检查并保存必要内容，关闭原标签页后再重新准备；不会同时打开第二份草稿。',
+  HANDOFF_TARGET_CHECK_UNAVAILABLE:'无法确认原接续标签页是否已关闭。为避免两份草稿，已拒绝重试。请检查浏览器标签页后再试。',
   TARGET_NAVIGATION_UNCONFIRMED:'无法确认新聊天已正确打开。请检查目标标签页，必要时手动打开新聊天并使用接续文件。',
   COMPOSER_NOT_READY:'新聊天输入框未准备好。请先确认 ChatGPT 页面已加载，再手动粘贴接续内容。',
   COMPOSER_UNAVAILABLE_OR_AMBIGUOUS:'无法唯一识别新聊天输入框，自动预填已停止。请使用接续文件手动继续。',
@@ -530,7 +532,7 @@
   const previous=handoffId&&await S.get('handoffs',handoffId);
   const same=previous&&planFingerprint===frozenFingerprint;
   if(same&&['injection_blocked','partial_injection'].includes(previous.state)){
-   if(!window.confirm('旧聊天可能已有草稿或附件。请先核对原标签页；重新准备不会删除旧标签页，也不会自动发送。确认继续？'))return;
+   if(!window.confirm('旧标签页可能仍保留完整草稿和附件。请先使用“查看新聊天”核对。若仍打开，系统将拒绝重试；请妥善保存内容并关闭旧标签页后再试。不会自动清除、重传或发送。确认已核对？'))return;
   }
   status('正在校验接续文件。');
   const capture=await S.get('captures',selectedId);C.check(capture?.snapshot,'CAPTURE_NOT_READY');

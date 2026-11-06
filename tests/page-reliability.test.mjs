@@ -102,7 +102,7 @@ function captureHarness(fetcher, scope) {
     JSON: { parse(text) { parsed += 1; return JSON.parse(text); } },
     document: {}, location: { href: identity.origin + '/c/source-A' }, fetch: fetcher,
     TLPageScope: scope || { current: () => ({ status: 'unavailable', root: null }), contains: () => false },
-    TLCore: { check(ok, code) { if (!ok) throw Error(code); }, safeName: value => value },
+    TLCore: { BYTE_LIMITS:{rawConversationJson:32*1024**2,persistedSnapshotJson:24*1024**2}, check(ok, code) { if (!ok) throw Error(code); }, safeName: value => value },
     ChatFlowProviders: { identify: () => ({ identity }), get: () => ({ readEndpoint: path => new URL(path, identity.origin) }) },
     chrome: { runtime: { id: 'test', onMessage: { addListener() {} } } }
   });

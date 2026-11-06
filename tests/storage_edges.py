@@ -208,16 +208,20 @@ async def main():
               const blob=await S.putBlob(new Blob(['shared bytes retained for active handoff']));
               const files=[{sha256:blob.sha256,size:blob.size}],old=new Date(Date.now()-25*day).toISOString();
               const mk=(id,state,createdAt)=>({id,captureId,createdAt,state,files,batches:[[0]],missing:[]});
-              await S.set('handoffs',mk('old-blocked','injection_blocked',old));
+              await S.set('handoffs',mk('old-prepared','prepared',old));
+              await S.set('handoffs',{...mk('old-closed','injection_blocked',old),targetTabId:78});
               await S.set('handoffs',mk('old-claimed','claimed',old));
               await S.set('handoffs',{...mk('old-bound','injection_blocked',old),targetTabId:77});
               await S.set('handoffs',mk('recent-prepared','prepared',new Date().toISOString()));
               const before=await S.handoffsForCapture(captureId);
-              const removed=await S.pruneHandoffs(captureId,'recent-prepared');
+              // An unavailable tab list cannot certify that a blocked target is gone.
+              const unverified=await S.pruneHandoffs(captureId,'recent-prepared');
+              const blockedAfterUnverified=(await S.handoffsForCapture(captureId)).filter(h=>h.state==='injection_blocked').length;
+              const verified=await S.pruneHandoffs(captureId,'recent-prepared',[77]);
               const after=await S.handoffsForCapture(captureId);
-              return {before:before.length,removed,states:after.map(x=>x.state).sort(),blobPresent:!!(await S.get('files',blob.sha256))};
+              return {before:before.length,unverified,blockedAfterUnverified,verified,states:after.map(x=>x.state).sort(),blobPresent:!!(await S.get('files',blob.sha256))};
             }""")
-            assert prune=={'before':4,'removed':1,'states':['claimed','injection_blocked','prepared'],'blobPresent':True},prune
+            assert prune=={'before':5,'unverified':1,'blockedAfterUnverified':2,'verified':1,'states':['claimed','injection_blocked','prepared'],'blobPresent':True},prune
             result['cases'].append({'name':'v6_capture_index_prunes_only_stale_unclaimed_without_losing_shared_bytes','result':'pass'})
             result['status']='pass'
             for case in result['cases']:print('PASS',case['name'],flush=True)
