@@ -68,9 +68,9 @@ async def main():
         nav=await page.evaluate("""() => {
           const button=document.querySelector('.nav-settings'),label=button.querySelector('.nav-label');
           return {active:button.getAttribute('aria-current'),button:getComputedStyle(button).textDecorationLine,
-            label:getComputedStyle(label).textDecorationLine,icon:getComputedStyle(button,'::before').display};
+            label:getComputedStyle(label).textDecorationLine,iconDecoration:getComputedStyle(button,'::before').textDecorationLine};
         }""")
-        assert nav=={'active':'page','button':'none','label':'underline','icon':'inline-block'},nav
+        assert nav=={'active':'page','button':'none','label':'underline','iconDecoration':'none'},nav
        value=await page.evaluate(CHECK);value.update({'view':view,'scheme':scheme,'result':'fail' if value['documentWidth']>width+2 or value['failures'] else 'pass'})
        if (width==360 and scheme=='dark') or (width==1440 and scheme=='light'):await page.screenshot(path=str(OUT/f'ui-{view}-{scheme}-{width}.png'),full_page=True)
        report['cases'].append(value)
