@@ -15,9 +15,27 @@ test('workspace error codes are actionable without exposing raw failures',()=>{
  assert.match(explain(new Error('IDB_UPGRADE_BLOCKED_CLOSE_OTHER_WINDOWS')),/关闭其他/);
  assert.match(explain(new Error('REGENERATE_HANDOFF_AFTER_CHANGES')),/重新准备/);
  assert.match(explain(new Error('NO_VISIBLE_MESSAGES')),/没有可访问/);
+ assert.match(explain(new Error('COMPOSER_NOT_READY')),/输入框未准备/);
+ assert.match(explain(new Error('USER_DRAFT_PRESENT')),/草稿|不会覆盖/);
+ assert.match(explain(new Error('HANDOFF_NOT_CONFIRMED')),/核对|接续未能确认/);
+ assert.match(explain(new Error('HANDOFF_FILE_HASH_MISMATCH')),/文件校验失败/);
  assert.doesNotMatch(explain(new Error('UNMAPPED_SAMPLE_CODE')),/UNMAPPED_SAMPLE_CODE/);
  assert.match(explain(new Error('UNMAPPED_SAMPLE_CODE')),/操作未完成/);
  assert.doesNotMatch(explain(new Error('PRIVATE_TOKEN=secret')),/secret|PRIVATE_TOKEN/);
+});
+test('manual handoff always exposes a native link, verified prompt copy and selectable fallback',()=>{
+ const html=read('workspace/index.html'),app=read('workspace/app.js');
+ assert.match(html,/id="manual-handoff"/);
+ assert.match(html,/id="open-manual-chat" href="https:\/\/chatgpt\.com\/"[^>]+rel="noopener noreferrer"/);
+ assert.match(html,/id="copy-handoff-prompt"/);
+ assert.match(app,/async function copyHandoffPrompt\(\)/);
+ assert.match(app,/await navigator\.clipboard\.writeText\(h\.prompt\)/);
+ assert.match(app,/range\.selectNodeContents\(prompt\)/);
+ assert.match(app,/HANDOFF_SOURCE_CHANGED/);
+ const flow=read('workspace/flow.js');
+ assert.match(flow,/TLStore\.all\('handoffs'\)/);
+ assert.match(flow,/savedHandoffFailures:priorFailures/);
+ assert.doesNotMatch(flow,/prompt:h\.prompt|sourceConversationId:h\.sourceConversationId/);
 });
 test('experiment backend maps known validation failures to stable safe codes',()=>{
  const code=functionFrom('src/tl-service.js','function errorCode(e)','const trusted','errorCode');

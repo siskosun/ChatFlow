@@ -161,6 +161,7 @@ function openHandoff(id,sender,context){
    return updated;
   }catch(e){
    await S.set('handoffs',{...updated,state:'injection_blocked',lastError:'TARGET_NAVIGATION_UNCONFIRMED'}).catch(()=>{});
+   await TLDiagnostics.record('handoff-inject',new Error('TARGET_NAVIGATION_UNCONFIRMED'));
    throw new Error('TARGET_NAVIGATION_UNCONFIRMED');
   }
  });
@@ -209,7 +210,10 @@ async function applyHandoffEvidence(msg,sender){
  const code=/^[A-Z0-9_]{1,100}$/.test(msg.code||'')?msg.code:null;
  const updated={...h,...(evidence?{fileEvidence:evidence}:{}),state:terminal?msg.state:h.state,
   lastError:code,reportedAt:new Date().toISOString()};
- await S.set('handoffs',updated);return updated;
+ await S.set('handoffs',updated);
+ if(terminal&&['injection_blocked','partial_injection'].includes(msg.state))
+  await TLDiagnostics.record('handoff-inject',new Error(code||'HANDOFF_NOT_CONFIRMED'));
+ return updated;
 }
 const QUICK_SELECTION_KEY = 'cfPendingSelectedTask';
 const quickSelectionWrites = new Map(), quickSelectionRequests = new Map();

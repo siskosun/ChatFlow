@@ -77,9 +77,18 @@
       <button id="prepare" type="button" class="primary full">生成接续材料</button>
     </div>
     <div id="handoff-result" hidden>
-      <div class="result-card"><p id="handoff-state" role="status"></p><details id="staging-details"><summary>查看待上传文件</summary><div id="staging" class="list"></div></details>
+      <div class="result-card"><p id="handoff-state" role="status"></p><p id="handoff-recovery" class="handoff-recovery" hidden></p><details id="staging-details"><summary>查看待上传文件</summary><div id="staging" class="list"></div></details>
         <button id="open-target" type="button" class="primary full">打开新对话</button>
         <div class="secondary-actions"><button id="focus-target" type="button" class="quiet">查看新聊天</button><button id="download-handoff" type="button" class="quiet">下载全部接续文件</button></div>
+        <details id="manual-handoff" class="advanced compact">
+          <summary>手动接续（不依赖自动预填）</summary>
+          <div class="secondary-actions">
+            <button id="copy-handoff-prompt" type="button" class="quiet">复制接续提示</button>
+            <a id="open-manual-chat" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" class="file-button quiet">打开普通新聊天</a>
+          </div>
+          <p id="manual-copy-status" role="status" aria-live="polite"></p>
+          <p class="hint">下载并解压接续文件，逐项上传需要的附件，最后由你手动发送。</p>
+        </details>
       </div>
       <details class="advanced"><summary>查看接续提示</summary><pre id="prompt"></pre></details>
       <details class="advanced"><summary>上传核对</summary>
