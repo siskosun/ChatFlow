@@ -336,7 +336,12 @@
     session.pageLabel = n('span', '', { 'aria-live':'polite' });
     for (const [button, direction] of [[session.pagePrev,-1],[session.pageNext,1]]) button.onclick = () => {
       session.jump += 1; session.navigationController?.abort();
-      session.page += direction; render(session, {keepCursor:true});
+      session.page += direction;
+      // The first next/previous press after manual pagination must navigate
+      // within the displayed page, not jump back to an old/global cursor.
+      session.cursor = direction > 0 ? session.page * PAGE_SIZE - 1 :
+        Math.min(session.matches.length, (session.page + 1) * PAGE_SIZE);
+      render(session, {keepCursor:true});
     };
     session.pageNav.append(session.pagePrev, session.pageLabel, session.pageNext);
     const extra = n('details'), summary = n('summary', '导出所选回合与公式复制');

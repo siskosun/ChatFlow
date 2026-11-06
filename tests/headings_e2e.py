@@ -96,7 +96,15 @@ async def main():
                 assert await pages.locator('span').inner_text()=='第 3 / 3 页'
                 assert await plain_tools.locator('.row').count()==12
                 assert 'Question number 262' in ' '.join(await plain_tools.locator('.row button').all_text_contents())
-                report['cases'].append({'name':'timeline_all_questions_accessible_beyond_first_page','result':'pass'})
+                # Navigation after manual paging must start from the visible
+                # page, not the first global match or a previously clicked row.
+                await plain_tools.get_by_role('button',name='下一条',exact=True).click()
+                assert await pages.locator('span').inner_text()=='第 3 / 3 页'
+                await pages.get_by_role('button',name='上一页').click()
+                assert await pages.locator('span').inner_text()=='第 2 / 3 页'
+                await plain_tools.get_by_role('button',name='上一条',exact=True).click()
+                assert await pages.locator('span').inner_text()=='第 2 / 3 页'
+                report['cases'].append({'name':'timeline_full_pagination_and_local_next_previous_cursor','result':'pass'})
                 await plain_query.fill('Question number 0')
                 assert await plain_tools.locator('.cf-headings').count()==0
                 assert await plain_tools.locator('.row').count()==1
