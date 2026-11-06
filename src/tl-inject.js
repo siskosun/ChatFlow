@@ -199,7 +199,7 @@
         if(confirmed)break;
       }
       await report('tl:handoffStatus',confirmed?'upload_confirmed':'upload_unknown');
-      notice((confirmed?'\u7f51\u9875\u663e\u793a\u9996\u6279\u9644\u4ef6\u5c31\u7eea\uff08\u4e0d\u4ee3\u8868\u6a21\u578b\u5df2\u8bfb\u53d6\uff09\u3002':'\u9644\u4ef6\u7ed3\u679c\u5c1a\u672a\u5168\u90e8\u786e\u8ba4\uff0c\u8bf7\u67e5\u770b\u9010\u6587\u4ef6\u72b6\u6001\u3002')+'\u8bf7\u6838\u5bf9\u540e\u624b\u52a8\u53d1\u9001\u3002'+(handoff.remainingBatches?'\u53e6\u6709 '+handoff.remainingBatches+' \u6279\u5f85\u624b\u52a8\u8865\u5145\u3002':''));
+      notice((confirmed?'网页显示首批附件就绪（不代表模型已读取）。':'网页未提供足够的附件就绪证据，可能是名称截断或缺少上传状态；请在新聊天人工核对。')+'核对后请手动发送。'+(handoff.remainingBatches?'另有 '+handoff.remainingBatches+' 批待手动补充。':''));
     }catch(error){
       if(attempted)evidence=evidence.map(row=>({...row,state:'unknown',basis:null}));
       try{await report('tl:handoffStatus',attempted?'partial_injection':'injection_blocked',code(error));}
