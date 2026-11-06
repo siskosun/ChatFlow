@@ -653,6 +653,21 @@ async def main():
             assert await workspace.evaluate("()=>getSelection().toString()===document.querySelector('#prompt').textContent")
             passed('manual_handoff_keeps_exact_prompt_copyable_without_injection_or_clobber')
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
+            # A partial injection allows both per-file and batch user attestations.
+            await workspace.evaluate("""async id=>{
+              const h=await TLStore.get('handoffs',id);
+              await TLStore.set('handoffs',{...h,state:'partial_injection',targetTabId:12345});
+            }""",prepared_id)
+            await wait_async(workspace,"()=>document.querySelector('#handoff-state').textContent.includes('注入未完整确认')")
+            summary=workspace.locator('#handoff-view details.advanced summary').filter(has_text='上传核对')
+            await summary.click()
+            await workspace.locator('#confirmed').check()
+            await wait_async(workspace,"()=>!document.querySelector('#confirm-upload').disabled")
+            await workspace.locator('#confirm-upload').click()
+            await wait_async(workspace,"async()=> (await TLStore.get('handoffs','%s'))?.state==='user_verified_upload'"%prepared_id)
+            attest=await workspace.evaluate("async id=>TLStore.get('handoffs',id)",prepared_id)
+            assert set(attest['userFileChecks'])==set(attest['batches'][0])
+            passed('partial_injection_batch_attestation_requires_explicit_checkbox_and_matches_file_controls')
             # A previously prepared package must not survive a source-branch change.
             await workspace.get_by_role('button',name='我的档案').click()
             await workspace.locator('#archive-branch').select_option(alternate_value)
