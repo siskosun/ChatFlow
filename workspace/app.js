@@ -400,7 +400,25 @@
   const actions=node('div',null,'actions');actions.append(next,backup,fileInput('对照官方 ZIP',async file=>{status('正在本地读取官方导出，未识别格式不会被当作文件不存在。');const report=await A.compareOfficial(c.id,file);await download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),'official-comparison.json');status('对照完成：'+report.records.filter(x=>x.result==='bytes_match').length+'/'+report.records.length+' 个文件字节一致。详情见下载报告。');}));
   if(c.live)actions.append(button('停止实时缓存',async()=>{await call('tl:stop',{captureId:c.id});await renderDetail();}));
   el.append(actions);
-  if(snapshot.integrity.issues.length){const d=node('details');d.append(node('summary','分支与内容完整性问题：'+snapshot.integrity.issues.length+' 项'),node('pre',JSON.stringify(snapshot.integrity.issues,null,2)));el.append(d);}
+  if(snapshot.integrity.issues.length){
+   const issueLabels={INVALID_NODE:'存在无法读取的对话节点',DUPLICATE_CHILD:'存在重复的分支关系',
+    DUPLICATE_MESSAGE_ID:'消息编号重复',BROKEN_PARENT:'部分回复的上级节点缺失',
+    PARENT_CHILD_MISMATCH:'上级和下级的分支关系不一致',
+    CHILD_PARENT_MISMATCH:'子节点和上级的分支关系不一致',
+    PARENT_CYCLE:'分支关系出现循环',MISSING_CURRENT_NODE:'无法确认归档时所在的分支',
+    UNREACHABLE_NODE:'部分消息不属于可访问的分支',
+    CONTENT_REFERENCE_LIMIT:'引用信息超出可核验范围',
+    UNRESOLVED_CONTENT_REFERENCE:'部分内容引用无法对应有效来源'};
+   const box=node('section',null,'integrity-summary');
+   box.append(node('strong','发现 '+snapshot.integrity.issues.length+' 项分支或内容完整性问题'));
+   const list=node('ul');
+   for(const issue of snapshot.integrity.issues.slice(0,30))
+    list.append(node('li',issueLabels[issue.code]||'有一项结构或引用问题尚无法自动解释'));
+   box.append(list);
+   if(snapshot.integrity.issues.length>30)box.append(node('p','另有 '+(snapshot.integrity.issues.length-30)+' 项，请展开技术详情查看。','hint'));
+   const detail=node('details');detail.append(node('summary','查看技术详情'),node('pre',JSON.stringify(snapshot.integrity.issues,null,2)));
+   box.append(detail);el.append(box);
+  }
   el.append(node('h3','选择本次接续需要的原始文件'));
   const fileDetails=node('details');fileDetails.append(node('summary','选择要带到新聊天的原始附件'));
   const fileList=node('div',null,'list');
@@ -544,7 +562,7 @@
   if(!handoffId)return;const h=await S.get('handoffs',handoffId);if(!h)return;
   const source=await S.get('captures',h.captureId),snapshotMatches=!!source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash,branchMatches=!!source?.snapshot&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]);
   const fresh=snapshotMatches&&branchMatches;
-  const fileLabels={prepared:'\u672c\u5730\u5b57\u8282\u5df2\u6821\u9a8c\uff0c\u672a\u786e\u8ba4\u4ea4\u7ed9\u7f51\u9875',offered:'\u5df2\u5c1d\u8bd5\u4ea4\u7ed9\u7f51\u9875',page_ready:'\u7f51\u9875\u66fe\u663e\u793a\u5c31\u7eea\uff08\u4ec5\u9875\u9762\u89c2\u5bdf\uff09',unknown:'\u7f51\u9875\u72b6\u6001\u672a\u77e5',user_checked:'\u7528\u6237\u5df2\u6838\u5bf9\uff08\u4e0d\u4ee3\u8868\u5df2\u53d1\u9001\uff09',legacy_unverified:'\u65e7\u8bb0\u5f55\u65e0\u9010\u6587\u4ef6\u8bc1\u636e'};
+  const fileLabels={prepared:'\u672c\u5730\u5b57\u8282\u5df2\u6821\u9a8c\uff0c\u672a\u786e\u8ba4\u4ea4\u7ed9\u7f51\u9875',offered:'\u5df2\u5c1d\u8bd5\u4ea4\u7ed9\u7f51\u9875',page_ready:'\u7f51\u9875\u66fe\u663e\u793a\u5c31\u7eea\uff08\u4ec5\u9875\u9762\u89c2\u5bdf\uff09',unknown:'网页未提供足够证据，无法自动确认（附件名可能截断）。请在新聊天人工核对',user_checked:'\u7528\u6237\u5df2\u6838\u5bf9\uff08\u4e0d\u4ee3\u8868\u5df2\u53d1\u9001\uff09',legacy_unverified:'\u65e7\u8bb0\u5f55\u65e0\u9010\u6587\u4ef6\u8bc1\u636e'};
   for(const label of $('staging').querySelectorAll('[data-file-evidence]')){const index=Number(label.dataset.fileEvidence),proof=TLEvidence.fileReport(h,index);label.textContent=fileLabels[proof.state]+(proof.observedAt?' \u00b7 '+new Date(proof.observedAt).toLocaleString():'');label.dataset.evidenceState=proof.state;}
   for(const control of $('staging').querySelectorAll('[data-verify-file]')){
    const checked=TLEvidence.fileReport(h,Number(control.dataset.verifyFile)).state==='user_checked';
