@@ -58,6 +58,7 @@ test('nested visible scroll containers form one source, distinct peers and mixed
   const foreign=root('source-B');foreign.parentElement=outer;foreign.attrs['data-chatgpt-selection-conversation-id']='source-B';
   outer.children.push(foreign);state.roots=[outer,inner,foreign];
   assert.equal(context.TLPageScope.current().status,'ambiguous','mixed identities must not be assigned to the current source');
+  outer.children=outer.children.filter(node=>node!==foreign);
   state.roots=[outer,root('source-A')];
   assert.equal(context.TLPageScope.current().status,'ambiguous','independent same-id roots remain ambiguous');
 });
