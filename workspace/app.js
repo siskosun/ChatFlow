@@ -458,7 +458,7 @@
   handoffId=h.id;planFingerprint=frozenFingerprint;await renderHandoff(h);status('接续包已准备。将只在新的普通聊天中操作，发送由你完成。');
  }
  async function renderHandoff(h){
-  $('handoff-result').hidden=false;$('prepare').hidden=true;$('staging-details').open=false;$('prompt').textContent=h.prompt;$('confirmed').checked=false;$('open-target').disabled=h.state!=='prepared';$('focus-target').disabled=!h.targetTabId;
+  $('handoff-result').hidden=false;$('prepare').hidden=true;$('staging-details').open=false;$('manual-handoff').open=false;$('manual-copy-status').textContent='';$('prompt').textContent=h.prompt;$('confirmed').checked=false;$('open-target').disabled=h.state!=='prepared';$('focus-target').disabled=!h.targetTabId;
   const box=$('staging');box.replaceChildren();staged=new Map();
   for(let batch=0;batch<h.batches.length;batch++){
    box.append(node('h3','第 '+(batch+1)+' 批（'+h.batches[batch].length+' 个文件）'));
@@ -490,6 +490,7 @@
   const message=(labels[h.state]||'状态待确认')+(reason?' · '+reason:'')+(h.batches.length>1?'；还有 '+(h.batches.length-1)+' 批待手动上传':'')+(!fresh?'；来源已变化，请重新准备':'');if($('handoff-state').textContent!==message)$('handoff-state').textContent=message;
   const recovery=$('handoff-recovery');
   recovery.hidden=!blocked;
+  if(blocked)$('manual-handoff').open=true;
   recovery.textContent=!blocked?'':h.state==='partial_injection'?
    '草稿或部分附件可能已经进入新聊天。先点击“查看新聊天”核对，避免重复上传；再用“下载全部接续文件”手动补齐缺失内容。不会自动重试或发送。':
    '本次自动预填未完成确认。先点击“查看新聊天”核对已有草稿与附件，再用“下载全部接续文件”手动继续。不会自动重试或发送。';
@@ -502,6 +503,29 @@
   const mayConfirm=fresh&&['upload_unknown','upload_confirmed','draft_prepared'].includes(h.state);
   $('confirm-upload').dataset.allowed=String(mayConfirm);
   $('confirm-upload').disabled=!mayConfirm||!$('confirmed').checked;
+ }
+ // Copy only the selected, source-validated prepared prompt. Never paste into
+ // ChatGPT or overwrite a destination draft; the browser owns the clipboard.
+ async function copyHandoffPrompt(){
+  C.check(handoffId,'HANDOFF_NOT_PREPARED');
+  const h=await S.get('handoffs',handoffId),source=h&&await S.get('captures',h.captureId);
+  C.check(h?.prompt&&h.prompt===$('prompt').textContent,'HANDOFF_NOT_PREPARED');
+  C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');
+  const label=$('manual-copy-status');
+  try {
+   if(!navigator.clipboard?.writeText)throw new Error('CLIPBOARD_UNAVAILABLE');
+   await navigator.clipboard.writeText(h.prompt);
+   label.textContent='已复制接续提示。请在新聊天粘贴，并核对文件后手动发送。';
+  }catch {
+   // A denied clipboard write must never look successful. Give a standard,
+   // selectable DOM fallback even when the native clipboard API is disabled.
+   const prompt=$('prompt');prompt.closest('details').open=true;
+   const range=document.createRange(),selection=window.getSelection();
+   C.check(selection,'CLIPBOARD_UNAVAILABLE');
+   range.selectNodeContents(prompt);selection.removeAllRanges();selection.addRange(range);
+   prompt.scrollIntoView({block:'nearest'});
+   label.textContent='浏览器未允许自动复制。已选中接续提示，请按 Ctrl+C 复制；仍需手动粘贴并核对附件。';
+  }
  }
  async function downloadHandoff(){
   C.check(handoffId,'HANDOFF_NOT_PREPARED');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');const entries=[];
@@ -523,6 +547,7 @@
  $('restore').onchange=()=>guard(async()=>{const input=$('restore'),f=input.files?.[0];if(!f)return;status('正在检查备份…');try{const restored=await A.restoreVerified(f);await choose(restored.id);switchView('archive');status(restored.verified?'档案已导入并通过数据库回读校验。':explain(new Error(restored.code||'RESTORE_READBACK_FAILED')),!restored.verified);await quota();}finally{input.value='';}});
  $('open-target').onclick=singleFlight('open-target',async()=>{C.check(planFingerprint===fingerprint(),'REGENERATE_HANDOFF_AFTER_CHANGES');const h=await S.get('handoffs',handoffId),source=await S.get('captures',h.captureId);C.check(source?.snapshot&&TLPassages.snapshotHash(source.snapshot)===h.snapshotHash&&JSON.stringify(selectedBranchNodes(source))===JSON.stringify(h.branchNodeIds||[]),'HANDOFF_SOURCE_CHANGED');const context=await currentWorkspaceWindow();await call('tl:openHandoff',{id:handoffId,...context});await renderHandoffState();status('新聊天已打开。请核对文件，再由你手动发送。');});
  $('focus-target').onclick=()=>guard(()=>call('tl:focusTarget',{id:handoffId}));$('download-handoff').onclick=()=>guard(downloadHandoff);
+ $('copy-handoff-prompt').onclick=()=>guard(copyHandoffPrompt);
  $('confirmed').addEventListener('change',()=>{$('confirm-upload').disabled=!$('confirmed').checked||$('confirm-upload').dataset.allowed!=='true';});
  $('confirm-upload').onclick=singleFlight('confirm-upload',async()=>{C.check($('confirmed').checked,'USER_CONFIRMATION_REQUIRED');await call('tl:confirmUpload',{id:handoffId,confirmed:true});await renderHandoffState();status('已记录首批上传的人工核对。未代你发送消息，也未认证模型已完整读取。');});
  $('persist').onclick=()=>guard(async()=>{const yes=await navigator.storage.persist();status(yes?'浏览器已允许保留本地存储。仍建议下载独立 ZIP。':'浏览器未授予持久化存储。请保留独立 ZIP 备份。');await quota();});

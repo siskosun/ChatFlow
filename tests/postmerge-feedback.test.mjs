@@ -23,6 +23,16 @@ test('workspace error codes are actionable without exposing raw failures',()=>{
  assert.match(explain(new Error('UNMAPPED_SAMPLE_CODE')),/操作未完成/);
  assert.doesNotMatch(explain(new Error('PRIVATE_TOKEN=secret')),/secret|PRIVATE_TOKEN/);
 });
+test('manual handoff always exposes a native link, verified prompt copy and selectable fallback',()=>{
+ const html=read('workspace/index.html'),app=read('workspace/app.js');
+ assert.match(html,/id="manual-handoff"/);
+ assert.match(html,/id="open-manual-chat" href="https:\/\/chatgpt\.com\/"[^>]+rel="noopener noreferrer"/);
+ assert.match(html,/id="copy-handoff-prompt"/);
+ assert.match(app,/async function copyHandoffPrompt\(\)/);
+ assert.match(app,/await navigator\.clipboard\.writeText\(h\.prompt\)/);
+ assert.match(app,/range\.selectNodeContents\(prompt\)/);
+ assert.match(app,/HANDOFF_SOURCE_CHANGED/);
+});
 test('experiment backend maps known validation failures to stable safe codes',()=>{
  const code=functionFrom('src/tl-service.js','function errorCode(e)','const trusted','errorCode');
  assert.equal(code(new Error('criteria required')),'FF_CRITERIA_REQUIRED');

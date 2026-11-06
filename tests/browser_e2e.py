@@ -262,7 +262,8 @@ async def main():
                     assert await workspace.locator('#settings-live-panel').is_visible()
                 else:
                     assert await workspace.locator('#settings-view').is_visible()
-                    assert await workspace.locator('#settings-view details.advanced').first.evaluate('(e)=>e.open')
+                    assert await workspace.locator('#diagnostic-status').is_visible()
+                    assert '本地已用' in await workspace.locator('#quota').inner_text()
             await workspace.locator('[data-view="settings"]').click()
             await workspace.locator('#settings-view [data-view="home"]').click()
             await workspace.locator('#home-view [data-view="capture"]').click()
@@ -602,11 +603,29 @@ async def main():
             await wait_async(workspace,'()=>!document.querySelector("#prepare").hidden&&document.querySelector("#open-target").hidden',timeout=12000)
             assert await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).is_visible()
             assert await workspace.locator('#handoff-recovery').is_visible()
+            assert await workspace.locator('#manual-handoff').evaluate('(d)=>d.open')
             assert '已有草稿' in await workspace.locator('#handoff-state').inner_text()
             assert '不会自动重试或发送' in await workspace.locator('#handoff-recovery').inner_text()
             await workspace.locator('#handoff-view').get_by_role('button',name='重新生成接续材料',exact=True).click()
             await wait_async(workspace,'()=>document.querySelector("#prepare").hidden&&!document.querySelector("#open-target").hidden&&!document.querySelector("#open-target").disabled',timeout=30000)
             assert await workspace.locator('#handoff-recovery').is_hidden()
+            assert not await workspace.locator('#manual-handoff').evaluate('(d)=>d.open')
+            # Fully manual flow remains usable without touching ChatGPT's DOM.
+            assert await workspace.locator('#open-manual-chat').get_attribute('href')=='https://chatgpt.com/'
+            assert 'noopener' in await workspace.locator('#open-manual-chat').get_attribute('rel')
+            await workspace.locator('#manual-handoff summary').click()
+            await workspace.evaluate("""() => Object.defineProperty(navigator,'clipboard',{configurable:true,
+              value:{writeText:async text=>{globalThis.manualCopied=text;}}})""")
+            await workspace.locator('#copy-handoff-prompt').click()
+            assert await workspace.evaluate("()=>globalThis.manualCopied===document.querySelector('#prompt').textContent")
+            assert '已复制' in await workspace.locator('#manual-copy-status').inner_text()
+            # Rejected clipboard writes must expose selectable source, not claim success.
+            await workspace.evaluate("""() => Object.defineProperty(navigator,'clipboard',{configurable:true,
+              value:{writeText:async()=>{throw new DOMException('denied','NotAllowedError')}}})""")
+            await workspace.locator('#copy-handoff-prompt').click()
+            assert '已选中' in await workspace.locator('#manual-copy-status').inner_text()
+            assert await workspace.evaluate("()=>getSelection().toString()===document.querySelector('#prompt').textContent")
+            passed('manual_handoff_keeps_exact_prompt_copyable_without_injection_or_clobber')
             passed('blocked_handoff_has_an_explicit_reprepare_path_without_automatic_retry')
             # A previously prepared package must not survive a source-branch change.
             await workspace.get_by_role('button',name='我的档案').click()

@@ -473,3 +473,10 @@ body { overflow-x: clip; }
 #diagnostic-technical {max-width:100%;min-width:0}
 #diagnostic-technical>summary {cursor:pointer;min-height:38px;padding:7px 0;color:var(--muted);font-size:13px}
 #diagnostic-technical pre {max-height:220px;overflow:auto;white-space:pre-wrap}
+
+#manual-handoff {margin:16px 0 0}
+#manual-handoff .secondary-actions {justify-content:flex-start;padding:5px 0 7px}
+#manual-handoff .secondary-actions > * {flex:1 1 160px;min-width:0}
+#manual-handoff .file-button {text-align:center}
+#manual-copy-status {margin:8px 0;color:var(--ink);font-size:13px;line-height:1.6}
+#manual-copy-status:empty {display:none}
